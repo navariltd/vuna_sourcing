@@ -53,3 +53,8 @@ jspm_packages/
 
 # Aider AI Chat
 .aider*
+.claude/*
+
+# Frontend build artifacts
+vuna_sourcing/www/sourcing.html
+
