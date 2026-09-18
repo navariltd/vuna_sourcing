@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { FrappeUIProvider } from 'frappe-ui'
+import { FrappeUIProvider } from "frappe-ui";
 </script>
 
 <template>
-  <FrappeUIProvider>
-    <RouterView />
-  </FrappeUIProvider>
+	<FrappeUIProvider>
+		<RouterView />
+	</FrappeUIProvider>
 </template>
