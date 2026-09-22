@@ -5,22 +5,14 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing.api.portal import check_party_access, get_linked_parties, get_session
+from vuna_sourcing.tests import make_test_user
 
 
 class TestPortalAccess(IntegrationTestCase):
 	"""Both halves of the rule: the role, and the portal_users row."""
 
 	def make_user(self, roles=()):
-		user = frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": f"{frappe.generate_hash(length=10)}@example.com",
-				"first_name": "Portal",
-				"send_welcome_email": 0,
-				"roles": [{"role": role} for role in roles],
-			}
-		).insert(ignore_permissions=True)
-		return user.name
+		return make_test_user(roles, first_name="Portal").name
 
 	def make_supplier(self, portal_users=()):
 		group = frappe.get_all("Supplier Group", filters={"is_group": 0}, limit=1, pluck="name")[0]

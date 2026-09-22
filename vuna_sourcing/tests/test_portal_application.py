@@ -19,6 +19,7 @@ from vuna_sourcing.api.onboarding import (
 	submit_application,
 )
 from vuna_sourcing.api.portal import get_linked_parties, get_session
+from vuna_sourcing.tests import make_test_user
 
 REQUEST = "Party Onboarding Request"
 
@@ -127,18 +128,7 @@ class TestPortalApplication(IntegrationTestCase):
 
 	def make_applicant(self, roles=()):
 		"""A prospective supplier or customer: a plain signup with no roles, unless told otherwise."""
-		user = frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": f"{frappe.generate_hash(length=10)}@example.com",
-				"first_name": "Amina",
-				"last_name": "Otieno",
-				"send_welcome_email": 0,
-				"user_type": "Website User",
-				"roles": [{"role": role} for role in roles],
-			}
-		).insert(ignore_permissions=True)
-		return user.name
+		return make_test_user(roles, first_name="Amina", last_name="Otieno", user_type="Website User").name
 
 	def contact(self, **overrides):
 		return {
@@ -685,15 +675,7 @@ class TestPortalApplication(IntegrationTestCase):
 	def test_the_same_certificate_may_back_both_applications(self):
 		"""Identical files share a stored blob; each reviewer can still approve their own side."""
 		applicant = self.make_applicant()
-		sales = frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": f"{frappe.generate_hash(length=10)}@example.com",
-				"first_name": "Sales",
-				"send_welcome_email": 0,
-				"roles": [{"role": "Sales Master Manager"}],
-			}
-		).insert(ignore_permissions=True)
+		sales = make_test_user(["Sales Master Manager"], first_name="Sales")
 
 		supplier = self.complete_and_submit(applicant, "Supplier")
 		frappe.get_doc(REQUEST, supplier["name"]).approve()

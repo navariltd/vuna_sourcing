@@ -6,6 +6,8 @@ import base64
 import frappe
 from frappe.tests import IntegrationTestCase
 
+from vuna_sourcing.tests import make_test_user
+
 # These tests run against whatever company, currency and country the site already has.
 # Generating ERPNext's test records here would drag in its accounting fixtures, which
 # clash with the live data on a configured site.
@@ -171,19 +173,7 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		return request
 
 	def make_user(self, roles):
-		return (
-			frappe.get_doc(
-				{
-					"doctype": "User",
-					"email": f"{frappe.generate_hash(length=10)}@example.com",
-					"first_name": "Reviewer",
-					"send_welcome_email": 0,
-					"roles": [{"role": role} for role in roles],
-				}
-			)
-			.insert(ignore_permissions=True)
-			.name
-		)
+		return make_test_user(roles, first_name="Reviewer").name
 
 	# ------------------------------------------------------------------
 	# Template driven checklist
