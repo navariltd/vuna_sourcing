@@ -86,7 +86,7 @@ app_include_js = "vuna_sourcing.bundle.js"
 # ------------
 
 # before_install = "vuna_sourcing.install.before_install"
-after_install = "vuna_sourcing.install.after_install"
+# after_install = "vuna_sourcing.install.after_install"
 
 # Uninstallation
 # ------------
