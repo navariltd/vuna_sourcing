@@ -23,10 +23,16 @@ def execute():
 			rename_field(doctype, old, new)
 
 	for doctype in (REQUEST, TEMPLATE):
-		frappe.db.sql(f"update `tab{doctype}` set party_type = 'Supplier' where ifnull(party_type, '') = ''")
+		frappe.db.set_value(
+			doctype, {"party_type": ("is", "not set")}, "party_type", "Supplier", update_modified=False
+		)
 
-	frappe.db.sql(
-		"update `tabParty Document Type` set applies_to = 'Supplier and Customer' where ifnull(applies_to, '') = ''"
+	frappe.db.set_value(
+		"Party Document Type",
+		{"applies_to": ("is", "not set")},
+		"applies_to",
+		"Supplier and Customer",
+		update_modified=False,
 	)
 
 	if frappe.db.has_column(REQUEST, "contact_first_name"):
@@ -59,10 +65,8 @@ def move_contacts_and_addresses():
 		"address_country",
 		"address",
 	)
-	rows = frappe.db.sql(
-		"select name, {} from `tab{}`".format(", ".join(f"`{c}`" for c in columns), REQUEST),
-		as_dict=True,
-	)
+	table = frappe.qb.DocType(REQUEST)
+	rows = frappe.qb.from_(table).select(table.name, *(table[c] for c in columns)).run(as_dict=True)
 
 	for old in rows:
 		if frappe.db.exists("Party Onboarding Contact", {"parent": old.name}) or frappe.db.exists(

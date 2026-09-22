@@ -52,7 +52,7 @@ def registration_is_open() -> bool:
 	)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True)  # nosemgrep
 def get_signup_context() -> ApiResponse[SignupContext]:
 	is_open = registration_is_open()
 	branding = get_app_branding()
@@ -69,7 +69,7 @@ def get_signup_context() -> ApiResponse[SignupContext]:
 	)
 
 
-@frappe.whitelist(allow_guest=True, methods=["POST"])
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep
 @rate_limit(limit=5, seconds=60 * 60, ip_based=True)
 def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupResult]:
 	if not registration_is_open():

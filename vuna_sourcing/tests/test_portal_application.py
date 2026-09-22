@@ -756,19 +756,15 @@ class TestPortalApplication(IntegrationTestCase):
 		self.assertEqual(visible[theirs["name"]]["party_type"], "Customer")
 		self.assertNotIn(mine["name"], visible, "one applicant must not see another's application")
 
-	def test_applicants_read_their_own_requests_through_frappe_permissions(self):
-		"""The All role's read-if-owner row is what scopes get_list — no ignore_permissions."""
-		mine_user, other_user = self.make_applicant(), self.make_applicant()
-		with self.set_user(other_user):
-			theirs = save_application(self.base_values())
-
-		with self.set_user(mine_user):
+	def test_applicants_hold_no_frappe_read_on_requests(self):
+		"""Reads go through the owner-scoped portal API only — nothing via /api/resource or get_list."""
+		applicant = self.make_applicant()
+		with self.set_user(applicant):
 			mine = save_application(self.base_values())
-			listed = frappe.get_list(REQUEST, pluck="name")
-			self.assertIn(mine["name"], listed)
-			self.assertNotIn(theirs["name"], listed)
-			self.assertTrue(frappe.get_doc(REQUEST, mine["name"]).has_permission("read"))
-			self.assertFalse(frappe.get_doc(REQUEST, theirs["name"]).has_permission("read"))
+			self.assertFalse(frappe.has_permission(REQUEST, "read"))
+			self.assertFalse(frappe.get_doc(REQUEST, mine["name"]).has_permission("read"))
+			self.assertRaises(frappe.PermissionError, frappe.get_list, REQUEST)
+			self.assertIn(mine["name"], [row["name"] for row in get_my_applications()])
 
 	def test_approved_parties_cannot_write_requests_around_the_portal_api(self):
 		"""Supplier and Customer roles once carried write, create and submit — a way past the field whitelist."""
@@ -789,7 +785,7 @@ class TestPortalApplication(IntegrationTestCase):
 				self.assertRaises(frappe.PermissionError, crafted.insert)
 
 				self.assertIn(
-					submitted["name"], frappe.get_list(REQUEST, pluck="name"), "still reads their own"
+					submitted["name"], [row["name"] for row in get_my_applications()], "still sees their own"
 				)
 
 	def test_an_applicant_cannot_open_someone_elses_application(self):

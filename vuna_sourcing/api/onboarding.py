@@ -166,7 +166,6 @@ def get_onboarding_types() -> list[dict]:
 			"require_shipping_address",
 		],
 		order_by="is_default desc, name asc",
-		ignore_permissions=True,
 	)
 
 	usable = {party_type: set(get_document_types_for(party_type)) for party_type in open_party_types}
@@ -177,7 +176,6 @@ def get_onboarding_types() -> list[dict]:
 			filters={"parent": template.name, "parenttype": TEMPLATE_DOCTYPE},
 			fields=["document_type", "is_mandatory", "description", "has_expiry"],
 			order_by="idx asc",
-			ignore_permissions=True,
 		)
 		template["documents"] = [r for r in rows if r.document_type in usable[template.party_type]]
 
@@ -209,8 +207,9 @@ def get_upload_rules(document_type: str | None = None) -> dict:
 def get_my_applications() -> list[dict]:
 	get_current_user()
 
-	return frappe.get_list(
+	return frappe.get_all(
 		DOCTYPE,
+		filters={"owner": frappe.session.user},
 		fields=[
 			"name",
 			"party_type",

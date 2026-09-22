@@ -120,7 +120,7 @@ class PartyOnboardingRequest(Document):
 			),
 		)
 
-	def on_cancel(self):
+	def before_cancel(self):
 		if self.party:
 			frappe.throw(
 				_("{0} was already created from this request. Cancel is not allowed.").format(

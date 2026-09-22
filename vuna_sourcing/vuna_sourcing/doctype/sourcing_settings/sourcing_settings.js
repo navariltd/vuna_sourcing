@@ -31,7 +31,7 @@ function show_signup_link(frm) {
 			},
 		});
 
-		const as = (data.party_types || []).map((p) => __(p).toLowerCase()).join(__(" or "));
+		const as = (data.party_types || []).map((p) => __(p).toLowerCase()).join(` ${__("or")} `);
 		const note = data.is_open
 			? __("Anyone with this link can create an account and apply to become a {0}.", [
 					as || __("supplier or customer"),

@@ -633,6 +633,15 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 
 		self.assertRaises(frappe.ValidationError, request.cancel)
 
+	def test_cancelling_a_pending_request_records_it_as_returned(self):
+		"""Set in before_cancel: anything set in on_cancel is never written."""
+		request = self.submitted_request()
+		request.cancel()
+
+		self.assertEqual(
+			frappe.db.get_value(REQUEST, request.name, "onboarding_status"), "Returned for Correction"
+		)
+
 	def test_verification_stamps_reviewer(self):
 		request = self.submitted_request()
 		request.required_documents[0].is_verified = 1
