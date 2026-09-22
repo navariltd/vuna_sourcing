@@ -8,25 +8,25 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "vuna_sourcing",
-# 		"logo": "/assets/vuna_sourcing/logo.png",
-# 		"title": "Vuna Sourcing",
-# 		"route": "/vuna_sourcing",
-# 		"has_permission": "vuna_sourcing.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "vuna_sourcing",
+		"logo": "/assets/vuna_sourcing/images/sourcing-logo-256.png",
+		"title": "Vuna Sourcing",
+		"route": "/sourcing",
+		"has_permission": "vuna_sourcing.api.permission.has_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/vuna_sourcing/css/vuna_sourcing.css"
-# app_include_js = "/assets/vuna_sourcing/js/vuna_sourcing.js"
+app_include_js = "vuna_sourcing.bundle.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/vuna_sourcing/css/vuna_sourcing.css"
@@ -176,7 +176,7 @@ app_license = "mit"
 # Testing
 # -------
 
-# before_tests = "vuna_sourcing.install.before_tests"
+before_tests = "vuna_sourcing.setup.test_setup.before_tests"
 
 # Extend DocType Class
 # ------------------------------
@@ -251,7 +251,7 @@ app_license = "mit"
 # ]
 
 # Automatically update python controller files with type annotations for this app.
-# export_python_type_annotations = True
+export_python_type_annotations = True
 
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
@@ -263,7 +263,6 @@ app_license = "mit"
 # ignore_translatable_strings_from = []
 
 
-# Vue portal (frontend source in /portal, built with frappe-ui)
 website_route_rules = [
 	{"from_route": "/sourcing/<path:app_path>", "to_route": "sourcing"},
 ]

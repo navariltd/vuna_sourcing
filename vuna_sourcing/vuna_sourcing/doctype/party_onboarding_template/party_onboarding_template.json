@@ -1,0 +1,252 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:template_name",
+ "creation": "2026-09-18 16:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "party_type",
+  "entity_type",
+  "disabled",
+  "column_break_main",
+  "supplier_group",
+  "customer_group",
+  "territory",
+  "default_currency",
+  "payment_terms",
+  "is_default",
+  "section_description",
+  "description",
+  "section_required_details",
+  "require_tax_id",
+  "require_registration_number",
+  "column_break_details",
+  "require_bank_details",
+  "require_shipping_address",
+  "section_documents",
+  "required_documents"
+ ],
+ "fields": [
+  {
+   "description": "The supplier type as the business names it, for example Company, Partnership, Sole Proprietor, NGO. Adding a type is a matter of adding a template here.",
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Onboarding Type",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Offered to applicants applying as this party.",
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Party Type",
+   "options": "\nSupplier\nCustomer",
+   "reqd": 1
+  },
+  {
+   "description": "Company, Individual or Partnership \u2014 the Supplier's or Customer's own type.",
+   "fieldname": "entity_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Entity Type",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.party_type == 'Supplier'",
+   "description": "Applied to the Supplier created on approval.",
+   "fieldname": "supplier_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplier Group",
+   "options": "Supplier Group"
+  },
+  {
+   "depends_on": "eval:doc.party_type == 'Customer'",
+   "fieldname": "customer_group",
+   "fieldtype": "Link",
+   "label": "Customer Group",
+   "options": "Customer Group"
+  },
+  {
+   "depends_on": "eval:doc.party_type == 'Customer'",
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "label": "Territory",
+   "options": "Territory"
+  },
+  {
+   "fieldname": "default_currency",
+   "fieldtype": "Link",
+   "label": "Default Billing Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "payment_terms",
+   "fieldtype": "Link",
+   "label": "Payment Terms",
+   "options": "Payment Terms Template"
+  },
+  {
+   "default": "0",
+   "description": "Suggested first to applicants applying as this party type.",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "label": "Default Template"
+  },
+  {
+   "fieldname": "section_description",
+   "fieldtype": "Section Break",
+   "label": "Guidance"
+  },
+  {
+   "description": "Shown to the applicant when they pick this supplier type.",
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_required_details",
+   "fieldtype": "Section Break",
+   "label": "Required Details"
+  },
+  {
+   "default": "1",
+   "fieldname": "require_tax_id",
+   "fieldtype": "Check",
+   "label": "Tax Registration Number Required"
+  },
+  {
+   "default": "1",
+   "fieldname": "require_registration_number",
+   "fieldtype": "Check",
+   "label": "Company Registration Number Required"
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Suppliers are always asked, optionally. Customers are only asked when this is ticked.",
+   "fieldname": "require_bank_details",
+   "fieldtype": "Check",
+   "label": "Bank Details Required"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.party_type == 'Customer'",
+   "description": "The applicant must give at least one address goods are delivered to. It may be the billing address.",
+   "fieldname": "require_shipping_address",
+   "fieldtype": "Check",
+   "label": "Delivery Address Required"
+  },
+  {
+   "fieldname": "section_documents",
+   "fieldtype": "Section Break",
+   "label": "Required Supporting Documents"
+  },
+  {
+   "fieldname": "required_documents",
+   "fieldtype": "Table",
+   "label": "Required Supporting Documents",
+   "options": "Party Onboarding Document Requirement"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "Party Onboarding Request",
+   "link_fieldname": "onboarding_template"
+  }
+ ],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "Party Onboarding Template",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Master Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Master Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase User",
+   "share": 1,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1,
+   "write": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "show_name_in_global_search": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
