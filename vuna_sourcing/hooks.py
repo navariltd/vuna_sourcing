@@ -176,7 +176,7 @@ app_include_js = "vuna_sourcing.bundle.js"
 # Testing
 # -------
 
-# before_tests = "vuna_sourcing.install.before_tests"
+before_tests = "vuna_sourcing.setup.test_setup.before_tests"
 
 # Extend DocType Class
 # ------------------------------
