@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import now_datetime
 
 from vuna_sourcing.install import apply_single_defaults
@@ -34,7 +35,7 @@ def before_tests():
 		)
 
 		if not frappe.db.a_row_exists("Company"):
-			frappe.throw("ERPNext setup wizard did not create a Company; see the Error Log for the cause.")
+			frappe.throw(_("ERPNext setup wizard did not create a Company; see the Error Log for the cause."))
 
 	apply_single_defaults("Sourcing Settings")
 	frappe.db.commit()  # nosemgrep
