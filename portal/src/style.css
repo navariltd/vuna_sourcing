@@ -1,1 +1,31 @@
-@import 'frappe-ui/style.css';
+@import "frappe-ui/style.css";
+
+html {
+	font-feature-settings:
+		"calt" 1,
+		"cv01" 1,
+		"cv11" 1;
+}
+
+body {
+	-webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+	touch-action: manipulation;
+}
+
+@layer components {
+	.card {
+		@apply rounded-6 border border-outline-gray-1 bg-surface-base;
+	}
+
+	.card-muted {
+		@apply rounded-6 border border-outline-gray-1 bg-surface-gray-1;
+	}
+
+	.row-interactive {
+		@apply rounded-4 transition-colors hover:bg-surface-gray-2;
+	}
+}

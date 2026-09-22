@@ -1,0 +1,117 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 22:40:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "first_name",
+  "last_name",
+  "designation",
+  "column_break_contact",
+  "email_id",
+  "mobile_no",
+  "section_role",
+  "is_primary_contact",
+  "column_break_role",
+  "is_billing_contact",
+  "section_created",
+  "contact"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "First Name"
+  },
+  {
+   "columns": 2,
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Last Name"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "label": "Designation"
+  },
+  {
+   "fieldname": "column_break_contact",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email Address",
+   "options": "Email"
+  },
+  {
+   "columns": 2,
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mobile Number",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "section_role",
+   "fieldtype": "Section Break",
+   "label": "Role"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Who we deal with day to day. Exactly one per request.",
+   "fieldname": "is_primary_contact",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Primary"
+  },
+  {
+   "fieldname": "column_break_role",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Receives invoices, statements and remittances.",
+   "fieldname": "is_billing_contact",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Billing"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_created",
+   "fieldtype": "Section Break",
+   "label": "Created Record"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "contact",
+   "fieldtype": "Link",
+   "label": "Contact",
+   "no_copy": 1,
+   "options": "Contact",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-21 22:40:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "Party Onboarding Contact",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

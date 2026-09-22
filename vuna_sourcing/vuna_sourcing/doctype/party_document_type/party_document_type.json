@@ -1,0 +1,178 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:document_name",
+ "creation": "2026-09-18 16:00:00",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_name",
+  "disabled",
+  "applies_to",
+  "column_break_main",
+  "has_expiry",
+  "expiry_reminder_days",
+  "section_description",
+  "description",
+  "section_upload_rules",
+  "allowed_file_types",
+  "column_break_upload",
+  "max_file_size_mb"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Document Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "default": "Supplier and Customer",
+   "description": "Which onboarding types may ask for this document.",
+   "fieldname": "applies_to",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applies To",
+   "options": "Supplier and Customer\nSupplier\nCustomer"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Tick for documents that lapse, for example a Business License.",
+   "fieldname": "has_expiry",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Has Expiry Date"
+  },
+  {
+   "default": "30",
+   "depends_on": "has_expiry",
+   "description": "Days before expiry at which a reminder should be raised.",
+   "fieldname": "expiry_reminder_days",
+   "fieldtype": "Int",
+   "label": "Expiry Reminder (Days)"
+  },
+  {
+   "fieldname": "section_description",
+   "fieldtype": "Section Break",
+   "label": "Guidance"
+  },
+  {
+   "description": "Shown to the applicant so they know exactly what to upload.",
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_upload_rules",
+   "fieldtype": "Section Break",
+   "label": "Upload Rules"
+  },
+  {
+   "description": "Comma separated extensions, for example <code>pdf, jpg, png</code>. Leave blank to fall back to Sourcing Settings.",
+   "fieldname": "allowed_file_types",
+   "fieldtype": "Data",
+   "label": "Allowed File Types"
+  },
+  {
+   "fieldname": "column_break_upload",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Leave as 0 to fall back to Sourcing Settings.",
+   "fieldname": "max_file_size_mb",
+   "fieldtype": "Float",
+   "label": "Maximum File Size (MB)",
+   "precision": "2"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-21 22:40:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "Party Document Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Master Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Master Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase User",
+   "share": 1,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1,
+   "write": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "show_name_in_global_search": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
