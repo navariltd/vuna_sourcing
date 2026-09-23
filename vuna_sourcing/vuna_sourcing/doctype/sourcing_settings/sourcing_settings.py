@@ -92,7 +92,7 @@ class SourcingSettings(Document):
 		from vuna_sourcing.utils import get_open_party_types
 
 		return {
-			"url": get_url("/sourcing/signup"),
+			"url": get_url("/vuna-sourcing/signup"),
 			"is_open": registration_is_open(),
 			"registration_mode": self.registration_mode,
 			"party_types": get_open_party_types(),

@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     // frontendRoute builds into ../vuna_sourcing/public/frontend and copies
     // index.html to ../vuna_sourcing/www/portal.html (served at /portal)
-    frappeui({ frontendRoute: '/sourcing' }),
+    frappeui({ frontendRoute: '/vuna-sourcing' }),
     vue(),
   ],
   resolve: {
