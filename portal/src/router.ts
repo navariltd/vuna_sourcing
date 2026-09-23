@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import { session } from '@/data/session'
 import { usePortalStore } from '@/stores/portal'
 
-export const BASE_PATH = '/sourcing'
+export const BASE_PATH = '/vuna-sourcing'
 
 const routes: RouteRecordRaw[] = [
   {

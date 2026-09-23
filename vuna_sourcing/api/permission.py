@@ -11,7 +11,21 @@ DESK_ROLES = (
 	"System Manager",
 )
 
-PORTAL_ROLES = ("Supplier", "Customer")
+PORTAL_USER_ROLE = "Sourcing Portal User"
+
+PORTAL_ROLES = ("Supplier", "Customer", PORTAL_USER_ROLE)
+
+
+def create_portal_user_role() -> None:
+	if not frappe.db.exists("Role", PORTAL_USER_ROLE):
+		frappe.get_doc(
+			{
+				"doctype": "Role",
+				"role_name": PORTAL_USER_ROLE,
+				"desk_access": 0,
+				"home_page": "/vuna-sourcing",
+			}
+		).insert(ignore_permissions=True)
 
 
 def has_app_permission() -> bool:

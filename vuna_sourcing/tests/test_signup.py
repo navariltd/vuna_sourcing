@@ -5,6 +5,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing import APP_NAME
+from vuna_sourcing.api.permission import PORTAL_USER_ROLE, has_app_permission
 from vuna_sourcing.api.response import ApiResponse, ResponseStatus
 from vuna_sourcing.api.signup import get_signup_context, sign_up
 from vuna_sourcing.utils import get_app_branding
@@ -160,6 +161,15 @@ class TestSignup(IntegrationTestCase):
 		self.assertTrue(user.enabled)
 		self.assertTrue(user.send_welcome_email)
 		self.assertEqual(user.default_app, APP_NAME, "marks them as having come via the portal")
+
+	def test_a_new_signup_holds_the_portal_role(self):
+		"""The key to the portal, granted at signup — approval is what adds Supplier or Customer."""
+		email = self.new_email()
+		sign_up("Amina", "Otieno", email)
+
+		self.assertIn(PORTAL_USER_ROLE, frappe.get_roles(email))
+		with self.set_user(email):
+			self.assertTrue(has_app_permission(), "and with it, the app on the apps screen")
 
 	def test_a_new_signup_holds_no_party_role(self):
 		email = self.new_email()

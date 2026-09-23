@@ -85,8 +85,7 @@ app_include_js = "vuna_sourcing.bundle.js"
 # Installation
 # ------------
 
-# before_install = "vuna_sourcing.install.before_install"
-# after_install = "vuna_sourcing.install.after_install"
+after_install = "vuna_sourcing.setup.app_setup.after_install"
 
 # Uninstallation
 # ------------
@@ -264,5 +263,5 @@ export_python_type_annotations = True
 
 
 website_route_rules = [
-	{"from_route": "/sourcing/<path:app_path>", "to_route": "sourcing"},
+	{"from_route": "/vuna-sourcing/<path:app_path>", "to_route": "vuna-sourcing"},
 ]
