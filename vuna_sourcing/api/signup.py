@@ -10,6 +10,7 @@ from frappe.utils import cint, escape_html, validate_email_address
 from frappe.website.utils import is_signup_disabled
 
 from vuna_sourcing import APP_NAME
+from vuna_sourcing.api.permission import PORTAL_USER_ROLE
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.utils import get_app_branding, get_open_party_types
 
@@ -106,7 +107,9 @@ def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupRe
 
 	_check_signup_ceiling()
 
-	user = frappe.get_doc(
+	from frappe.core.doctype.user.user import User
+
+	user: User = frappe.get_doc(
 		{
 			"doctype": "User",
 			"email": email,
@@ -116,8 +119,10 @@ def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupRe
 			"user_type": "Website User",
 			"send_welcome_email": 1,
 			"default_app": APP_NAME,
+			"roles": [{"role": PORTAL_USER_ROLE}],
 		}
 	)
+
 	user.flags.ignore_permissions = True
 	user.insert()
 

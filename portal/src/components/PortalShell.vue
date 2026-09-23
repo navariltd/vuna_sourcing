@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import {
 	Avatar,
+	BottomSheet,
+	Button,
 	DesktopShell,
 	Dropdown,
+	MobileNav,
+	MobileNavItem,
+	MobileShell,
 	Sidebar,
 	SidebarHeader,
 	SidebarItem,
@@ -12,10 +17,12 @@ import {
 	SidebarRail,
 	SidebarRailItem,
 } from "frappe-ui";
+import { useIsMobile } from "@/composables/useViewport";
 import { partyKey, usePortalStore } from "@/stores/portal";
 import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
 import { PARTY_COPY } from "@/data/parties";
+import PartySwitcher from "@/components/PartySwitcher.vue";
 
 const portal = usePortalStore();
 const route = useRoute();
@@ -24,9 +31,12 @@ const showRail = computed(() => portal.parties.length > 1);
 
 const activeKey = computed(() => (portal.activeParty ? partyKey(portal.activeParty) : null));
 
-const headerTitle = computed(() => portal.activeParty?.title ?? "Sourcing Portal");
+const headerTitle = computed(() =>
+	portal.isMultiParty ? "Sourcing Portal" : portal.activeParty?.title ?? "Sourcing Portal"
+);
 
 const headerSubtitle = computed(() => {
+	if (portal.isMultiParty) return portal.user?.full_name;
 	if (portal.activeParty) return portal.activeParty.party_type;
 	return portal.isApplicant ? "Application in progress" : portal.user?.full_name;
 });
@@ -50,10 +60,62 @@ const userMenu = computed(() => [
 function switchParty(party: Party) {
 	portal.setActiveParty(party);
 }
+
+const isMobile = useIsMobile();
+
+const accountSheet = ref(false);
+
+const canApply = computed(() => portal.canApply && portal.partyTypesToJoin.length > 0);
+
+const accountActions = computed(() =>
+	userMenu.value.filter((item) => !item.condition || item.condition())
+);
+
+function runAccountAction(action: () => void) {
+	accountSheet.value = false;
+	action();
+}
 </script>
 
 <template>
-	<DesktopShell>
+	<MobileShell v-if="isMobile">
+		<PartySwitcher
+			class="sticky top-0 z-10 border-b border-outline-gray-2 bg-surface-white px-4 py-2"
+		/>
+
+		<RouterView :key="route.fullPath" />
+
+		<template #nav>
+			<MobileNav>
+				<MobileNavItem
+					v-if="portal.hasParties"
+					label="Overview"
+					icon="lucide-layout-dashboard"
+					:route="{ name: 'PortalOverview' }"
+				/>
+				<MobileNavItem
+					label="Applications"
+					icon="lucide-folder-clock"
+					:route="{ name: 'ApplicationList' }"
+				/>
+				<MobileNavItem
+					v-if="canApply"
+					label="Apply"
+					icon="lucide-file-pen-line"
+					:route="{ name: 'ApplicationForm' }"
+				/>
+				<MobileNavItem label="You" :active="accountSheet" @click="accountSheet = true">
+					<Avatar
+						:image="portal.user?.image || undefined"
+						:label="portal.user?.full_name || '?'"
+						size="sm"
+					/>
+				</MobileNavItem>
+			</MobileNav>
+		</template>
+	</MobileShell>
+
+	<DesktopShell v-else>
 		<template v-if="showRail" #rail>
 			<SidebarRail class="gap-2 !bg-surface-gray-4">
 				<SidebarRailItem
@@ -101,6 +163,8 @@ function switchParty(party: Party) {
 						/>
 					</template>
 				</SidebarHeader>
+
+				<PartySwitcher class="px-2 pb-1" />
 
 				<div class="flex-1 overflow-y-auto px-2 py-1">
 					<SidebarItem
@@ -164,4 +228,33 @@ function switchParty(party: Party) {
 
 		<RouterView :key="route.fullPath" />
 	</DesktopShell>
+
+	<BottomSheet v-if="isMobile" v-model:open="accountSheet" title="Account">
+		<div class="px-4 pb-6">
+			<div class="flex items-center gap-3">
+				<Avatar
+					:image="portal.user?.image || undefined"
+					:label="portal.user?.full_name || '?'"
+					size="lg"
+				/>
+				<div class="min-w-0">
+					<p class="truncate text-base font-medium text-ink-gray-8">
+						{{ portal.user?.full_name }}
+					</p>
+					<p class="truncate text-sm text-ink-gray-5">{{ portal.user?.email }}</p>
+				</div>
+			</div>
+
+			<div class="mt-4 flex flex-col gap-2">
+				<Button
+					v-for="action in accountActions"
+					:key="action.label"
+					:label="action.label"
+					:icon-left="action.icon"
+					size="md"
+					@click="runAccountAction(action.onClick)"
+				/>
+			</div>
+		</div>
+	</BottomSheet>
 </template>

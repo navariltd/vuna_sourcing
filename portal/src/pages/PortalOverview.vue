@@ -39,7 +39,7 @@ const details = computed(() => {
 		:title="portal.activeParty?.title || 'Overview'"
 		:subtitle="
 			portal.isMultiParty
-				? 'Switch between the businesses you act for using the rail on the left.'
+				? 'Switch between the businesses you act for at the top of the sidebar.'
 				: undefined
 		"
 	>

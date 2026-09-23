@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createResource } from 'frappe-ui'
 
+import { PARTY_TYPES } from '@/data/parties'
 import type { PartyType } from '@/data/parties'
 
 export type { PartyType }
@@ -44,8 +45,30 @@ export function initials(text: string) {
     .join('')
 }
 
+function recallKey(email: string) {
+  return `vuna-sourcing:last-party:${email}`
+}
+
+function recall(email: string): string | null {
+  try {
+    return window.localStorage.getItem(recallKey(email))
+  } catch {
+    return null
+  }
+}
+
+function remember(email: string, key: string) {
+  try {
+    window.localStorage.setItem(recallKey(email), key)
+  } catch {
+    return
+  }
+}
+
 export const usePortalStore = defineStore('portal', () => {
   const activePartyKey = ref<string | null>(null)
+
+  const lastKeyByType = ref<Partial<Record<PartyType, string>>>({})
 
   const session = createResource({
     url: 'vuna_sourcing.api.portal.get_session',
@@ -53,8 +76,19 @@ export const usePortalStore = defineStore('portal', () => {
     onSuccess(data: PortalSession) {
       const keys = data.parties.map(partyKey)
       if (!activePartyKey.value || !keys.includes(activePartyKey.value)) {
-        activePartyKey.value = data.parties.length ? partyKey(data.parties[0]!) : null
+        const remembered = recall(data.user.email)
+        activePartyKey.value =
+          remembered && keys.includes(remembered)
+            ? remembered
+            : data.parties.length
+              ? partyKey(data.parties[0]!)
+              : null
       }
+      for (const party of data.parties) {
+        lastKeyByType.value[party.party_type] ??= partyKey(party)
+      }
+      const active = data.parties.find((p) => partyKey(p) === activePartyKey.value)
+      if (active) lastKeyByType.value[active.party_type] = partyKey(active)
     },
   })
 
@@ -81,8 +115,30 @@ export const usePortalStore = defineStore('portal', () => {
   const hasParties = computed(() => parties.value.length > 0)
   const isMultiParty = computed(() => parties.value.length > 1)
 
+  const partyTypesJoined = computed<PartyType[]>(() =>
+    PARTY_TYPES.filter((type) => parties.value.some((p) => p.party_type === type)),
+  )
+
+  function partiesOfType(type: PartyType) {
+    return parties.value.filter((p) => p.party_type === type)
+  }
+
+  const activeSiblings = computed(() =>
+    activeParty.value ? partiesOfType(activeParty.value.party_type) : [],
+  )
+
   function setActiveParty(party: Party) {
     activePartyKey.value = partyKey(party)
+    lastKeyByType.value[party.party_type] = partyKey(party)
+    const email = user.value?.email
+    if (email) remember(email, partyKey(party))
+  }
+
+  function switchToType(type: PartyType) {
+    const candidates = partiesOfType(type)
+    if (!candidates.length) return
+    const remembered = candidates.find((p) => partyKey(p) === lastKeyByType.value[type])
+    setActiveParty(remembered ?? candidates[0]!)
   }
 
   function reset() {
@@ -106,7 +162,11 @@ export const usePortalStore = defineStore('portal', () => {
     customers,
     activeParty,
     activePartyKey,
+    activeSiblings,
+    partyTypesJoined,
+    partiesOfType,
     setActiveParty,
+    switchToType,
     isApplicant,
     canApply,
     openPartyTypes,

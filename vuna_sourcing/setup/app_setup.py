@@ -3,8 +3,11 @@
 
 import frappe
 
+from vuna_sourcing.api.permission import create_portal_user_role
 
-def after_install():
+
+def after_install() -> None:
+	create_portal_user_role()
 	apply_single_defaults("Sourcing Settings")
 
 
