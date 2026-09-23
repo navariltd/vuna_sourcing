@@ -16,7 +16,7 @@ add_to_apps_screen = [
 		"name": "vuna_sourcing",
 		"logo": "/assets/vuna_sourcing/images/sourcing-logo-256.png",
 		"title": "Vuna Sourcing",
-		"route": "/sourcing",
+		"route": "/vuna-sourcing",
 		"has_permission": "vuna_sourcing.api.permission.has_app_permission",
 	}
 ]
