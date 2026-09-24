@@ -48,6 +48,21 @@ class SourcingFixtures:
 		).insert(ignore_permissions=True)
 		return supplier.name, user
 
+	def make_customer(self):
+		user = make_test_user(["Customer"], first_name="Customer").name
+		customer = frappe.get_doc(
+			{
+				"doctype": "Customer",
+				"customer_name": "_Test Portal Customer " + frappe.generate_hash(length=6),
+				"customer_group": frappe.get_all(
+					"Customer Group", filters={"is_group": 0}, limit=1, pluck="name"
+				)[0],
+				"territory": frappe.get_all("Territory", filters={"is_group": 0}, limit=1, pluck="name")[0],
+				"portal_users": [{"user": user}],
+			}
+		).insert(ignore_permissions=True)
+		return customer.name, user
+
 	def make_rfq(self, suppliers, required_by=None, qty=5):
 		doc = frappe.get_doc(
 			{

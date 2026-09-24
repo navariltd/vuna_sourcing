@@ -57,12 +57,12 @@ export const PURCHASE_INVOICE_STATUS_THEME: Record<string, BadgeTheme> = {
 };
 
 export const purchaseOrderList = createResource({
-  url: "vuna_sourcing.api.purchase_order.get_purchase_orders",
+  url: "vuna_sourcing.api.transactions.supplier.get_purchase_orders",
   auto: false,
 });
 
 export const purchaseInvoiceList = createResource({
-  url: "vuna_sourcing.api.purchase_invoice.get_purchase_invoices",
+  url: "vuna_sourcing.api.transactions.supplier.get_purchase_invoices",
   auto: false,
 });
 
@@ -158,14 +158,14 @@ export interface PurchaseInvoice {
 
 export function createPurchaseOrderResource() {
   return createResource({
-    url: "vuna_sourcing.api.purchase_order.get_purchase_order",
+    url: "vuna_sourcing.api.transactions.supplier.get_purchase_order",
     auto: false,
   });
 }
 
 export function createPurchaseInvoiceResource() {
   return createResource({
-    url: "vuna_sourcing.api.purchase_invoice.get_purchase_invoice",
+    url: "vuna_sourcing.api.transactions.supplier.get_purchase_invoice",
     auto: false,
   });
 }

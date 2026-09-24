@@ -13,11 +13,12 @@ import {
 	Sidebar,
 	SidebarHeader,
 	SidebarItem,
-	SidebarLabel,
 	SidebarRail,
 	SidebarRailItem,
+	SidebarSection,
 } from "frappe-ui";
 import { useIsMobile } from "@/composables/useViewport";
+import { usePartySwitch } from "@/composables/usePartySwitch";
 import { partyKey, usePortalStore } from "@/stores/portal";
 import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
@@ -26,6 +27,7 @@ import PortalSettings from "@/components/PortalSettings.vue";
 
 const portal = usePortalStore();
 const route = useRoute();
+const { setActiveParty } = usePartySwitch();
 
 const showRail = computed(() => portal.parties.length > 1);
 
@@ -63,7 +65,7 @@ const userMenu = computed(() => [
 ]);
 
 function switchParty(party: Party) {
-	portal.setActiveParty(party);
+	setActiveParty(party);
 }
 
 const isMobile = useIsMobile();
@@ -74,23 +76,37 @@ const settingsOpen = ref(false);
 const canApply = computed(() => portal.canApply && portal.partyTypesToJoin.length > 0);
 
 const isSupplier = computed(() => portal.activeParty?.party_type === "Supplier");
+const isCustomer = computed(() => portal.activeParty?.party_type === "Customer");
 
-const elsewhere = computed(() =>
-	isSupplier.value
-		? [
-				{
-					label: "Supplier Quotations",
-					icon: "lucide-file-check",
-					route: { name: "SupplierQuotationList" },
-				},
-				{
-					label: "My applications",
-					icon: "lucide-folder-clock",
-					route: { name: "ApplicationList" },
-				},
-		  ]
-		: []
-);
+const myApplications = {
+	label: "My applications",
+	icon: "lucide-folder-clock",
+	route: { name: "ApplicationList" },
+};
+
+const elsewhere = computed(() => {
+	if (isSupplier.value) {
+		return [
+			{
+				label: "Supplier Quotations",
+				icon: "lucide-file-check",
+				route: { name: "SupplierQuotationList" },
+			},
+			myApplications,
+		];
+	}
+	if (isCustomer.value) {
+		return [
+			{
+				label: "Quotations",
+				icon: "lucide-file-badge",
+				route: { name: "QuotationList" },
+			},
+			myApplications,
+		];
+	}
+	return [];
+});
 
 const accountActions = computed(() =>
 	userMenu.value.filter((item) => !item.condition || item.condition())
@@ -137,13 +153,31 @@ function runAccountAction(action: () => void) {
 					:route="{ name: 'PurchaseInvoiceList' }"
 				/>
 				<MobileNavItem
-					v-if="!isSupplier"
+					v-if="isCustomer"
+					label="Orders"
+					icon="lucide-shopping-cart"
+					:route="{ name: 'SalesOrderList' }"
+				/>
+				<MobileNavItem
+					v-if="isCustomer"
+					label="Deliveries"
+					icon="lucide-truck"
+					:route="{ name: 'DeliveryNoteList' }"
+				/>
+				<MobileNavItem
+					v-if="isCustomer"
+					label="Invoices"
+					icon="lucide-receipt"
+					:route="{ name: 'SalesInvoiceList' }"
+				/>
+				<MobileNavItem
+					v-if="!isSupplier && !isCustomer"
 					label="Applications"
 					icon="lucide-folder-clock"
 					:route="{ name: 'ApplicationList' }"
 				/>
 				<MobileNavItem
-					v-if="!isSupplier && canApply"
+					v-if="!isSupplier && !isCustomer && canApply"
 					label="Apply"
 					icon="lucide-file-pen-line"
 					:route="{ name: 'ApplicationForm' }"
@@ -232,8 +266,7 @@ function runAccountAction(action: () => void) {
 						:route="{ name: 'PortalOverview' }"
 					/>
 
-					<template v-if="isSupplier">
-						<SidebarLabel divider>Sourcing</SidebarLabel>
+					<SidebarSection v-if="portal.suppliers.length" label="Buying" collapsible>
 						<SidebarItem
 							label="Request for Quotation"
 							icon="lucide-file-text"
@@ -254,21 +287,44 @@ function runAccountAction(action: () => void) {
 							icon="lucide-receipt"
 							:route="{ name: 'PurchaseInvoiceList' }"
 						/>
-					</template>
+					</SidebarSection>
 
-					<SidebarLabel divider>Onboarding</SidebarLabel>
+					<SidebarSection v-if="portal.customers.length" label="Selling" collapsible>
+						<SidebarItem
+							label="Quotations"
+							icon="lucide-file-badge"
+							:route="{ name: 'QuotationList' }"
+						/>
+						<SidebarItem
+							label="Sales Orders"
+							icon="lucide-shopping-cart"
+							:route="{ name: 'SalesOrderList' }"
+						/>
+						<SidebarItem
+							label="Delivery Notes"
+							icon="lucide-truck"
+							:route="{ name: 'DeliveryNoteList' }"
+						/>
+						<SidebarItem
+							label="Sales Invoices"
+							icon="lucide-receipt-text"
+							:route="{ name: 'SalesInvoiceList' }"
+						/>
+					</SidebarSection>
 
-					<SidebarItem
-						v-if="portal.canApply"
-						label="Onboard"
-						icon="lucide-file-pen-line"
-						:route="{ name: 'ApplicationForm' }"
-					/>
-					<SidebarItem
-						label="My applications"
-						icon="lucide-folder-clock"
-						:route="{ name: 'ApplicationList' }"
-					/>
+					<SidebarSection label="Onboarding">
+						<SidebarItem
+							v-if="portal.canApply"
+							label="Onboard"
+							icon="lucide-file-pen-line"
+							:route="{ name: 'ApplicationForm' }"
+						/>
+						<SidebarItem
+							label="My applications"
+							icon="lucide-folder-clock"
+							:route="{ name: 'ApplicationList' }"
+						/>
+					</SidebarSection>
 				</div>
 
 				<div class="border-t p-2">

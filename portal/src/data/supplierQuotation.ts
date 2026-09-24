@@ -69,13 +69,13 @@ export interface SupplierQuotation {
 }
 
 export const supplierQuotationList = createResource({
-  url: "vuna_sourcing.api.supplier_quotation.get_supplier_quotations",
+  url: "vuna_sourcing.api.transactions.supplier.get_supplier_quotations",
   auto: false,
 });
 
 export function createSupplierQuotationResource() {
   return createResource({
-    url: "vuna_sourcing.api.supplier_quotation.get_supplier_quotation",
+    url: "vuna_sourcing.api.transactions.supplier.get_supplier_quotation",
     auto: false,
   });
 }

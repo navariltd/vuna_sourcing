@@ -5,8 +5,12 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, nowdate
 
-from vuna_sourcing.api.purchase_invoice import get_purchase_invoice, get_purchase_invoices
-from vuna_sourcing.api.purchase_order import get_purchase_order, get_purchase_orders
+from vuna_sourcing.api.transactions.supplier import (
+	get_purchase_invoice,
+	get_purchase_invoices,
+	get_purchase_order,
+	get_purchase_orders,
+)
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
 
 

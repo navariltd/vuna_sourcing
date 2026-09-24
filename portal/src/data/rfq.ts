@@ -88,13 +88,13 @@ export interface RfqPage {
 export const RFQ_STATUSES: RfqStatus[] = ["Invited", "Submitted", "Declined", "Closed"];
 
 export const rfqList = createResource({
-  url: "vuna_sourcing.api.rfq.get_rfqs",
+  url: "vuna_sourcing.api.transactions.supplier.get_rfqs",
   auto: false,
 });
 
 export function createRfqResource() {
   return createResource({
-    url: "vuna_sourcing.api.rfq.get_rfq",
+    url: "vuna_sourcing.api.transactions.supplier.get_rfq",
     auto: false,
   });
 }
@@ -107,14 +107,14 @@ export function sendQuote(payload: {
   valid_till?: string | null;
 }) {
   return createResource({
-    url: "vuna_sourcing.api.rfq.send_quote",
+    url: "vuna_sourcing.api.transactions.supplier.send_quote",
     method: "POST",
   }).submit(payload);
 }
 
 export function declineQuote(name: string, supplier: string, reason: string) {
   return createResource({
-    url: "vuna_sourcing.api.rfq.decline_quote",
+    url: "vuna_sourcing.api.transactions.supplier.decline_quote",
     method: "POST",
   }).submit({ name, supplier, reason });
 }
