@@ -45,10 +45,6 @@ class TestPortalAccess(IntegrationTestCase):
 		doc.roles = [r for r in doc.roles if r.role != role]
 		doc.save(ignore_permissions=True)
 
-	# ------------------------------------------------------------------
-	# The two halves of the rule
-	# ------------------------------------------------------------------
-
 	def test_no_role_and_no_link_sees_nothing(self):
 		user = self.make_user()
 		with self.set_user(user):
@@ -59,7 +55,6 @@ class TestPortalAccess(IntegrationTestCase):
 		user = self.make_user()
 		supplier = self.make_supplier(portal_users=[user])
 
-		# ERPNext grants the role on save, so take it away to isolate the row.
 		self.strip_role(user, "Supplier")
 		self.assertTrue(
 			frappe.db.exists("Portal User", {"user": user, "parent": supplier.name}),
@@ -89,10 +84,6 @@ class TestPortalAccess(IntegrationTestCase):
 		self.assertEqual(parties[0]["name"], supplier.name)
 		self.assertEqual(parties[0]["party_type"], "Supplier")
 		self.assertEqual(parties[0]["title"], supplier.supplier_name)
-
-	# ------------------------------------------------------------------
-	# One login, several parties
-	# ------------------------------------------------------------------
 
 	def test_user_linked_to_two_suppliers_sees_both(self):
 		user = self.make_user()
@@ -127,10 +118,6 @@ class TestPortalAccess(IntegrationTestCase):
 
 		self.assertEqual([p["name"] for p in parties], [customer.name])
 		self.assertNotIn(supplier.name, [p["name"] for p in parties])
-
-	# ------------------------------------------------------------------
-	# Acting for a party
-	# ------------------------------------------------------------------
 
 	def test_check_party_access_allows_a_linked_party(self):
 		user = self.make_user()

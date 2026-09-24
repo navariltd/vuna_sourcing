@@ -21,8 +21,8 @@ import { useIsMobile } from "@/composables/useViewport";
 import { partyKey, usePortalStore } from "@/stores/portal";
 import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
-import { PARTY_COPY } from "@/data/parties";
 import PartySwitcher from "@/components/PartySwitcher.vue";
+import PortalSettings from "@/components/PortalSettings.vue";
 
 const portal = usePortalStore();
 const route = useRoute();
@@ -42,6 +42,11 @@ const headerSubtitle = computed(() => {
 });
 
 const userMenu = computed(() => [
+	{
+		label: "Settings",
+		icon: "lucide-settings",
+		onClick: () => (settingsOpen.value = true),
+	},
 	{
 		label: "Frappe Desk",
 		icon: "lucide-layout-grid",
@@ -64,8 +69,28 @@ function switchParty(party: Party) {
 const isMobile = useIsMobile();
 
 const accountSheet = ref(false);
+const settingsOpen = ref(false);
 
 const canApply = computed(() => portal.canApply && portal.partyTypesToJoin.length > 0);
+
+const isSupplier = computed(() => portal.activeParty?.party_type === "Supplier");
+
+const elsewhere = computed(() =>
+	isSupplier.value
+		? [
+				{
+					label: "Supplier Quotations",
+					icon: "lucide-file-check",
+					route: { name: "SupplierQuotationList" },
+				},
+				{
+					label: "My applications",
+					icon: "lucide-folder-clock",
+					route: { name: "ApplicationList" },
+				},
+		  ]
+		: []
+);
 
 const accountActions = computed(() =>
 	userMenu.value.filter((item) => !item.condition || item.condition())
@@ -94,12 +119,31 @@ function runAccountAction(action: () => void) {
 					:route="{ name: 'PortalOverview' }"
 				/>
 				<MobileNavItem
+					v-if="isSupplier"
+					label="RFQs"
+					icon="lucide-file-text"
+					:route="{ name: 'RfqList' }"
+				/>
+				<MobileNavItem
+					v-if="isSupplier"
+					label="Orders"
+					icon="lucide-package"
+					:route="{ name: 'PurchaseOrderList' }"
+				/>
+				<MobileNavItem
+					v-if="isSupplier"
+					label="Invoices"
+					icon="lucide-receipt"
+					:route="{ name: 'PurchaseInvoiceList' }"
+				/>
+				<MobileNavItem
+					v-if="!isSupplier"
 					label="Applications"
 					icon="lucide-folder-clock"
 					:route="{ name: 'ApplicationList' }"
 				/>
 				<MobileNavItem
-					v-if="canApply"
+					v-if="!isSupplier && canApply"
 					label="Apply"
 					icon="lucide-file-pen-line"
 					:route="{ name: 'ApplicationForm' }"
@@ -137,11 +181,18 @@ function runAccountAction(action: () => void) {
 				<div class="mt-auto flex flex-col items-center gap-2 pb-1">
 					<SidebarRailItem
 						v-if="portal.canApply"
-						label="New application"
+						label="Onboard"
 						description="Apply as a supplier or customer"
 						icon="lucide-plus"
 						variant="ghost"
 						:route="{ name: 'ApplicationForm' }"
+					/>
+					<SidebarRailItem
+						label="Settings"
+						description="Profile and preferences"
+						icon="lucide-settings"
+						variant="ghost"
+						@click="settingsOpen = true"
 					/>
 				</div>
 			</SidebarRail>
@@ -153,6 +204,13 @@ function runAccountAction(action: () => void) {
 					:title="headerTitle"
 					:subtitle="headerSubtitle || undefined"
 					:show-logo="!showRail"
+					:menu-items="[
+						{
+							label: 'Settings',
+							icon: 'lucide-settings',
+							onClick: () => (settingsOpen = true),
+						},
+					]"
 				>
 					<template v-if="!showRail" #prefix>
 						<Avatar
@@ -174,26 +232,38 @@ function runAccountAction(action: () => void) {
 						:route="{ name: 'PortalOverview' }"
 					/>
 
+					<template v-if="isSupplier">
+						<SidebarLabel divider>Sourcing</SidebarLabel>
+						<SidebarItem
+							label="Request for Quotation"
+							icon="lucide-file-text"
+							:route="{ name: 'RfqList' }"
+						/>
+						<SidebarItem
+							label="Supplier Quotations"
+							icon="lucide-file-check"
+							:route="{ name: 'SupplierQuotationList' }"
+						/>
+						<SidebarItem
+							label="Purchase Orders"
+							icon="lucide-package"
+							:route="{ name: 'PurchaseOrderList' }"
+						/>
+						<SidebarItem
+							label="Purchase Invoices"
+							icon="lucide-receipt"
+							:route="{ name: 'PurchaseInvoiceList' }"
+						/>
+					</template>
+
 					<SidebarLabel divider>Onboarding</SidebarLabel>
 
 					<SidebarItem
-						v-if="portal.canApply && !portal.hasParties"
-						label="Application"
+						v-if="portal.canApply"
+						label="Onboard"
 						icon="lucide-file-pen-line"
 						:route="{ name: 'ApplicationForm' }"
 					/>
-					<template v-else>
-						<SidebarItem
-							v-for="partyType in portal.partyTypesToJoin"
-							:key="partyType"
-							:label="`Become a ${PARTY_COPY[partyType].noun}`"
-							:icon="PARTY_COPY[partyType].icon"
-							:route="{
-								name: 'ApplicationForm',
-								query: { as: partyType.toLowerCase() },
-							}"
-						/>
-					</template>
 					<SidebarItem
 						label="My applications"
 						icon="lucide-folder-clock"
@@ -245,6 +315,21 @@ function runAccountAction(action: () => void) {
 				</div>
 			</div>
 
+			<div v-if="elsewhere.length" class="mt-4 flex flex-col gap-1">
+				<p class="px-1 pb-1 text-xs uppercase tracking-wide text-ink-gray-5">Go to</p>
+				<Button
+					v-for="link in elsewhere"
+					:key="link.label"
+					:label="link.label"
+					:icon-left="link.icon"
+					variant="ghost"
+					size="md"
+					class="!justify-start"
+					:route="link.route"
+					@click="accountSheet = false"
+				/>
+			</div>
+
 			<div class="mt-4 flex flex-col gap-2">
 				<Button
 					v-for="action in accountActions"
@@ -257,4 +342,6 @@ function runAccountAction(action: () => void) {
 			</div>
 		</div>
 	</BottomSheet>
+
+	<PortalSettings v-model:open="settingsOpen" />
 </template>

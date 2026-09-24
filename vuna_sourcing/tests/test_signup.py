@@ -14,7 +14,6 @@ from vuna_sourcing.utils import get_app_branding
 class TestSignup(IntegrationTestCase):
 	def setUp(self):
 		super().setUp()
-		# The endpoint is rate limited per IP; tests run without one.
 		frappe.local.request_ip = None
 		self.open_registration()
 
@@ -34,10 +33,6 @@ class TestSignup(IntegrationTestCase):
 
 	def new_email(self):
 		return f"{frappe.generate_hash(length=10)}@example.com"
-
-	# ------------------------------------------------------------------
-	# Branding comes from hooks, not from a second copy of the truth
-	# ------------------------------------------------------------------
 
 	def test_branding_is_read_from_hooks(self):
 		branding = get_app_branding()
@@ -99,10 +94,6 @@ class TestSignup(IntegrationTestCase):
 		self.assertEqual(context.data.logo, get_app_branding()["logo"])
 		self.assertEqual(context.data.app_title, get_app_branding()["title"])
 
-	# ------------------------------------------------------------------
-	# The two gates
-	# ------------------------------------------------------------------
-
 	def test_signup_context_says_what_an_account_can_apply_as(self):
 		self.assertEqual(get_signup_context().data.party_types, ["Supplier", "Customer"])
 
@@ -144,10 +135,6 @@ class TestSignup(IntegrationTestCase):
 		result = sign_up("Amina", "Otieno", self.new_email())
 		self.assertFalse(result.ok)
 
-	# ------------------------------------------------------------------
-	# Creating the account
-	# ------------------------------------------------------------------
-
 	def test_signup_creates_a_website_user_marked_for_this_app(self):
 		email = self.new_email()
 		result = sign_up("Amina", "Otieno", email)
@@ -184,10 +171,6 @@ class TestSignup(IntegrationTestCase):
 
 		signature = inspect.signature(sign_up)
 		self.assertEqual(list(signature.parameters), ["first_name", "last_name", "email"])
-
-	# ------------------------------------------------------------------
-	# Input handling
-	# ------------------------------------------------------------------
 
 	def test_duplicate_email_is_refused_kindly(self):
 		email = self.new_email()
