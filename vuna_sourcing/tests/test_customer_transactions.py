@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
 from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note, make_sales_invoice
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
@@ -198,3 +199,20 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(supplier_user):
 			self.assertEqual(get_sales_orders()["rows"], [])
 			self.assertRaises(frappe.PermissionError, get_sales_orders, customer)
+
+	def test_a_credit_note_is_listed_apart_from_invoices_and_linked_from_the_invoice(self):
+		customer, user = self.make_customer()
+		invoice = self.invoice(self.make_order(customer))
+		credit_note = self.save(make_sales_return(invoice.name), submit=True)
+
+		with self.set_user(user):
+			invoices = get_sales_invoices()
+			credit_notes = get_sales_invoices(credit_notes=1)
+			original = get_sales_invoice(invoice.name)
+			note = get_sales_invoice(credit_note.name)
+
+		self.assertEqual([row["name"] for row in invoices["rows"]], [invoice.name])
+		self.assertEqual([row["name"] for row in credit_notes["rows"]], [credit_note.name])
+		self.assertTrue(credit_notes["rows"][0]["is_return"])
+		self.assertEqual([row.name for row in original["credit_notes"]], [credit_note.name])
+		self.assertEqual(note["return_against"], invoice.name)

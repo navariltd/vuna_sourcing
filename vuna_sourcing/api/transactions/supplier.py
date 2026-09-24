@@ -18,6 +18,7 @@ from vuna_sourcing.api.transactions.common import (
 	page_of,
 	party_scope,
 	payments_against,
+	returns_against,
 	safe_html,
 )
 from vuna_sourcing.utils import SUPPLIER
@@ -71,6 +72,8 @@ INVOICE_FIELDS = [
 	"currency",
 	"grand_total",
 	"outstanding_amount",
+	"is_return",
+	"return_against",
 	"status",
 ]
 
@@ -110,8 +113,11 @@ def supplier_documents(
 	search: str | None,
 	fields: list[str],
 	order_by: str = "creation desc",
+	**filters,
 ) -> list:
-	return find_documents(doctype, supplier_filters(suppliers), search, fields, order_by=order_by)
+	return find_documents(
+		doctype, {**supplier_filters(suppliers), **filters}, search, fields, order_by=order_by
+	)
 
 
 def invited_supplier(rfq: str, supplier: str | None = None) -> str:
@@ -584,6 +590,7 @@ def receipts_against(order: str) -> list[dict]:
 def get_purchase_invoices(
 	supplier: str | None = None,
 	search: str | None = None,
+	debit_notes: bool = False,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -591,7 +598,9 @@ def get_purchase_invoices(
 	if not suppliers:
 		return empty_page(start, limit)
 
-	invoices = supplier_documents(PURCHASE_INVOICE, suppliers, search, INVOICE_FIELDS)
+	invoices = supplier_documents(
+		PURCHASE_INVOICE, suppliers, search, INVOICE_FIELDS, is_return=cint(debit_notes)
+	)
 
 	return page_of(
 		[
@@ -604,6 +613,8 @@ def get_purchase_invoices(
 				"currency": invoice.currency,
 				"grand_total": invoice.grand_total,
 				"outstanding_amount": invoice.outstanding_amount,
+				"return_against": invoice.return_against,
+				"is_return": bool(invoice.is_return),
 				"status": invoice.status or "Unpaid",
 			}
 			for invoice in invoices
@@ -623,6 +634,8 @@ def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 		"name": doc.name,
 		"supplier": doc.supplier,
 		"status": doc.status,
+		"is_return": bool(doc.is_return),
+		"return_against": doc.return_against,
 		"bill_no": doc.bill_no,
 		"bill_date": doc.bill_date,
 		"posting_date": doc.posting_date,
@@ -638,4 +651,5 @@ def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 		"purchase_orders": distinct(items, "purchase_order"),
 		"items": items,
 		"payments": payments_against(PURCHASE_INVOICE, doc.name),
+		"debit_notes": returns_against(PURCHASE_INVOICE, doc.name),
 	}

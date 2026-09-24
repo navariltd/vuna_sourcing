@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 from vuna_sourcing.api.transactions.common import (
 	distinct,
@@ -13,6 +13,7 @@ from vuna_sourcing.api.transactions.common import (
 	page_of,
 	party_scope,
 	payments_against,
+	returns_against,
 	safe_html,
 	submitted_parents,
 )
@@ -69,6 +70,8 @@ INVOICE_FIELDS = [
 	"grand_total",
 	"outstanding_amount",
 	"is_return",
+	"is_debit_note",
+	"return_against",
 	"status",
 ]
 
@@ -94,8 +97,11 @@ def customer_documents(
 	search: str | None,
 	fields: list[str],
 	search_fields: tuple[str, ...] = ("name",),
+	**filters,
 ) -> list:
-	return find_documents(doctype, customer_filters(doctype, customers), search, fields, search_fields)
+	return find_documents(
+		doctype, {**customer_filters(doctype, customers), **filters}, search, fields, search_fields
+	)
 
 
 @frappe.whitelist()
@@ -307,6 +313,7 @@ def get_delivery_note(name: str, customer: str | None = None) -> dict:
 def get_sales_invoices(
 	customer: str | None = None,
 	search: str | None = None,
+	credit_notes: bool = False,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -315,7 +322,12 @@ def get_sales_invoices(
 		return empty_page(start, limit)
 
 	invoices = customer_documents(
-		SALES_INVOICE, customers, search, INVOICE_FIELDS, search_fields=("name", "po_no")
+		SALES_INVOICE,
+		customers,
+		search,
+		INVOICE_FIELDS,
+		search_fields=("name", "po_no"),
+		is_return=cint(credit_notes),
 	)
 
 	return page_of(
@@ -330,6 +342,8 @@ def get_sales_invoices(
 				"grand_total": invoice.grand_total,
 				"outstanding_amount": invoice.outstanding_amount,
 				"is_return": bool(invoice.is_return),
+				"return_against": invoice.return_against,
+				"is_debit_note": bool(invoice.is_debit_note),
 				"status": invoice.status or "Unpaid",
 			}
 			for invoice in invoices
@@ -352,6 +366,7 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 		"customer": doc.customer,
 		"status": doc.status,
 		"is_return": bool(doc.is_return),
+		"is_debit_note": bool(doc.is_debit_note),
 		"return_against": doc.return_against,
 		"po_no": doc.po_no,
 		"posting_date": doc.posting_date,
@@ -366,4 +381,5 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 		"delivery_notes": distinct(items, "delivery_note"),
 		"items": items,
 		"payments": payments_against(SALES_INVOICE, doc.name),
+		"credit_notes": returns_against(SALES_INVOICE, doc.name),
 	}

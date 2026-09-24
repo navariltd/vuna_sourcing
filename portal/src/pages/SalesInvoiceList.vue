@@ -7,13 +7,37 @@ import EmptyState from "@/components/EmptyState.vue";
 import ListFilters from "@/components/ListFilters.vue";
 import { money, shortDate } from "@/data/purchase";
 import type { PurchasePage } from "@/data/purchase";
-import { SALES_INVOICE_STATUS_THEME, salesInvoiceList } from "@/data/selling";
+import { SALES_INVOICE_STATUS_THEME, creditNoteList, salesInvoiceList } from "@/data/selling";
 import type { SalesInvoiceRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
 
+const props = defineProps<{ creditNotes?: boolean }>();
+
 const portal = usePortalStore();
 const isMobile = useIsMobile();
+
+const list = props.creditNotes ? creditNoteList : salesInvoiceList;
+
+const copy = props.creditNotes
+	? {
+			title: "Credit Notes",
+			subtitle: "What we have credited back to you.",
+			noun: "credit note",
+			label: "Credit note",
+			icon: "lucide-receipt-cent",
+			search: "Search by credit note or PO number",
+			empty: "Credit notes we issue for returns or corrections appear here.",
+	  }
+	: {
+			title: "Sales Invoices",
+			subtitle: "What we have billed you, and what is still to pay.",
+			noun: "invoice",
+			label: "Invoice",
+			icon: "lucide-receipt",
+			search: "Search by invoice or PO number",
+			empty: "Invoices we raise to you appear here with their payment status.",
+	  };
 
 const filters = ref<Record<string, string>>({});
 const pageLength = ref(20);
@@ -22,18 +46,19 @@ const customer = computed(() =>
 	portal.activeParty?.party_type === "Customer" ? portal.activeParty.name : null
 );
 
-const page = computed<PurchasePage<SalesInvoiceRow> | null>(() => salesInvoiceList.data ?? null);
+const page = computed<PurchasePage<SalesInvoiceRow> | null>(() => list.data ?? null);
 const rows = computed<SalesInvoiceRow[]>(() => page.value?.rows ?? []);
 
 function load() {
 	if (!customer.value) {
-		salesInvoiceList.reset();
+		list.reset();
 		return;
 	}
 
-	salesInvoiceList.fetch({
+	list.fetch({
 		customer: customer.value,
 		search: filters.value.search || null,
+		credit_notes: props.creditNotes ? 1 : 0,
 		start: 0,
 		limit: pageLength.value,
 	});
@@ -41,22 +66,32 @@ function load() {
 
 watch([customer, filters, pageLength], load, { immediate: true, deep: true });
 
-const columns = computed(() =>
-	isMobile.value
-		? [
-				{ label: "Invoice", key: "name", width: "minmax(140px, 2fr)" },
-				{ label: "Status", key: "status", width: "120px" },
-		  ]
-		: [
-				{ label: "Invoice", key: "name", width: "minmax(130px, 1.4fr)" },
-				{ label: "Your PO", key: "po_no", width: "minmax(100px, 1fr)" },
-				{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
-				{ label: "Due", key: "due_date", width: "minmax(90px, 1fr)" },
-				{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
-				{ label: "Outstanding", key: "outstanding_amount", width: "minmax(100px, 1fr)" },
-				{ label: "Status", key: "status", width: "130px" },
-		  ]
-);
+const columns = computed(() => {
+	if (isMobile.value) {
+		return [
+			{ label: copy.label, key: "name", width: "minmax(140px, 2fr)" },
+			{ label: "Status", key: "status", width: "120px" },
+		];
+	}
+	if (props.creditNotes) {
+		return [
+			{ label: copy.label, key: "name", width: "minmax(130px, 1.4fr)" },
+			{ label: "Against invoice", key: "return_against", width: "minmax(130px, 1.2fr)" },
+			{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
+			{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+			{ label: "Status", key: "status", width: "130px" },
+		];
+	}
+	return [
+		{ label: copy.label, key: "name", width: "minmax(130px, 1.4fr)" },
+		{ label: "Your PO", key: "po_no", width: "minmax(100px, 1fr)" },
+		{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
+		{ label: "Due", key: "due_date", width: "minmax(90px, 1fr)" },
+		{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+		{ label: "Outstanding", key: "outstanding_amount", width: "minmax(100px, 1fr)" },
+		{ label: "Status", key: "status", width: "130px" },
+	];
+});
 
 const options = {
 	selectable: false,
@@ -68,24 +103,30 @@ const options = {
 	}),
 };
 
+function mobileLine(row: SalesInvoiceRow) {
+	if (props.creditNotes) {
+		return `${money(row.grand_total, row.currency)} · against ${row.return_against || "—"}`;
+	}
+	const prefix = row.is_debit_note ? "Debit note · " : "";
+	return `${prefix}${money(row.outstanding_amount, row.currency)} to pay · due ${shortDate(
+		row.due_date
+	)}`;
+}
+
 function loadMore() {
 	pageLength.value += 20;
 }
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Sales Invoices"
-		:subtitle="customer ? 'What we have billed you, and what is still to pay.' : undefined"
-	>
+	<PageContainer wide :title="copy.title" :subtitle="customer ? copy.subtitle : undefined">
 		<template #actions>
 			<Button
 				v-if="customer"
 				variant="subtle"
 				icon="lucide-refresh-cw"
 				aria-label="Refresh"
-				:loading="salesInvoiceList.loading"
+				:loading="list.loading"
 				@click="load"
 			/>
 		</template>
@@ -94,7 +135,7 @@ function loadMore() {
 			v-if="!customer"
 			icon="lucide-store"
 			title="Switch to a customer account"
-			description="Invoices belong to your customer accounts. Pick one at the top of the sidebar."
+			:description="`${copy.title} belong to your customer accounts. Pick one at the top of the sidebar.`"
 		/>
 
 		<template v-else>
@@ -102,27 +143,27 @@ function loadMore() {
 				v-model="filters"
 				class="mb-4"
 				:fields="[]"
-				search-placeholder="Search by invoice or PO number"
+				:search-placeholder="copy.search"
 			/>
 
-			<div v-if="salesInvoiceList.loading && !page" class="flex justify-center py-16">
+			<div v-if="list.loading && !page" class="flex justify-center py-16">
 				<Spinner class="size-5" />
 			</div>
 
 			<EmptyState
 				v-else-if="!rows.length && filters.search"
 				icon="lucide-search-x"
-				title="No invoice matches that number"
-				description="Check the number, or clear the search to see every invoice."
+				:title="`No ${copy.noun} matches that number`"
+				:description="`Check the number, or clear the search to see every ${copy.noun}.`"
 			>
 				<Button variant="subtle" label="Clear search" @click="filters = {}" />
 			</EmptyState>
 
 			<EmptyState
 				v-else-if="!rows.length"
-				icon="lucide-receipt"
-				title="No invoices yet"
-				:description="`Invoices we raise to ${portal.activeParty?.title} appear here with their payment status.`"
+				:icon="copy.icon"
+				:title="`No ${copy.noun}s yet`"
+				:description="copy.empty"
 			/>
 
 			<template v-else>
@@ -131,44 +172,37 @@ function loadMore() {
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>
 							<span v-if="isMobile" class="truncate text-xs text-ink-gray-5">
-								{{ money(row.outstanding_amount, row.currency) }} to pay · due
-								{{ shortDate(row.due_date) }}
+								{{ mobileLine(row) }}
+							</span>
+							<span
+								v-else-if="row.is_debit_note"
+								class="truncate text-xs text-ink-gray-5"
+							>
+								Debit note
 							</span>
 						</span>
 
 						<span
-							v-else-if="column.key === 'po_no'"
+							v-else-if="column.key === 'po_no' || column.key === 'return_against'"
 							class="truncate text-base text-ink-gray-7"
 						>
-							{{ row.po_no || "—" }}
+							{{ row[column.key] || "—" }}
 						</span>
 
 						<span
-							v-else-if="column.key === 'posting_date'"
+							v-else-if="column.key === 'posting_date' || column.key === 'due_date'"
 							class="text-base text-ink-gray-7"
 						>
-							{{ shortDate(row.posting_date) }}
+							{{ shortDate(row[column.key]) }}
 						</span>
 
 						<span
-							v-else-if="column.key === 'due_date'"
+							v-else-if="
+								column.key === 'grand_total' || column.key === 'outstanding_amount'
+							"
 							class="text-base text-ink-gray-7"
 						>
-							{{ shortDate(row.due_date) }}
-						</span>
-
-						<span
-							v-else-if="column.key === 'grand_total'"
-							class="text-base text-ink-gray-7"
-						>
-							{{ money(row.grand_total, row.currency) }}
-						</span>
-
-						<span
-							v-else-if="column.key === 'outstanding_amount'"
-							class="text-base text-ink-gray-7"
-						>
-							{{ money(row.outstanding_amount, row.currency) }}
+							{{ money(row[column.key], row.currency) }}
 						</span>
 
 						<Badge
@@ -193,7 +227,7 @@ function loadMore() {
 							v-if="rows.length < (page?.total ?? 0)"
 							variant="subtle"
 							label="Load more"
-							:loading="salesInvoiceList.loading"
+							:loading="list.loading"
 							@click="loadMore"
 						/>
 						<span class="text-base text-ink-gray-5">

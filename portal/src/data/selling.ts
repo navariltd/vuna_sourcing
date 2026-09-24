@@ -1,5 +1,6 @@
 import { createResource } from "frappe-ui";
 import type { BadgeTheme } from "@/data/application";
+import type { ReturnNote } from "@/data/purchase";
 
 export interface QuotationRow {
   name: string;
@@ -47,6 +48,8 @@ export interface SalesInvoiceRow {
   grand_total: number | null;
   outstanding_amount: number | null;
   is_return: boolean;
+  return_against: string | null;
+  is_debit_note: boolean;
   status: string;
 }
 
@@ -112,6 +115,11 @@ export const deliveryNoteList = createResource({
 });
 
 export const salesInvoiceList = createResource({
+  url: "vuna_sourcing.api.transactions.customer.get_sales_invoices",
+  auto: false,
+});
+
+export const creditNoteList = createResource({
   url: "vuna_sourcing.api.transactions.customer.get_sales_invoices",
   auto: false,
 });
@@ -209,6 +217,7 @@ export interface SalesInvoice {
   customer: string;
   status: string;
   is_return: boolean;
+  is_debit_note: boolean;
   return_against: string | null;
   po_no: string | null;
   posting_date: string;
@@ -229,6 +238,7 @@ export interface SalesInvoice {
     reference_no: string | null;
     allocated_amount: number | null;
   }[];
+  credit_notes: ReturnNote[];
 }
 
 export function createQuotationResource() {

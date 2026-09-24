@@ -5,6 +5,7 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import ReturnNotes from "@/components/ReturnNotes.vue";
 import { money, shortDate } from "@/data/purchase";
 import { SALES_INVOICE_STATUS_THEME, createSalesInvoiceResource } from "@/data/selling";
 import type { SalesInvoice } from "@/data/selling";
@@ -34,9 +35,13 @@ watch([customer, () => props.name], load, { immediate: true });
 <template>
 	<PageContainer
 		:title="invoice?.name || name"
-		:subtitle="invoice?.is_return ? 'Credit note' : undefined"
+		:subtitle="
+			invoice?.is_return ? 'Credit note' : invoice?.is_debit_note ? 'Debit note' : undefined
+		"
 		:breadcrumbs="[
-			{ label: 'Sales Invoices', route: { name: 'SalesInvoiceList' } },
+			invoice?.is_return
+				? { label: 'Credit Notes', route: { name: 'CreditNoteList' } }
+				: { label: 'Sales Invoices', route: { name: 'SalesInvoiceList' } },
 			{ label: invoice?.name || name },
 		]"
 	>
@@ -204,6 +209,14 @@ watch([customer, () => props.name], load, { immediate: true });
 					<span>{{ money(invoice.grand_total, invoice.currency) }}</span>
 				</div>
 			</div>
+
+			<ReturnNotes
+				title="Credit notes against this invoice"
+				:notes="invoice.credit_notes"
+				:currency="invoice.currency"
+				detail-route="SalesInvoiceDetail"
+				:status-theme="SALES_INVOICE_STATUS_THEME"
+			/>
 
 			<div class="rounded-6 border p-4">
 				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Payments</p>

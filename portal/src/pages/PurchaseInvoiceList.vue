@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState.vue";
 import ListFilters from "@/components/ListFilters.vue";
 import {
 	PURCHASE_INVOICE_STATUS_THEME,
+	debitNoteList,
 	money,
 	purchaseInvoiceList,
 	shortDate,
@@ -15,8 +16,32 @@ import type { PurchaseInvoiceRow, PurchasePage } from "@/data/purchase";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
 
+const props = defineProps<{ debitNotes?: boolean }>();
+
 const portal = usePortalStore();
 const isMobile = useIsMobile();
+
+const list = props.debitNotes ? debitNoteList : purchaseInvoiceList;
+
+const copy = props.debitNotes
+	? {
+			title: "Debit Notes",
+			subtitle: "What we have debited back against your invoices.",
+			noun: "debit note",
+			label: "Debit note",
+			icon: "lucide-receipt-cent",
+			search: "Search by debit note number",
+			empty: "Debit notes we raise for returns or price corrections appear here.",
+	  }
+	: {
+			title: "Purchase Invoices",
+			subtitle: "Your invoices as we hold them.",
+			noun: "invoice",
+			label: "Invoice",
+			icon: "lucide-receipt",
+			search: "Search by invoice number",
+			empty: "Once we record an invoice from you, it appears here with its payment status.",
+	  };
 
 const filters = ref<Record<string, string>>({});
 const pageLength = ref(20);
@@ -25,20 +50,19 @@ const supplier = computed(() =>
 	portal.activeParty?.party_type === "Supplier" ? portal.activeParty.name : null
 );
 
-const page = computed<PurchasePage<PurchaseInvoiceRow> | null>(
-	() => purchaseInvoiceList.data ?? null
-);
+const page = computed<PurchasePage<PurchaseInvoiceRow> | null>(() => list.data ?? null);
 const rows = computed<PurchaseInvoiceRow[]>(() => page.value?.rows ?? []);
 
 function load() {
 	if (!supplier.value) {
-		purchaseInvoiceList.reset();
+		list.reset();
 		return;
 	}
 
-	purchaseInvoiceList.fetch({
+	list.fetch({
 		supplier: supplier.value,
 		search: filters.value.search || null,
+		debit_notes: props.debitNotes ? 1 : 0,
 		start: 0,
 		limit: pageLength.value,
 	});
@@ -46,21 +70,31 @@ function load() {
 
 watch([supplier, filters, pageLength], load, { immediate: true, deep: true });
 
-const columns = computed(() =>
-	isMobile.value
-		? [
-				{ label: "Invoice", key: "name", width: "minmax(140px, 2fr)" },
-				{ label: "Status", key: "status", width: "120px" },
-		  ]
-		: [
-				{ label: "Invoice", key: "name", width: "minmax(130px, 1.4fr)" },
-				{ label: "Your number", key: "bill_no", width: "minmax(100px, 1fr)" },
-				{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
-				{ label: "Due", key: "due_date", width: "minmax(90px, 1fr)" },
-				{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
-				{ label: "Status", key: "status", width: "130px" },
-		  ]
-);
+const columns = computed(() => {
+	if (isMobile.value) {
+		return [
+			{ label: copy.label, key: "name", width: "minmax(140px, 2fr)" },
+			{ label: "Status", key: "status", width: "120px" },
+		];
+	}
+	if (props.debitNotes) {
+		return [
+			{ label: copy.label, key: "name", width: "minmax(130px, 1.4fr)" },
+			{ label: "Against invoice", key: "return_against", width: "minmax(130px, 1.2fr)" },
+			{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
+			{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+			{ label: "Status", key: "status", width: "130px" },
+		];
+	}
+	return [
+		{ label: copy.label, key: "name", width: "minmax(130px, 1.4fr)" },
+		{ label: "Your number", key: "bill_no", width: "minmax(100px, 1fr)" },
+		{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
+		{ label: "Due", key: "due_date", width: "minmax(90px, 1fr)" },
+		{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+		{ label: "Status", key: "status", width: "130px" },
+	];
+});
 
 const options = {
 	selectable: false,
@@ -72,24 +106,27 @@ const options = {
 	}),
 };
 
+function mobileLine(row: PurchaseInvoiceRow) {
+	if (props.debitNotes) {
+		return `${money(row.grand_total, row.currency)} · against ${row.return_against || "—"}`;
+	}
+	return `${money(row.grand_total, row.currency)} · due ${shortDate(row.due_date)}`;
+}
+
 function loadMore() {
 	pageLength.value += 20;
 }
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Purchase Invoices"
-		:subtitle="supplier ? 'Your invoices as we hold them.' : undefined"
-	>
+	<PageContainer wide :title="copy.title" :subtitle="supplier ? copy.subtitle : undefined">
 		<template #actions>
 			<Button
 				v-if="supplier"
 				variant="subtle"
 				icon="lucide-refresh-cw"
 				aria-label="Refresh"
-				:loading="purchaseInvoiceList.loading"
+				:loading="list.loading"
 				@click="load"
 			/>
 		</template>
@@ -98,7 +135,7 @@ function loadMore() {
 			v-if="!supplier"
 			icon="lucide-truck"
 			title="Switch to a supplier account"
-			description="Invoices belong to your supplier accounts. Pick one at the top of the sidebar."
+			:description="`${copy.title} belong to your supplier accounts. Pick one at the top of the sidebar.`"
 		/>
 
 		<template v-else>
@@ -106,27 +143,27 @@ function loadMore() {
 				v-model="filters"
 				class="mb-4"
 				:fields="[]"
-				search-placeholder="Search by invoice number"
+				:search-placeholder="copy.search"
 			/>
 
-			<div v-if="purchaseInvoiceList.loading && !page" class="flex justify-center py-16">
+			<div v-if="list.loading && !page" class="flex justify-center py-16">
 				<Spinner class="size-5" />
 			</div>
 
 			<EmptyState
 				v-else-if="!rows.length && filters.search"
 				icon="lucide-search-x"
-				title="No invoice matches that number"
-				description="Check the number, or clear the search to see every invoice."
+				:title="`No ${copy.noun} matches that number`"
+				:description="`Check the number, or clear the search to see every ${copy.noun}.`"
 			>
 				<Button variant="subtle" label="Clear search" @click="filters = {}" />
 			</EmptyState>
 
 			<EmptyState
 				v-else-if="!rows.length"
-				icon="lucide-receipt"
-				title="No invoices yet"
-				description="Once we record an invoice from you, it appears here with its payment status."
+				:icon="copy.icon"
+				:title="`No ${copy.noun}s yet`"
+				:description="copy.empty"
 			/>
 
 			<template v-else>
@@ -135,30 +172,22 @@ function loadMore() {
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>
 							<span v-if="isMobile" class="truncate text-xs text-ink-gray-5">
-								{{ money(row.grand_total, row.currency) }} · due
-								{{ shortDate(row.due_date) }}
+								{{ mobileLine(row) }}
 							</span>
 						</span>
 
 						<span
-							v-else-if="column.key === 'bill_no'"
+							v-else-if="column.key === 'bill_no' || column.key === 'return_against'"
 							class="truncate text-base text-ink-gray-7"
 						>
-							{{ row.bill_no || "—" }}
+							{{ row[column.key] || "—" }}
 						</span>
 
 						<span
-							v-else-if="column.key === 'posting_date'"
+							v-else-if="column.key === 'posting_date' || column.key === 'due_date'"
 							class="text-base text-ink-gray-7"
 						>
-							{{ shortDate(row.posting_date) }}
-						</span>
-
-						<span
-							v-else-if="column.key === 'due_date'"
-							class="text-base text-ink-gray-7"
-						>
-							{{ shortDate(row.due_date) }}
+							{{ shortDate(row[column.key]) }}
 						</span>
 
 						<span
@@ -190,7 +219,7 @@ function loadMore() {
 							v-if="rows.length < (page?.total ?? 0)"
 							variant="subtle"
 							label="Load more"
-							:loading="purchaseInvoiceList.loading"
+							:loading="list.loading"
 							@click="loadMore"
 						/>
 						<span class="text-base text-ink-gray-5">

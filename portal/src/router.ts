@@ -81,6 +81,13 @@ const routes: RouteRecordRaw[] = [
     meta: { partyType: 'Supplier' },
   },
   {
+    path: '/debit-notes',
+    name: 'DebitNoteList',
+    component: () => import('@/pages/PurchaseInvoiceList.vue'),
+    props: { debitNotes: true },
+    meta: { partyType: 'Supplier' },
+  },
+  {
     path: '/purchase-invoices/:name',
     name: 'PurchaseInvoiceDetail',
     component: () => import('@/pages/PurchaseInvoiceDetail.vue'),
@@ -130,6 +137,13 @@ const routes: RouteRecordRaw[] = [
     path: '/sales-invoices',
     name: 'SalesInvoiceList',
     component: () => import('@/pages/SalesInvoiceList.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/credit-notes',
+    name: 'CreditNoteList',
+    component: () => import('@/pages/SalesInvoiceList.vue'),
+    props: { creditNotes: true },
     meta: { partyType: 'Customer' },
   },
   {

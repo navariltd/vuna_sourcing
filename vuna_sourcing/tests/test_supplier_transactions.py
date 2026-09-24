@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import make_debit_note
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, nowdate
 
@@ -241,3 +242,23 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(user):
 			self.assertRaises(frappe.PermissionError, get_purchase_order, order.name)
 			self.assertRaises(frappe.PermissionError, get_purchase_invoice, invoice.name)
+
+	def test_a_debit_note_is_listed_apart_from_invoices_and_linked_from_the_invoice(self):
+		supplier, user = self.make_supplier()
+		invoice = self.make_invoice(supplier)
+		debit_note = make_debit_note(invoice.name)
+		debit_note.flags.ignore_permissions = True
+		debit_note.insert()
+		debit_note.submit()
+
+		with self.set_user(user):
+			invoices = get_purchase_invoices()
+			debit_notes = get_purchase_invoices(debit_notes=1)
+			original = get_purchase_invoice(invoice.name)
+			note = get_purchase_invoice(debit_note.name)
+
+		self.assertEqual([row["name"] for row in invoices["rows"]], [invoice.name])
+		self.assertEqual([row["name"] for row in debit_notes["rows"]], [debit_note.name])
+		self.assertTrue(debit_notes["rows"][0]["is_return"])
+		self.assertEqual([row.name for row in original["debit_notes"]], [debit_note.name])
+		self.assertEqual(note["return_against"], invoice.name)

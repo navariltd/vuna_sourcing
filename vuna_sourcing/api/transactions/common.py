@@ -80,6 +80,15 @@ def submitted_parents(child_doctype: str, link_field: str, name: str) -> list[st
 	)
 
 
+def returns_against(doctype: str, name: str) -> list[dict]:
+	return frappe.get_all(
+		doctype,
+		filters={"return_against": name, "is_return": 1, "docstatus": 1},
+		fields=["name", "posting_date", "grand_total", "status"],
+		order_by="posting_date desc",
+	)
+
+
 def distinct(rows: list[dict], key: str) -> list[str]:
 	return sorted({row[key] for row in rows if row.get(key)})
 
