@@ -255,7 +255,6 @@ async function submit() {
 			class="flex min-h-[calc(100vh-66px)] flex-1 items-start justify-center overflow-y-auto px-5 py-10 sm:px-8 sm:py-14 lg:min-h-screen lg:items-center lg:px-12"
 		>
 			<div class="w-full max-w-[480px]">
-				<!-- Loading -->
 				<div
 					v-if="context.loading && !context.data"
 					class="flex min-h-80 items-center justify-center"

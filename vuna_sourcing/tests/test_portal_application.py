@@ -180,10 +180,6 @@ class TestPortalApplication(IntegrationTestCase):
 		with self.set_user(applicant):
 			return submit_application(saved["name"])
 
-	# ------------------------------------------------------------------
-	# Applying at all
-	# ------------------------------------------------------------------
-
 	def test_a_brand_new_signup_holds_no_party_role(self):
 		"""The premise: the Supplier or Customer role is the outcome of approval, not a prerequisite."""
 		applicant = self.make_applicant()
@@ -247,10 +243,6 @@ class TestPortalApplication(IntegrationTestCase):
 		with self.closed("Supplier"), self.set_user(self.make_applicant()):
 			self.assertEqual({t["party_type"] for t in get_onboarding_types()}, {"Customer"})
 
-	# ------------------------------------------------------------------
-	# End to end
-	# ------------------------------------------------------------------
-
 	def test_the_role_arrives_only_on_approval(self):
 		"""No role -> apply -> approved -> the role and the party appear, for either party type."""
 		for party_type in ("Supplier", "Customer"):
@@ -304,10 +296,6 @@ class TestPortalApplication(IntegrationTestCase):
 		return base64.b64decode(
 			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 		)
-
-	# ------------------------------------------------------------------
-	# Contacts and addresses
-	# ------------------------------------------------------------------
 
 	def test_contact_and_address_are_mandatory_whatever_the_party_type(self):
 		"""Not template driven: we cannot work with a party we cannot contact or post to."""
@@ -420,10 +408,6 @@ class TestPortalApplication(IntegrationTestCase):
 
 		self.assertEqual(saved["addresses"][0]["address_type"], "Billing")
 
-	# ------------------------------------------------------------------
-	# Drafts
-	# ------------------------------------------------------------------
-
 	def test_draft_may_be_incomplete_and_resumed(self):
 		applicant = self.make_applicant()
 		with self.set_user(applicant):
@@ -479,10 +463,6 @@ class TestPortalApplication(IntegrationTestCase):
 		self.assertEqual(submitted["docstatus"], 1)
 		self.assertEqual(submitted["onboarding_status"], "Pending Review")
 		self.assertFalse(submitted["can_edit"])
-
-	# ------------------------------------------------------------------
-	# Coming back after a correction
-	# ------------------------------------------------------------------
 
 	def returned(self, applicant, party_type="Supplier"):
 		submitted = self.complete_and_submit(applicant, party_type)
@@ -619,10 +599,6 @@ class TestPortalApplication(IntegrationTestCase):
 				{"documents": [{"document_type": DOC_CERT, "attachment": None}]},
 			)
 
-	# ------------------------------------------------------------------
-	# Uploads
-	# ------------------------------------------------------------------
-
 	def test_an_applicant_with_no_roles_can_upload_a_document(self):
 		"""Frappe's upload_file needs write permission; a fresh signup has none."""
 		applicant = self.make_applicant()
@@ -686,10 +662,6 @@ class TestPortalApplication(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.get_value(REQUEST, customer["name"], "onboarding_status"), "Approved")
 
-	# ------------------------------------------------------------------
-	# Link lookups
-	# ------------------------------------------------------------------
-
 	def test_link_lookups_serve_the_allowlisted_doctypes(self):
 		with self.set_user(self.make_applicant()):
 			countries = get_link_options("Country")
@@ -720,10 +692,6 @@ class TestPortalApplication(IntegrationTestCase):
 	def test_guests_cannot_look_anything_up(self):
 		with self.set_user("Guest"):
 			self.assertRaises(frappe.PermissionError, get_link_options, "Country")
-
-	# ------------------------------------------------------------------
-	# Whose application it is
-	# ------------------------------------------------------------------
 
 	def test_an_applicant_only_sees_their_own_applications(self):
 		first, second = self.make_applicant(), self.make_applicant()

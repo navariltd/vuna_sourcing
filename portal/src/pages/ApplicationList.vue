@@ -43,6 +43,7 @@ function formatDate(value: string) {
 
 <template>
 	<PageContainer
+		wide
 		title="My applications"
 		subtitle="Every application you have made — as a supplier, a customer, or both."
 	>

@@ -8,9 +8,6 @@ from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing.tests import make_test_user
 
-# These tests run against whatever company, currency and country the site already has.
-# Generating ERPNext's test records here would drag in its accounting fixtures, which
-# clash with the live data on a configured site.
 IGNORE_TEST_RECORD_DEPENDENCIES = [
 	"Address",
 	"Bank",
@@ -175,10 +172,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 	def make_user(self, roles):
 		return make_test_user(roles, first_name="Reviewer").name
 
-	# ------------------------------------------------------------------
-	# Template driven checklist
-	# ------------------------------------------------------------------
-
 	def test_documents_pulled_from_template(self):
 		request = self.make_request()
 		pulled = [row.document_type for row in request.required_documents]
@@ -212,10 +205,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		self.assertEqual(set(rows), {DOC_CERT, other.name})
 		self.assertEqual(rows[DOC_CERT].attachment, file.file_url, "an upload still required should survive")
 		self.assertIsNone(rows[other.name].attachment)
-
-	# ------------------------------------------------------------------
-	# Party type
-	# ------------------------------------------------------------------
 
 	def test_party_type_is_taken_from_the_template_when_missing(self):
 		request = self.make_request(party_type=None, onboarding_template=CUSTOMER_TEMPLATE)
@@ -272,10 +261,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		self.assertIsNone(template.customer_group)
 		self.assertIsNone(template.territory)
 
-	# ------------------------------------------------------------------
-	# Entity type mapping
-	# ------------------------------------------------------------------
-
 	def test_entity_type_options_come_from_the_party_doctype(self):
 		from vuna_sourcing.utils import get_entity_type_options
 
@@ -307,10 +292,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		duplicate.append("required_documents", {"document_type": DOC_CERT})
 
 		self.assertRaises(frappe.ValidationError, duplicate.insert)
-
-	# ------------------------------------------------------------------
-	# Contacts and addresses
-	# ------------------------------------------------------------------
 
 	def test_a_single_contact_and_address_become_primary(self):
 		contact = self.contacts()[0]
@@ -355,10 +336,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 	def test_a_supplier_is_not_asked_for_a_delivery_address(self):
 		request = self.submitted_request(addresses=[self.address(is_shipping_address=0)])
 		self.assertEqual(request.onboarding_status, "Pending Review")
-
-	# ------------------------------------------------------------------
-	# Submission
-	# ------------------------------------------------------------------
 
 	def test_submit_blocked_without_mandatory_document(self):
 		request = self.make_request()
@@ -429,10 +406,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		request.flags.ignore_validate_update_after_submit = True
 
 		self.assertRaises(frappe.ValidationError, request.save)
-
-	# ------------------------------------------------------------------
-	# What approval creates
-	# ------------------------------------------------------------------
 
 	def test_approval_creates_supplier_contacts_and_address(self):
 		request = self.submitted_request()
@@ -538,10 +511,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 
 			self.assertIn(user, [row.user for row in frappe.get_doc(party_type, party).portal_users])
 			self.assertIn(party_type, frappe.get_roles(user), "ERPNext grants the role with the portal row")
-
-	# ------------------------------------------------------------------
-	# Who may decide an outcome
-	# ------------------------------------------------------------------
 
 	def test_applicant_can_submit_but_not_approve(self):
 		"""Submitting is not deciding: the outcome is not the submitter's to set."""

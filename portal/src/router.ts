@@ -28,6 +28,50 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/ApplicationForm.vue'),
   },
   {
+    path: '/rfq',
+    name: 'RfqList',
+    component: () => import('@/pages/RfqList.vue'),
+  },
+  {
+    path: '/rfq/:name',
+    name: 'RfqDetail',
+    component: () => import('@/pages/RfqDetail.vue'),
+    props: true,
+  },
+  {
+    path: '/supplier-quotations',
+    name: 'SupplierQuotationList',
+    component: () => import('@/pages/SupplierQuotationList.vue'),
+  },
+  {
+    path: '/supplier-quotations/:name',
+    name: 'SupplierQuotationDetail',
+    component: () => import('@/pages/SupplierQuotationDetail.vue'),
+    props: true,
+  },
+  {
+    path: '/purchase-orders',
+    name: 'PurchaseOrderList',
+    component: () => import('@/pages/PurchaseOrderList.vue'),
+  },
+  {
+    path: '/purchase-orders/:name',
+    name: 'PurchaseOrderDetail',
+    component: () => import('@/pages/PurchaseOrderDetail.vue'),
+    props: true,
+  },
+  {
+    path: '/purchase-invoices',
+    name: 'PurchaseInvoiceList',
+    component: () => import('@/pages/PurchaseInvoiceList.vue'),
+  },
+  {
+    path: '/purchase-invoices/:name',
+    name: 'PurchaseInvoiceDetail',
+    component: () => import('@/pages/PurchaseInvoiceDetail.vue'),
+    props: true,
+  },
+  {
     path: '/applications',
     name: 'ApplicationList',
     component: () => import('@/pages/ApplicationList.vue'),
