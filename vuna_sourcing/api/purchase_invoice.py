@@ -2,8 +2,6 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe import _
-from frappe.utils import formatdate
 
 from vuna_sourcing.api.listing import (
 	empty_page,
@@ -64,7 +62,6 @@ def get_purchase_invoices(
 
 @frappe.whitelist()
 def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
-	print("dddd", name, supplier)
 	doc = my_document(INVOICE, name, supplier)
 
 	items = [
@@ -95,22 +92,13 @@ def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 		"grand_total": doc.grand_total,
 		"outstanding_amount": doc.outstanding_amount,
 		"on_hold": bool(doc.on_hold),
-		"hold_reason": hold_reason(doc),
+		"hold_reason": doc.hold_comment if doc.on_hold else None,
+		"release_date": doc.release_date if doc.on_hold else None,
 		"terms": safe_html(doc.terms),
 		"purchase_orders": sorted({item["purchase_order"] for item in items if item["purchase_order"]}),
 		"items": items,
 		"payments": payments_against(doc.name),
 	}
-
-
-def hold_reason(doc) -> str | None:
-	if not doc.on_hold:
-		return None
-
-	if doc.release_date:
-		return _("On hold until {0}").format(formatdate(doc.release_date))
-
-	return _("On hold")
 
 
 def payments_against(invoice: str) -> list[dict]:

@@ -143,6 +143,7 @@ export interface PurchaseInvoice {
   outstanding_amount: number | null;
   on_hold: boolean;
   hold_reason: string | null;
+  release_date: string | null;
   terms: string | null;
   purchase_orders: string[];
   items: PurchaseInvoiceItem[];

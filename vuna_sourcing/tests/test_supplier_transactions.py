@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.tests import IntegrationTestCase
-from frappe.utils import add_days, nowdate
+from frappe.utils import add_days, getdate, nowdate
 
 from vuna_sourcing.api.purchase_invoice import get_purchase_invoice, get_purchase_invoices
 from vuna_sourcing.api.purchase_order import get_purchase_order, get_purchase_orders
@@ -197,18 +197,36 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 		self.assertIsNone(detail["hold_reason"])
 		self.assertEqual(detail["items"][0]["amount"], 500)
 
-	def test_an_invoice_on_hold_says_so_in_plain_language(self):
+	def test_an_invoice_on_hold_carries_the_reason_the_buyer_typed(self):
 		supplier, user = self.make_supplier()
 		invoice = self.make_invoice(supplier)
 		frappe.db.set_value(
-			"Purchase Invoice", invoice.name, {"on_hold": 1, "release_date": add_days(nowdate(), 14)}
+			"Purchase Invoice",
+			invoice.name,
+			{
+				"on_hold": 1,
+				"hold_comment": "Waiting on the delivery note for the second batch.",
+				"release_date": add_days(nowdate(), 14),
+			},
 		)
 
 		with self.set_user(user):
 			detail = get_purchase_invoice(invoice.name)
 
 		self.assertTrue(detail["on_hold"])
-		self.assertIn("On hold until", detail["hold_reason"])
+		self.assertEqual(detail["hold_reason"], "Waiting on the delivery note for the second batch.")
+		self.assertEqual(getdate(detail["release_date"]), getdate(add_days(nowdate(), 14)))
+
+	def test_an_invoice_that_is_not_held_carries_no_hold_details(self):
+		supplier, user = self.make_supplier()
+		invoice = self.make_invoice(supplier)
+
+		with self.set_user(user):
+			detail = get_purchase_invoice(invoice.name)
+
+		self.assertFalse(detail["on_hold"])
+		self.assertIsNone(detail["hold_reason"])
+		self.assertIsNone(detail["release_date"])
 
 	def test_a_supplier_cannot_open_another_suppliers_order_or_invoice(self):
 		_mine, user = self.make_supplier()

@@ -39,5 +39,28 @@ def before_tests():
 			frappe.throw(_("ERPNext setup wizard did not create a Company; see the Error Log for the cause."))
 
 	create_portal_user_role()
+	grant_supplier_portal_permissions()
 	apply_single_defaults("Sourcing Settings")
 	frappe.db.commit()  # nosemgrep
+
+
+SUPPLIER_PORTAL_PERMISSIONS = {
+	"Item": ("read",),
+	"Account": ("select",),
+	"Purchase Invoice": ("read", "select"),
+	"Request for Quotation": ("read", "select"),
+}
+
+
+def grant_supplier_portal_permissions():
+	"""Mirrors what a site grants the Supplier role in the desk, which a fresh CI site has not."""
+	from frappe.permissions import add_permission, update_permission_property
+
+	for doctype, rights in SUPPLIER_PORTAL_PERMISSIONS.items():
+		add_permission(doctype, "Supplier", 0)
+
+		for right in rights:
+			update_permission_property(doctype, "Supplier", 0, right, 1)
+
+		if "read" not in rights:
+			update_permission_property(doctype, "Supplier", 0, "read", 0)

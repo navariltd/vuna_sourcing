@@ -85,13 +85,19 @@ watch([supplier, () => props.name], load, { immediate: true });
 
 		<div v-else-if="invoice" class="space-y-6">
 			<div
-				v-if="invoice.hold_reason"
+				v-if="invoice.on_hold"
 				class="flex items-start gap-2 rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
 			>
 				<i class="lucide-pause size-4 shrink-0 text-ink-amber-7" />
 				<div>
 					<p class="text-base font-medium text-ink-gray-8">Payment is on hold</p>
-					<p class="mt-0.5 text-p-sm text-ink-gray-7">{{ invoice.hold_reason }}</p>
+					<p class="mt-0.5 text-p-sm text-ink-gray-7">
+						Reason for Holding:
+						{{ invoice.hold_reason || "No reason was recorded" }}
+					</p>
+					<p v-if="invoice.release_date" class="mt-0.5 text-p-sm text-ink-gray-6">
+						Due for release on {{ shortDate(invoice.release_date) }}
+					</p>
 				</div>
 			</div>
 
@@ -111,9 +117,9 @@ watch([supplier, () => props.name], load, { immediate: true });
 					<dd class="text-p-base text-ink-gray-8">{{ shortDate(invoice.due_date) }}</dd>
 				</div>
 				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Value</dt>
+					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Outstanding</dt>
 					<dd class="text-p-base font-medium text-ink-gray-8">
-						{{ money(invoice.grand_total, invoice.currency) }}
+						{{ money(invoice.outstanding_amount, invoice.currency) }}
 					</dd>
 				</div>
 			</dl>
