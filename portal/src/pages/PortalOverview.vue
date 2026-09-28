@@ -35,14 +35,7 @@ const details = computed(() => {
 </script>
 
 <template>
-	<PageContainer
-		:title="portal.activeParty?.title || 'Overview'"
-		:subtitle="
-			portal.isMultiParty
-				? 'Switch between the businesses you act for at the top of the sidebar.'
-				: undefined
-		"
-	>
+	<PageContainer :title="portal.activeParty?.title || 'Overview'">
 		<template #actions>
 			<Badge
 				v-if="portal.activeParty"

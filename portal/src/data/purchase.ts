@@ -30,6 +30,15 @@ export interface PurchaseInvoiceRow {
   currency: string | null;
   grand_total: number | null;
   outstanding_amount: number | null;
+  is_return: boolean;
+  return_against: string | null;
+  status: string;
+}
+
+export interface ReturnNote {
+  name: string;
+  posting_date: string;
+  grand_total: number | null;
   status: string;
 }
 
@@ -57,12 +66,17 @@ export const PURCHASE_INVOICE_STATUS_THEME: Record<string, BadgeTheme> = {
 };
 
 export const purchaseOrderList = createResource({
-  url: "vuna_sourcing.api.purchase_order.get_purchase_orders",
+  url: "vuna_sourcing.api.transactions.supplier.get_purchase_orders",
   auto: false,
 });
 
 export const purchaseInvoiceList = createResource({
-  url: "vuna_sourcing.api.purchase_invoice.get_purchase_invoices",
+  url: "vuna_sourcing.api.transactions.supplier.get_purchase_invoices",
+  auto: false,
+});
+
+export const debitNoteList = createResource({
+  url: "vuna_sourcing.api.transactions.supplier.get_purchase_invoices",
   auto: false,
 });
 
@@ -133,6 +147,8 @@ export interface PurchaseInvoice {
   name: string;
   supplier: string;
   status: string;
+  is_return: boolean;
+  return_against: string | null;
   bill_no: string | null;
   bill_date: string | null;
   posting_date: string;
@@ -154,18 +170,19 @@ export interface PurchaseInvoice {
     reference_no: string | null;
     allocated_amount: number | null;
   }[];
+  debit_notes: ReturnNote[];
 }
 
 export function createPurchaseOrderResource() {
   return createResource({
-    url: "vuna_sourcing.api.purchase_order.get_purchase_order",
+    url: "vuna_sourcing.api.transactions.supplier.get_purchase_order",
     auto: false,
   });
 }
 
 export function createPurchaseInvoiceResource() {
   return createResource({
-    url: "vuna_sourcing.api.purchase_invoice.get_purchase_invoice",
+    url: "vuna_sourcing.api.transactions.supplier.get_purchase_invoice",
     auto: false,
   });
 }

@@ -2,6 +2,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { session } from '@/data/session'
 import { usePortalStore } from '@/stores/portal'
+import type { PartyType } from '@/stores/portal'
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    public?: boolean
+    partyType?: PartyType
+  }
+}
 
 export const BASE_PATH = '/vuna-sourcing'
 
@@ -31,45 +39,119 @@ const routes: RouteRecordRaw[] = [
     path: '/rfq',
     name: 'RfqList',
     component: () => import('@/pages/RfqList.vue'),
+    meta: { partyType: 'Supplier' },
   },
   {
     path: '/rfq/:name',
     name: 'RfqDetail',
     component: () => import('@/pages/RfqDetail.vue'),
+    meta: { partyType: 'Supplier' },
     props: true,
   },
   {
     path: '/supplier-quotations',
     name: 'SupplierQuotationList',
     component: () => import('@/pages/SupplierQuotationList.vue'),
+    meta: { partyType: 'Supplier' },
   },
   {
     path: '/supplier-quotations/:name',
     name: 'SupplierQuotationDetail',
     component: () => import('@/pages/SupplierQuotationDetail.vue'),
+    meta: { partyType: 'Supplier' },
     props: true,
   },
   {
     path: '/purchase-orders',
     name: 'PurchaseOrderList',
     component: () => import('@/pages/PurchaseOrderList.vue'),
+    meta: { partyType: 'Supplier' },
   },
   {
     path: '/purchase-orders/:name',
     name: 'PurchaseOrderDetail',
     component: () => import('@/pages/PurchaseOrderDetail.vue'),
+    meta: { partyType: 'Supplier' },
     props: true,
   },
   {
     path: '/purchase-invoices',
     name: 'PurchaseInvoiceList',
     component: () => import('@/pages/PurchaseInvoiceList.vue'),
+    meta: { partyType: 'Supplier' },
+  },
+  {
+    path: '/debit-notes',
+    name: 'DebitNoteList',
+    component: () => import('@/pages/PurchaseInvoiceList.vue'),
+    props: { debitNotes: true },
+    meta: { partyType: 'Supplier' },
   },
   {
     path: '/purchase-invoices/:name',
     name: 'PurchaseInvoiceDetail',
     component: () => import('@/pages/PurchaseInvoiceDetail.vue'),
+    meta: { partyType: 'Supplier' },
     props: true,
+  },
+  {
+    path: '/quotations',
+    name: 'QuotationList',
+    component: () => import('@/pages/QuotationList.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/quotations/:name',
+    name: 'QuotationDetail',
+    component: () => import('@/pages/QuotationDetail.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/sales-orders',
+    name: 'SalesOrderList',
+    component: () => import('@/pages/SalesOrderList.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/sales-orders/:name',
+    name: 'SalesOrderDetail',
+    component: () => import('@/pages/SalesOrderDetail.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/delivery-notes',
+    name: 'DeliveryNoteList',
+    component: () => import('@/pages/DeliveryNoteList.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/delivery-notes/:name',
+    name: 'DeliveryNoteDetail',
+    component: () => import('@/pages/DeliveryNoteDetail.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/sales-invoices',
+    name: 'SalesInvoiceList',
+    component: () => import('@/pages/SalesInvoiceList.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/credit-notes',
+    name: 'CreditNoteList',
+    component: () => import('@/pages/SalesInvoiceList.vue'),
+    props: { creditNotes: true },
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/sales-invoices/:name',
+    name: 'SalesInvoiceDetail',
+    component: () => import('@/pages/SalesInvoiceDetail.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
   },
   {
     path: '/applications',
@@ -127,6 +209,12 @@ router.beforeEach(async (to) => {
 
   if (portal.isApplicant && !portal.hasParties && to.name === 'PortalOverview') {
     return { name: 'ApplicationForm' }
+  }
+
+  const partyType = to.meta.partyType
+  if (partyType) {
+    if (!portal.partiesOfType(partyType).length) return { name: 'PortalOverview' }
+    if (portal.activeParty?.party_type !== partyType) portal.switchToType(partyType)
   }
 
   return true

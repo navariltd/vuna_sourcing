@@ -3,8 +3,11 @@ import { computed } from "vue";
 import { Avatar, Dropdown } from "frappe-ui";
 import { partyKey, usePortalStore } from "@/stores/portal";
 import { PARTY_COPY } from "@/data/parties";
+import { ACCENTS, PARTY_ACCENTS } from "@/data/accents";
+import { usePartySwitch } from "@/composables/usePartySwitch";
 
 const portal = usePortalStore();
+const { setActiveParty, switchToType } = usePartySwitch();
 
 const sides = computed(() => portal.partyTypesJoined);
 const siblings = computed(() => portal.activeSiblings);
@@ -18,7 +21,7 @@ const accountOptions = computed(() =>
 	siblings.value.map((party) => ({
 		label: party.title,
 		selected: partyKey(party) === portal.activePartyKey,
-		onClick: () => portal.setActiveParty(party),
+		onClick: () => setActiveParty(party),
 	}))
 );
 </script>
@@ -42,9 +45,17 @@ const accountOptions = computed(() =>
 						? 'bg-surface-white text-ink-gray-8 shadow-sm'
 						: 'text-ink-gray-6 hover:text-ink-gray-8'
 				"
-				@click="portal.switchToType(side)"
+				@click="switchToType(side)"
 			>
-				<i :class="[PARTY_COPY[side].icon, 'size-4 shrink-0']" />
+				<i
+					:class="[
+						PARTY_COPY[side].icon,
+						side === activeType
+							? ACCENTS[PARTY_ACCENTS[side]].icon
+							: 'text-ink-gray-5',
+						'size-4 shrink-0 transition-colors',
+					]"
+				/>
 				{{ side }}
 			</button>
 		</div>

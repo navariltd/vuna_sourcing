@@ -14,7 +14,7 @@ const isPublic = computed(() => !!route.meta.public);
 const errorMessage = computed(() => {
 	const error = portal.session.error as { messages?: string[]; message?: string } | null;
 	if (!error) return null;
-	return error.messages?.[0] || error.message || "You do not have access to this portal.";
+	return "You do not have access to this portal.";
 });
 </script>
 

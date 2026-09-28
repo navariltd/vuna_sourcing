@@ -107,9 +107,7 @@ def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupRe
 
 	_check_signup_ceiling()
 
-	from frappe.core.doctype.user.user import User
-
-	user: User = frappe.get_doc(
+	user = frappe.get_doc(
 		{
 			"doctype": "User",
 			"email": email,

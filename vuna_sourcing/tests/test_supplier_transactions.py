@@ -2,11 +2,18 @@
 # For license information, please see license.txt
 
 import frappe
+from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import make_debit_note
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, nowdate
+from frappe.www.printview import validate_print_permission
 
-from vuna_sourcing.api.purchase_invoice import get_purchase_invoice, get_purchase_invoices
-from vuna_sourcing.api.purchase_order import get_purchase_order, get_purchase_orders
+from vuna_sourcing.api.transactions.supplier import (
+	get_purchase_invoice,
+	get_purchase_invoices,
+	get_purchase_order,
+	get_purchase_orders,
+)
+from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
 
 
@@ -237,3 +244,68 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(user):
 			self.assertRaises(frappe.PermissionError, get_purchase_order, order.name)
 			self.assertRaises(frappe.PermissionError, get_purchase_invoice, invoice.name)
+
+	def test_a_debit_note_is_listed_apart_from_invoices_and_linked_from_the_invoice(self):
+		supplier, user = self.make_supplier()
+		invoice = self.make_invoice(supplier)
+		debit_note = make_debit_note(invoice.name)
+		debit_note.flags.ignore_permissions = True
+		debit_note.insert()
+		debit_note.submit()
+
+		with self.set_user(user):
+			invoices = get_purchase_invoices()
+			debit_notes = get_purchase_invoices(debit_notes=1)
+			original = get_purchase_invoice(invoice.name)
+			note = get_purchase_invoice(debit_note.name)
+
+		self.assertEqual([row["name"] for row in invoices["rows"]], [invoice.name])
+		self.assertEqual([row["name"] for row in debit_notes["rows"]], [debit_note.name])
+		self.assertTrue(debit_notes["rows"][0]["is_return"])
+		self.assertEqual([row.name for row in original["debit_notes"]], [debit_note.name])
+		self.assertEqual(note["return_against"], invoice.name)
+
+	def test_a_supplier_prints_their_own_invoice_but_not_another_suppliers(self):
+		mine, user = self.make_supplier()
+		theirs, _other = self.make_supplier()
+		own = self.make_invoice(mine)
+		other = self.make_invoice(theirs)
+
+		with self.set_user(user):
+			validate_print_permission(frappe.get_doc("Purchase Invoice", own.name))
+			self.assertRaises(
+				frappe.PermissionError,
+				validate_print_permission,
+				frappe.get_doc("Purchase Invoice", other.name),
+			)
+
+	def test_a_supplier_cannot_print_an_rfq_they_were_not_invited_to(self):
+		_mine, user = self.make_supplier()
+		theirs, _other = self.make_supplier()
+		rfq = self.make_rfq([theirs])
+
+		with self.set_user(user):
+			self.assertRaises(
+				frappe.PermissionError,
+				validate_print_permission,
+				frappe.get_doc("Request for Quotation", rfq.name),
+			)
+
+	def test_the_rest_api_lists_only_a_suppliers_own_invoices(self):
+		mine, user = self.make_supplier()
+		theirs, _other = self.make_supplier()
+		own = self.make_invoice(mine)
+		self.make_invoice(theirs)
+
+		with self.set_user(user):
+			listed = frappe.get_list("Purchase Invoice", pluck="name")
+
+		self.assertEqual(listed, [own.name])
+
+	def test_staff_still_print_any_suppliers_invoice(self):
+		supplier, _user = self.make_supplier()
+		invoice = self.make_invoice(supplier)
+		staff = make_test_user(["Accounts User"], first_name="Staff").name
+
+		with self.set_user(staff):
+			validate_print_permission(frappe.get_doc("Purchase Invoice", invoice.name))

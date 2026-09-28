@@ -5,6 +5,8 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import ReturnNotes from "@/components/ReturnNotes.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import {
 	PURCHASE_INVOICE_STATUS_THEME,
 	createPurchaseInvoiceResource,
@@ -13,6 +15,7 @@ import {
 } from "@/data/purchase";
 import type { PurchaseInvoice } from "@/data/purchase";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -37,9 +40,13 @@ watch([supplier, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="invoice?.is_return ? LOOKS.debitNote : LOOKS.purchaseInvoice"
 		:title="invoice?.bill_no || invoice?.name || name"
+		:copy="invoice?.name"
 		:breadcrumbs="[
-			{ label: 'Purchase Invoices', route: { name: 'PurchaseInvoiceList' } },
+			invoice?.is_return
+				? { label: 'Debit Notes', route: { name: 'DebitNoteList' } }
+				: { label: 'Purchase Invoices', route: { name: 'PurchaseInvoiceList' } },
 			{ label: invoice?.name || name },
 		]"
 	>
@@ -49,6 +56,12 @@ watch([supplier, () => props.name], load, { immediate: true });
 				:theme="PURCHASE_INVOICE_STATUS_THEME[invoice.status] || 'gray'"
 				variant="subtle"
 				:label="invoice.status"
+			/>
+			<PrintButton
+				v-if="invoice"
+				doctype="Purchase Invoice"
+				:name="invoice.name"
+				:label="invoice.is_return ? 'debit note' : 'invoice'"
 			/>
 			<Button
 				variant="subtle"
@@ -101,7 +114,13 @@ watch([supplier, () => props.name], load, { immediate: true });
 				</div>
 			</div>
 
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="
+					ACCENTS[(invoice?.is_return ? LOOKS.debitNote : LOOKS.purchaseInvoice).accent]
+						.panel
+				"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Our reference</dt>
 					<dd class="text-p-base text-ink-gray-8">{{ invoice.name }}</dd>
@@ -124,15 +143,31 @@ watch([supplier, () => props.name], load, { immediate: true });
 				</div>
 			</dl>
 
-			<div v-if="invoice.purchase_orders.length" class="flex flex-wrap items-center gap-2">
-				<span class="text-xs uppercase tracking-wide text-ink-gray-5">Against</span>
-				<Button
-					v-for="order in invoice.purchase_orders"
-					:key="order"
-					variant="subtle"
-					:label="order"
-					:route="{ name: 'PurchaseOrderDetail', params: { name: order } }"
-				/>
+			<div
+				v-if="invoice.purchase_orders.length || invoice.return_against"
+				class="flex flex-wrap items-center gap-2"
+			>
+				<template v-if="invoice.return_against">
+					<span class="text-xs uppercase tracking-wide text-ink-gray-5">Debits</span>
+					<Button
+						variant="subtle"
+						:label="invoice.return_against"
+						:route="{
+							name: 'PurchaseInvoiceDetail',
+							params: { name: invoice.return_against },
+						}"
+					/>
+				</template>
+				<template v-if="invoice.purchase_orders.length">
+					<span class="text-xs uppercase tracking-wide text-ink-gray-5">Against</span>
+					<Button
+						v-for="order in invoice.purchase_orders"
+						:key="order"
+						variant="subtle"
+						:label="order"
+						:route="{ name: 'PurchaseOrderDetail', params: { name: order } }"
+					/>
+				</template>
 			</div>
 
 			<div class="overflow-hidden rounded-6 border">
@@ -184,6 +219,14 @@ watch([supplier, () => props.name], load, { immediate: true });
 					<span>{{ money(invoice.grand_total, invoice.currency) }}</span>
 				</div>
 			</div>
+
+			<ReturnNotes
+				title="Debit notes against this invoice"
+				:notes="invoice.debit_notes"
+				:currency="invoice.currency"
+				detail-route="PurchaseInvoiceDetail"
+				:status-theme="PURCHASE_INVOICE_STATUS_THEME"
+			/>
 
 			<div class="rounded-6 border p-4">
 				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Payments</p>

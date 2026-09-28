@@ -5,6 +5,7 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import {
 	PURCHASE_ORDER_STATUS_THEME,
 	createPurchaseOrderResource,
@@ -13,6 +14,7 @@ import {
 } from "@/data/purchase";
 import type { PurchaseOrder } from "@/data/purchase";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -37,7 +39,9 @@ watch([supplier, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="LOOKS.purchaseOrder"
 		:title="order?.name || name"
+		:copy="order?.name"
 		:breadcrumbs="[
 			{ label: 'Purchase Orders', route: { name: 'PurchaseOrderList' } },
 			{ label: order?.name || name },
@@ -49,6 +53,12 @@ watch([supplier, () => props.name], load, { immediate: true });
 				:theme="PURCHASE_ORDER_STATUS_THEME[order.status] || 'gray'"
 				variant="subtle"
 				:label="order.status"
+			/>
+			<PrintButton
+				v-if="order"
+				doctype="Purchase Order"
+				:name="order.name"
+				:label="'order'"
 			/>
 			<Button
 				variant="subtle"
@@ -84,7 +94,10 @@ watch([supplier, () => props.name], load, { immediate: true });
 		</EmptyState>
 
 		<div v-else-if="order" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="ACCENTS[LOOKS.purchaseOrder.accent].panel"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Ordered</dt>
 					<dd class="text-p-base text-ink-gray-8">

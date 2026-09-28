@@ -5,8 +5,12 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
 
-from vuna_sourcing.api.rfq import get_rfq, send_quote
-from vuna_sourcing.api.supplier_quotation import get_supplier_quotation, get_supplier_quotations
+from vuna_sourcing.api.transactions.supplier import (
+	get_rfq,
+	get_supplier_quotation,
+	get_supplier_quotations,
+	send_quote,
+)
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
 
 

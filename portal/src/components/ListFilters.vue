@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Button, Dropdown, FormControl, TextInput } from "frappe-ui";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { Button, Dropdown, FormControl, TextInput, debounce } from "frappe-ui";
 
 export interface FilterOption {
 	label: string;
@@ -43,6 +43,26 @@ const addOptions = computed(() =>
 	}))
 );
 
+const SEARCH_DELAY_MS = 300;
+
+const searchText = ref(props.modelValue.search ?? "");
+
+watch(
+	() => props.modelValue.search ?? "",
+	(search) => {
+		if (search !== searchText.value) searchText.value = search;
+	}
+);
+
+const emitSearch = debounce((search: string) => set("search", search), SEARCH_DELAY_MS);
+
+function onSearchInput(value: unknown) {
+	searchText.value = String(value ?? "");
+	emitSearch(searchText.value);
+}
+
+onBeforeUnmount(() => emitSearch.cancel());
+
 function set(field: string, value: string) {
 	emit("update:modelValue", { ...props.modelValue, [field]: value });
 }
@@ -72,8 +92,8 @@ function optionsFor(field: FilterField) {
 			type="text"
 			size="sm"
 			:placeholder="searchPlaceholder || 'Search'"
-			:model-value="modelValue.search ?? ''"
-			@update:model-value="set('search', String($event ?? ''))"
+			:model-value="searchText"
+			@update:model-value="onSearchInput"
 		>
 			<template #prefix>
 				<i class="lucide-search size-4 text-ink-gray-5" />

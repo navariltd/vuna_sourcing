@@ -5,7 +5,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, nowdate
 
-from vuna_sourcing.api.rfq import (
+from vuna_sourcing.api.transactions.supplier import (
 	decline_quote,
 	get_rfq,
 	get_rfqs,

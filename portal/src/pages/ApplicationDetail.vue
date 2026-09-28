@@ -10,6 +10,7 @@ import {
 } from "@/data/application";
 import type { Application, ApplicationAddress, BadgeTheme } from "@/data/application";
 import { partyCopy } from "@/data/parties";
+import { LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -76,10 +77,7 @@ const places = computed(() => {
 </script>
 
 <template>
-	<PageContainer
-		:title="doc?.party_name || 'Application'"
-		:subtitle="copy ? `${props.name} · applying as a ${copy.noun}` : props.name"
-	>
+	<PageContainer :look="LOOKS.application" :title="doc?.party_name || 'Application'">
 		<template #actions>
 			<Badge v-if="status" :theme="theme" variant="subtle" :label="status" size="lg" />
 		</template>

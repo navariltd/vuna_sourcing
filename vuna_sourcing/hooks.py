@@ -131,13 +131,28 @@ after_install = "vuna_sourcing.setup.app_setup.after_install"
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+PORTAL_DOCTYPES = (
+	"Request for Quotation",
+	"Supplier Quotation",
+	"Purchase Order",
+	"Purchase Invoice",
+	"Quotation",
+	"Sales Order",
+	"Delivery Note",
+	"Sales Invoice",
+)
+
+permission_query_conditions = {
+	doctype: "vuna_sourcing.api.transactions.access.own_documents_condition" for doctype in PORTAL_DOCTYPES
+}
+
+has_permission = {
+	doctype: "vuna_sourcing.api.transactions.access.is_own_document" for doctype in PORTAL_DOCTYPES
+}
+
+has_website_permission = {
+	doctype: "vuna_sourcing.api.transactions.access.is_own_document" for doctype in PORTAL_DOCTYPES
+}
 
 # Document Events
 # ---------------

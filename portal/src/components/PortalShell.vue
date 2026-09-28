@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
 	Avatar,
 	BottomSheet,
@@ -13,11 +13,14 @@ import {
 	Sidebar,
 	SidebarHeader,
 	SidebarItem,
-	SidebarLabel,
 	SidebarRail,
 	SidebarRailItem,
+	SidebarSection,
 } from "frappe-ui";
 import { useIsMobile } from "@/composables/useViewport";
+import { usePartySwitch } from "@/composables/usePartySwitch";
+import { ACCENTS, LOOKS } from "@/data/accents";
+import type { DocumentLook } from "@/data/accents";
 import { partyKey, usePortalStore } from "@/stores/portal";
 import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
@@ -26,6 +29,8 @@ import PortalSettings from "@/components/PortalSettings.vue";
 
 const portal = usePortalStore();
 const route = useRoute();
+const router = useRouter();
+const { setActiveParty } = usePartySwitch();
 
 const showRail = computed(() => portal.parties.length > 1);
 
@@ -63,7 +68,7 @@ const userMenu = computed(() => [
 ]);
 
 function switchParty(party: Party) {
-	portal.setActiveParty(party);
+	setActiveParty(party);
 }
 
 const isMobile = useIsMobile();
@@ -74,23 +79,91 @@ const settingsOpen = ref(false);
 const canApply = computed(() => portal.canApply && portal.partyTypesToJoin.length > 0);
 
 const isSupplier = computed(() => portal.activeParty?.party_type === "Supplier");
+const isCustomer = computed(() => portal.activeParty?.party_type === "Customer");
 
-const elsewhere = computed(() =>
-	isSupplier.value
-		? [
-				{
-					label: "Supplier Quotations",
-					icon: "lucide-file-check",
-					route: { name: "SupplierQuotationList" },
-				},
-				{
-					label: "My applications",
-					icon: "lucide-folder-clock",
-					route: { name: "ApplicationList" },
-				},
-		  ]
-		: []
+interface NavLink {
+	label: string;
+	look: DocumentLook;
+	route: string;
+	tab?: string;
+}
+
+interface NavSection {
+	label: string;
+	links: NavLink[];
+	collapsible: boolean;
+}
+
+const BUYING: NavLink[] = [
+	{ label: "Request for Quotation", look: LOOKS.rfq, route: "RfqList", tab: "RFQs" },
+	{
+		label: "Supplier Quotations",
+		look: LOOKS.supplierQuotation,
+		route: "SupplierQuotationList",
+	},
+	{
+		label: "Purchase Orders",
+		look: LOOKS.purchaseOrder,
+		route: "PurchaseOrderList",
+		tab: "Orders",
+	},
+	{ label: "Purchase Invoices", look: LOOKS.purchaseInvoice, route: "PurchaseInvoiceList" },
+	{ label: "Debit Notes", look: LOOKS.debitNote, route: "DebitNoteList" },
+];
+
+const SELLING: NavLink[] = [
+	{ label: "Quotations", look: LOOKS.quotation, route: "QuotationList" },
+	{ label: "Sales Orders", look: LOOKS.salesOrder, route: "SalesOrderList", tab: "Orders" },
+	{ label: "Delivery Notes", look: LOOKS.deliveryNote, route: "DeliveryNoteList" },
+	{
+		label: "Sales Invoices",
+		look: LOOKS.salesInvoice,
+		route: "SalesInvoiceList",
+		tab: "Invoices",
+	},
+	{ label: "Credit Notes", look: LOOKS.creditNote, route: "CreditNoteList" },
+];
+
+const navSections = computed<NavSection[]>(() => {
+	const sections: NavSection[] = [];
+	if (portal.suppliers.length)
+		sections.push({ label: "Buying", links: BUYING, collapsible: true });
+	if (portal.customers.length)
+		sections.push({ label: "Selling", links: SELLING, collapsible: true });
+	sections.push({
+		label: "Onboarding",
+		collapsible: false,
+		links: [
+			...(portal.canApply
+				? [{ label: "Onboard", look: LOOKS.onboard, route: "ApplicationForm" }]
+				: []),
+			{ label: "My applications", look: LOOKS.application, route: "ApplicationList" },
+		],
+	});
+	return sections;
+});
+
+const tabs = computed(() => {
+	const side = isSupplier.value ? BUYING : isCustomer.value ? SELLING : [];
+	return side.filter((link) => link.tab);
+});
+
+const moreSheet = ref(false);
+
+const moreActive = computed(
+	() =>
+		moreSheet.value ||
+		(route.name !== "PortalOverview" &&
+			!tabs.value.some((link) => link.route === route.name) &&
+			navSections.value.some((section) =>
+				section.links.some((link) => link.route === route.name)
+			))
 );
+
+function goTo(link: NavLink) {
+	moreSheet.value = false;
+	router.push({ name: link.route });
+}
 
 const accountActions = computed(() =>
 	userMenu.value.filter((item) => !item.condition || item.condition())
@@ -119,31 +192,27 @@ function runAccountAction(action: () => void) {
 					:route="{ name: 'PortalOverview' }"
 				/>
 				<MobileNavItem
-					v-if="isSupplier"
-					label="RFQs"
-					icon="lucide-file-text"
-					:route="{ name: 'RfqList' }"
+					v-for="link in tabs"
+					:key="link.route"
+					:label="link.tab!"
+					:icon="link.look.icon"
+					:route="{ name: link.route }"
 				/>
 				<MobileNavItem
-					v-if="isSupplier"
-					label="Orders"
-					icon="lucide-package"
-					:route="{ name: 'PurchaseOrderList' }"
+					v-if="isSupplier || isCustomer"
+					label="More"
+					icon="lucide-layout-list"
+					:active="moreActive"
+					@click="moreSheet = true"
 				/>
 				<MobileNavItem
-					v-if="isSupplier"
-					label="Invoices"
-					icon="lucide-receipt"
-					:route="{ name: 'PurchaseInvoiceList' }"
-				/>
-				<MobileNavItem
-					v-if="!isSupplier"
+					v-if="!isSupplier && !isCustomer"
 					label="Applications"
 					icon="lucide-folder-clock"
 					:route="{ name: 'ApplicationList' }"
 				/>
 				<MobileNavItem
-					v-if="!isSupplier && canApply"
+					v-if="!isSupplier && !isCustomer && canApply"
 					label="Apply"
 					icon="lucide-file-pen-line"
 					:route="{ name: 'ApplicationForm' }"
@@ -232,43 +301,30 @@ function runAccountAction(action: () => void) {
 						:route="{ name: 'PortalOverview' }"
 					/>
 
-					<template v-if="isSupplier">
-						<SidebarLabel divider>Sourcing</SidebarLabel>
+					<SidebarSection
+						v-for="section in navSections"
+						:key="section.label"
+						:label="section.label"
+						:collapsible="section.collapsible"
+					>
 						<SidebarItem
-							label="Request for Quotation"
-							icon="lucide-file-text"
-							:route="{ name: 'RfqList' }"
-						/>
-						<SidebarItem
-							label="Supplier Quotations"
-							icon="lucide-file-check"
-							:route="{ name: 'SupplierQuotationList' }"
-						/>
-						<SidebarItem
-							label="Purchase Orders"
-							icon="lucide-package"
-							:route="{ name: 'PurchaseOrderList' }"
-						/>
-						<SidebarItem
-							label="Purchase Invoices"
-							icon="lucide-receipt"
-							:route="{ name: 'PurchaseInvoiceList' }"
-						/>
-					</template>
-
-					<SidebarLabel divider>Onboarding</SidebarLabel>
-
-					<SidebarItem
-						v-if="portal.canApply"
-						label="Onboard"
-						icon="lucide-file-pen-line"
-						:route="{ name: 'ApplicationForm' }"
-					/>
-					<SidebarItem
-						label="My applications"
-						icon="lucide-folder-clock"
-						:route="{ name: 'ApplicationList' }"
-					/>
+							v-for="link in section.links"
+							:key="link.route"
+							:label="link.label"
+							:route="{ name: link.route }"
+						>
+							<template #prefix>
+								<i
+									:class="[
+										link.look.icon,
+										ACCENTS[link.look.accent].icon,
+										'size-4',
+									]"
+									aria-hidden="true"
+								/>
+							</template>
+						</SidebarItem>
+					</SidebarSection>
 				</div>
 
 				<div class="border-t p-2">
@@ -315,21 +371,6 @@ function runAccountAction(action: () => void) {
 				</div>
 			</div>
 
-			<div v-if="elsewhere.length" class="mt-4 flex flex-col gap-1">
-				<p class="px-1 pb-1 text-xs uppercase tracking-wide text-ink-gray-5">Go to</p>
-				<Button
-					v-for="link in elsewhere"
-					:key="link.label"
-					:label="link.label"
-					:icon-left="link.icon"
-					variant="ghost"
-					size="md"
-					class="!justify-start"
-					:route="link.route"
-					@click="accountSheet = false"
-				/>
-			</div>
-
 			<div class="mt-4 flex flex-col gap-2">
 				<Button
 					v-for="action in accountActions"
@@ -340,6 +381,39 @@ function runAccountAction(action: () => void) {
 					@click="runAccountAction(action.onClick)"
 				/>
 			</div>
+		</div>
+	</BottomSheet>
+
+	<BottomSheet v-if="isMobile" v-model:open="moreSheet" title="All transactions">
+		<div class="space-y-4 px-4 pb-6">
+			<section v-for="section in navSections" :key="section.label">
+				<p class="px-1 pb-1 text-xs uppercase tracking-wide text-ink-gray-5">
+					{{ section.label }}
+				</p>
+				<div class="flex flex-col">
+					<button
+						v-for="link in section.links"
+						:key="link.route"
+						type="button"
+						class="flex items-center gap-3 rounded-4 px-2 py-2.5 text-left text-base"
+						:class="
+							route.name === link.route
+								? 'bg-surface-gray-2 font-medium text-ink-gray-9'
+								: 'text-ink-gray-8 active:bg-surface-gray-2'
+						"
+						@click="goTo(link)"
+					>
+						<span
+							class="grid size-7 shrink-0 place-items-center rounded-5"
+							:class="ACCENTS[link.look.accent].tile"
+						>
+							<i :class="[link.look.icon, 'size-4']" aria-hidden="true" />
+						</span>
+						<span class="flex-1">{{ link.label }}</span>
+						<i class="lucide-chevron-right size-4 text-ink-gray-4" />
+					</button>
+				</div>
+			</section>
 		</div>
 	</BottomSheet>
 
