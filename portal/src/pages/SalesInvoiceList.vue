@@ -11,6 +11,7 @@ import { SALES_INVOICE_STATUS_THEME, creditNoteList, salesInvoiceList } from "@/
 import type { SalesInvoiceRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const props = defineProps<{ creditNotes?: boolean }>();
 
@@ -22,7 +23,6 @@ const list = props.creditNotes ? creditNoteList : salesInvoiceList;
 const copy = props.creditNotes
 	? {
 			title: "Credit Notes",
-			subtitle: "What we have credited back to you.",
 			noun: "credit note",
 			label: "Credit note",
 			icon: "lucide-receipt-cent",
@@ -31,7 +31,6 @@ const copy = props.creditNotes
 	  }
 	: {
 			title: "Sales Invoices",
-			subtitle: "What we have billed you, and what is still to pay.",
 			noun: "invoice",
 			label: "Invoice",
 			icon: "lucide-receipt",
@@ -119,7 +118,11 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer wide :title="copy.title" :subtitle="customer ? copy.subtitle : undefined">
+	<PageContainer
+		:look="creditNotes ? LOOKS.creditNote : LOOKS.salesInvoice"
+		wide
+		:title="copy.title"
+	>
 		<template #actions>
 			<Button
 				v-if="customer"

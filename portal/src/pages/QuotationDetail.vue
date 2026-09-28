@@ -5,10 +5,12 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import { money, shortDate } from "@/data/purchase";
 import { QUOTATION_STATUS_THEME, createQuotationResource } from "@/data/selling";
 import type { Quotation } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -33,7 +35,9 @@ watch([customer, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="LOOKS.quotation"
 		:title="quotation?.name || name"
+		:copy="quotation?.name"
 		:breadcrumbs="[
 			{ label: 'Quotations', route: { name: 'QuotationList' } },
 			{ label: quotation?.name || name },
@@ -45,6 +49,12 @@ watch([customer, () => props.name], load, { immediate: true });
 				:theme="QUOTATION_STATUS_THEME[quotation.status] || 'gray'"
 				variant="subtle"
 				:label="quotation.status"
+			/>
+			<PrintButton
+				v-if="quotation"
+				doctype="Quotation"
+				:name="quotation.name"
+				:label="'quotation'"
 			/>
 			<Button
 				variant="subtle"
@@ -80,7 +90,10 @@ watch([customer, () => props.name], load, { immediate: true });
 		</EmptyState>
 
 		<div v-else-if="quotation" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3">
+			<dl
+				:class="ACCENTS[LOOKS.quotation.accent].panel"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Dated</dt>
 					<dd class="text-p-base text-ink-gray-8">

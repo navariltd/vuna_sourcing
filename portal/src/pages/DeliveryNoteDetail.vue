@@ -5,10 +5,12 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import { money, shortDate } from "@/data/purchase";
 import { DELIVERY_NOTE_STATUS_THEME, createDeliveryNoteResource } from "@/data/selling";
 import type { DeliveryNote } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -45,8 +47,9 @@ watch([customer, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="LOOKS.deliveryNote"
 		:title="delivery?.name || name"
-		:subtitle="delivery?.is_return ? 'Goods returned to us' : undefined"
+		:copy="delivery?.name"
 		:breadcrumbs="[
 			{ label: 'Delivery Notes', route: { name: 'DeliveryNoteList' } },
 			{ label: delivery?.name || name },
@@ -58,6 +61,12 @@ watch([customer, () => props.name], load, { immediate: true });
 				:theme="DELIVERY_NOTE_STATUS_THEME[delivery.status] || 'gray'"
 				variant="subtle"
 				:label="delivery.status"
+			/>
+			<PrintButton
+				v-if="delivery"
+				doctype="Delivery Note"
+				:name="delivery.name"
+				:label="'delivery note'"
 			/>
 			<Button
 				variant="subtle"
@@ -93,7 +102,10 @@ watch([customer, () => props.name], load, { immediate: true });
 		</EmptyState>
 
 		<div v-else-if="delivery" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="ACCENTS[LOOKS.deliveryNote.accent].panel"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Dispatched</dt>
 					<dd class="text-p-base text-ink-gray-8">

@@ -13,6 +13,7 @@ import type {
 } from "@/data/supplierQuotation";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
@@ -92,13 +93,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Supplier Quotations"
-		:subtitle="
-			supplier ? 'The quotations you have sent, and where each one stands.' : undefined
-		"
-	>
+	<PageContainer :look="LOOKS.supplierQuotation" wide title="Supplier Quotations">
 		<template #actions>
 			<Button
 				v-if="supplier"

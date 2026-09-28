@@ -6,6 +6,7 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_retu
 from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note, make_sales_invoice
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
+from frappe.www.printview import validate_print_permission
 
 from vuna_sourcing.api.transactions.customer import (
 	get_delivery_note,
@@ -216,3 +217,19 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 		self.assertTrue(credit_notes["rows"][0]["is_return"])
 		self.assertEqual([row.name for row in original["credit_notes"]], [credit_note.name])
 		self.assertEqual(note["return_against"], invoice.name)
+
+	def test_a_customer_prints_their_submitted_order_but_not_a_draft_or_another_customers(self):
+		mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+		submitted = self.make_order(mine)
+		draft = self.make_order(mine, submit=False)
+		other = self.make_order(theirs)
+
+		with self.set_user(user):
+			validate_print_permission(frappe.get_doc("Sales Order", submitted.name))
+			for name in (draft.name, other.name):
+				self.assertRaises(
+					frappe.PermissionError,
+					validate_print_permission,
+					frappe.get_doc("Sales Order", name),
+				)

@@ -11,6 +11,7 @@ import { DELIVERY_NOTE_STATUS_THEME, deliveryNoteList } from "@/data/selling";
 import type { DeliveryNoteRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
@@ -73,11 +74,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Delivery Notes"
-		:subtitle="customer ? 'What we have shipped to you.' : undefined"
-	>
+	<PageContainer :look="LOOKS.deliveryNote" wide title="Delivery Notes">
 		<template #actions>
 			<Button
 				v-if="customer"

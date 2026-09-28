@@ -15,6 +15,7 @@ import {
 import type { PurchaseInvoiceRow, PurchasePage } from "@/data/purchase";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const props = defineProps<{ debitNotes?: boolean }>();
 
@@ -26,7 +27,6 @@ const list = props.debitNotes ? debitNoteList : purchaseInvoiceList;
 const copy = props.debitNotes
 	? {
 			title: "Debit Notes",
-			subtitle: "What we have debited back against your invoices.",
 			noun: "debit note",
 			label: "Debit note",
 			icon: "lucide-receipt-cent",
@@ -35,7 +35,6 @@ const copy = props.debitNotes
 	  }
 	: {
 			title: "Purchase Invoices",
-			subtitle: "Your invoices as we hold them.",
 			noun: "invoice",
 			label: "Invoice",
 			icon: "lucide-receipt",
@@ -119,7 +118,11 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer wide :title="copy.title" :subtitle="supplier ? copy.subtitle : undefined">
+	<PageContainer
+		:look="debitNotes ? LOOKS.debitNote : LOOKS.purchaseInvoice"
+		wide
+		:title="copy.title"
+	>
 		<template #actions>
 			<Button
 				v-if="supplier"

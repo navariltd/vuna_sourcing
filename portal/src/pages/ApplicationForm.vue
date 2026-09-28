@@ -415,12 +415,6 @@ const title = computed(() => {
 	return copy.value ? `Become a ${copy.value.noun}` : "Apply to work with us";
 });
 
-const subtitle = computed(() =>
-	copy.value
-		? copy.value.outcome
-		: "Tell us how you would like to work with us and we will guide you through the rest."
-);
-
 const reviewRows = computed(() => {
 	const rows: [string, string | null | undefined][] = [
 		["Applying as", form.party_type],
@@ -446,7 +440,7 @@ const reviewRows = computed(() => {
 </script>
 
 <template>
-	<PageContainer :title="title" :subtitle="subtitle">
+	<PageContainer :title="title">
 		<template #actions>
 			<Badge v-if="saving" theme="gray" variant="subtle" label="Saving…" />
 			<Button

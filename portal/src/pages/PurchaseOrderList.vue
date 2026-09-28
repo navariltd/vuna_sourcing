@@ -9,6 +9,7 @@ import { PURCHASE_ORDER_STATUS_THEME, money, purchaseOrderList, shortDate } from
 import type { PurchaseOrderRow, PurchasePage } from "@/data/purchase";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
@@ -71,11 +72,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Purchase Orders"
-		:subtitle="supplier ? 'Orders placed with you, and how much we have received.' : undefined"
-	>
+	<PageContainer :look="LOOKS.purchaseOrder" wide title="Purchase Orders">
 		<template #actions>
 			<Button
 				v-if="supplier"

@@ -11,6 +11,7 @@ import { QUOTATION_STATUS_THEME, quotationList } from "@/data/selling";
 import type { QuotationRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
@@ -72,11 +73,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Quotations"
-		:subtitle="customer ? 'Prices we have offered you.' : undefined"
-	>
+	<PageContainer :look="LOOKS.quotation" wide title="Quotations">
 		<template #actions>
 			<Button
 				v-if="customer"

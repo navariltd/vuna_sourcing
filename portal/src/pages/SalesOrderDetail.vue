@@ -5,6 +5,7 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import { money, shortDate } from "@/data/purchase";
 import {
 	DELIVERY_NOTE_STATUS_THEME,
@@ -13,6 +14,7 @@ import {
 } from "@/data/selling";
 import type { SalesOrder } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -37,8 +39,9 @@ watch([customer, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="LOOKS.salesOrder"
 		:title="order?.name || name"
-		:subtitle="order?.po_no ? `Your PO ${order.po_no}` : undefined"
+		:copy="order?.name"
 		:breadcrumbs="[
 			{ label: 'Sales Orders', route: { name: 'SalesOrderList' } },
 			{ label: order?.name || name },
@@ -51,6 +54,7 @@ watch([customer, () => props.name], load, { immediate: true });
 				variant="subtle"
 				:label="order.status"
 			/>
+			<PrintButton v-if="order" doctype="Sales Order" :name="order.name" :label="'order'" />
 			<Button
 				variant="subtle"
 				icon="lucide-refresh-cw"
@@ -85,7 +89,10 @@ watch([customer, () => props.name], load, { immediate: true });
 		</EmptyState>
 
 		<div v-else-if="order" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="ACCENTS[LOOKS.salesOrder.accent].panel"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Ordered</dt>
 					<dd class="text-p-base text-ink-gray-8">

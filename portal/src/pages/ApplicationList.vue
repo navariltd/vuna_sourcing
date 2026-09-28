@@ -7,6 +7,7 @@ import { myApplications, STATUS_THEME } from "@/data/application";
 import type { BadgeTheme } from "@/data/application";
 import { partyCopy } from "@/data/parties";
 import { usePortalStore } from "@/stores/portal";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 
@@ -42,11 +43,7 @@ function formatDate(value: string) {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="My applications"
-		subtitle="Every application you have made — as a supplier, a customer, or both."
-	>
+	<PageContainer :look="LOOKS.application" wide title="My applications">
 		<template #actions>
 			<Button
 				v-if="portal.canApply"

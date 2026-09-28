@@ -9,6 +9,7 @@ import { RFQ_STATUS_HINT, RFQ_STATUS_THEME, rfqList } from "@/data/rfq";
 import type { RfqPage, RfqRow, RfqStatus } from "@/data/rfq";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
@@ -76,11 +77,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Request for Quotation"
-		:subtitle="supplier ? 'Requests you have been invited to quote on.' : undefined"
-	>
+	<PageContainer :look="LOOKS.rfq" wide title="Request for Quotation">
 		<template #actions>
 			<Badge
 				v-if="supplier && counts.Invited"

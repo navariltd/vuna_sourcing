@@ -5,16 +5,12 @@ import { Badge, Button, Dialog, ErrorMessage, FormControl, Spinner } from "frapp
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
-import {
-	RFQ_STATUS_HINT,
-	RFQ_STATUS_THEME,
-	createRfqResource,
-	declineQuote,
-	sendQuote,
-} from "@/data/rfq";
+import PrintButton from "@/components/PrintButton.vue";
+import { RFQ_STATUS_THEME, createRfqResource, declineQuote, sendQuote } from "@/data/rfq";
 import type { QuoteLine, Rfq } from "@/data/rfq";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -135,12 +131,13 @@ function money(value: number) {
 
 <template>
 	<PageContainer
+		:look="LOOKS.rfq"
 		:title="rfq?.name || name"
+		:copy="rfq?.name"
 		:breadcrumbs="[
 			{ label: 'Request for Quotation', route: { name: 'RfqList' } },
 			{ label: rfq?.name || name },
 		]"
-		:subtitle="rfq ? RFQ_STATUS_HINT[rfq.status] : undefined"
 	>
 		<template #actions>
 			<Badge
@@ -149,7 +146,12 @@ function money(value: number) {
 				variant="subtle"
 				:label="rfq.status"
 			/>
-			<Button variant="subtle" label="All requests" :route="{ name: 'RfqList' }" />
+			<PrintButton
+				v-if="rfq"
+				doctype="Request for Quotation"
+				:name="rfq.name"
+				:label="'request for quotation'"
+			/>
 		</template>
 
 		<EmptyState
@@ -177,7 +179,10 @@ function money(value: number) {
 		</EmptyState>
 
 		<div v-else-if="rfq" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3">
+			<dl
+				:class="ACCENTS[LOOKS.rfq.accent].panel"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Quoting as</dt>
 					<dd class="text-p-base text-ink-gray-8">{{ portal.activeParty?.title }}</dd>

@@ -6,6 +6,7 @@ import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
 import ReturnNotes from "@/components/ReturnNotes.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import {
 	PURCHASE_INVOICE_STATUS_THEME,
 	createPurchaseInvoiceResource,
@@ -14,6 +15,7 @@ import {
 } from "@/data/purchase";
 import type { PurchaseInvoice } from "@/data/purchase";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -38,8 +40,9 @@ watch([supplier, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="invoice?.is_return ? LOOKS.debitNote : LOOKS.purchaseInvoice"
 		:title="invoice?.bill_no || invoice?.name || name"
-		:subtitle="invoice?.is_return ? 'Debit note' : undefined"
+		:copy="invoice?.name"
 		:breadcrumbs="[
 			invoice?.is_return
 				? { label: 'Debit Notes', route: { name: 'DebitNoteList' } }
@@ -53,6 +56,12 @@ watch([supplier, () => props.name], load, { immediate: true });
 				:theme="PURCHASE_INVOICE_STATUS_THEME[invoice.status] || 'gray'"
 				variant="subtle"
 				:label="invoice.status"
+			/>
+			<PrintButton
+				v-if="invoice"
+				doctype="Purchase Invoice"
+				:name="invoice.name"
+				:label="invoice.is_return ? 'debit note' : 'invoice'"
 			/>
 			<Button
 				variant="subtle"
@@ -105,7 +114,13 @@ watch([supplier, () => props.name], load, { immediate: true });
 				</div>
 			</div>
 
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="
+					ACCENTS[(invoice?.is_return ? LOOKS.debitNote : LOOKS.purchaseInvoice).accent]
+						.panel
+				"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Our reference</dt>
 					<dd class="text-p-base text-ink-gray-8">{{ invoice.name }}</dd>

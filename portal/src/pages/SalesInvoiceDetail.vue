@@ -6,10 +6,12 @@ import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
 import ReturnNotes from "@/components/ReturnNotes.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import { money, shortDate } from "@/data/purchase";
 import { SALES_INVOICE_STATUS_THEME, createSalesInvoiceResource } from "@/data/selling";
 import type { SalesInvoice } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -34,10 +36,9 @@ watch([customer, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		:look="invoice?.is_return ? LOOKS.creditNote : LOOKS.salesInvoice"
 		:title="invoice?.name || name"
-		:subtitle="
-			invoice?.is_return ? 'Credit note' : invoice?.is_debit_note ? 'Debit note' : undefined
-		"
+		:copy="invoice?.name"
 		:breadcrumbs="[
 			invoice?.is_return
 				? { label: 'Credit Notes', route: { name: 'CreditNoteList' } }
@@ -51,6 +52,12 @@ watch([customer, () => props.name], load, { immediate: true });
 				:theme="SALES_INVOICE_STATUS_THEME[invoice.status] || 'gray'"
 				variant="subtle"
 				:label="invoice.status"
+			/>
+			<PrintButton
+				v-if="invoice"
+				doctype="Sales Invoice"
+				:name="invoice.name"
+				:label="invoice.is_return ? 'credit note' : 'invoice'"
 			/>
 			<Button
 				variant="subtle"
@@ -86,7 +93,13 @@ watch([customer, () => props.name], load, { immediate: true });
 		</EmptyState>
 
 		<div v-else-if="invoice" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="
+					ACCENTS[(invoice?.is_return ? LOOKS.creditNote : LOOKS.salesInvoice).accent]
+						.panel
+				"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Your PO</dt>
 					<dd class="text-p-base text-ink-gray-8">{{ invoice.po_no || "—" }}</dd>

@@ -11,6 +11,7 @@ import { SALES_ORDER_STATUS_THEME, salesOrderList } from "@/data/selling";
 import type { SalesOrderRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
@@ -74,11 +75,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer
-		wide
-		title="Sales Orders"
-		:subtitle="customer ? 'Your orders with us, and how much has been delivered.' : undefined"
-	>
+	<PageContainer :look="LOOKS.salesOrder" wide title="Sales Orders">
 		<template #actions>
 			<Button
 				v-if="customer"

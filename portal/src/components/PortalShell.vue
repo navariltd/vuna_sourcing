@@ -19,6 +19,8 @@ import {
 } from "frappe-ui";
 import { useIsMobile } from "@/composables/useViewport";
 import { usePartySwitch } from "@/composables/usePartySwitch";
+import { ACCENTS, LOOKS } from "@/data/accents";
+import type { DocumentLook } from "@/data/accents";
 import { partyKey, usePortalStore } from "@/stores/portal";
 import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
@@ -81,7 +83,7 @@ const isCustomer = computed(() => portal.activeParty?.party_type === "Customer")
 
 interface NavLink {
 	label: string;
-	icon: string;
+	look: DocumentLook;
 	route: string;
 	tab?: string;
 }
@@ -93,34 +95,33 @@ interface NavSection {
 }
 
 const BUYING: NavLink[] = [
-	{ label: "Request for Quotation", icon: "lucide-file-text", route: "RfqList", tab: "RFQs" },
-	{ label: "Supplier Quotations", icon: "lucide-file-check", route: "SupplierQuotationList" },
+	{ label: "Request for Quotation", look: LOOKS.rfq, route: "RfqList", tab: "RFQs" },
+	{
+		label: "Supplier Quotations",
+		look: LOOKS.supplierQuotation,
+		route: "SupplierQuotationList",
+	},
 	{
 		label: "Purchase Orders",
-		icon: "lucide-package",
+		look: LOOKS.purchaseOrder,
 		route: "PurchaseOrderList",
 		tab: "Orders",
 	},
-	{ label: "Purchase Invoices", icon: "lucide-receipt", route: "PurchaseInvoiceList" },
-	{ label: "Debit Notes", icon: "lucide-receipt-cent", route: "DebitNoteList" },
+	{ label: "Purchase Invoices", look: LOOKS.purchaseInvoice, route: "PurchaseInvoiceList" },
+	{ label: "Debit Notes", look: LOOKS.debitNote, route: "DebitNoteList" },
 ];
 
 const SELLING: NavLink[] = [
-	{ label: "Quotations", icon: "lucide-file-badge", route: "QuotationList" },
-	{
-		label: "Sales Orders",
-		icon: "lucide-shopping-cart",
-		route: "SalesOrderList",
-		tab: "Orders",
-	},
-	{ label: "Delivery Notes", icon: "lucide-truck", route: "DeliveryNoteList" },
+	{ label: "Quotations", look: LOOKS.quotation, route: "QuotationList" },
+	{ label: "Sales Orders", look: LOOKS.salesOrder, route: "SalesOrderList", tab: "Orders" },
+	{ label: "Delivery Notes", look: LOOKS.deliveryNote, route: "DeliveryNoteList" },
 	{
 		label: "Sales Invoices",
-		icon: "lucide-receipt-text",
+		look: LOOKS.salesInvoice,
 		route: "SalesInvoiceList",
 		tab: "Invoices",
 	},
-	{ label: "Credit Notes", icon: "lucide-receipt-cent", route: "CreditNoteList" },
+	{ label: "Credit Notes", look: LOOKS.creditNote, route: "CreditNoteList" },
 ];
 
 const navSections = computed<NavSection[]>(() => {
@@ -134,9 +135,9 @@ const navSections = computed<NavSection[]>(() => {
 		collapsible: false,
 		links: [
 			...(portal.canApply
-				? [{ label: "Onboard", icon: "lucide-file-pen-line", route: "ApplicationForm" }]
+				? [{ label: "Onboard", look: LOOKS.onboard, route: "ApplicationForm" }]
 				: []),
-			{ label: "My applications", icon: "lucide-folder-clock", route: "ApplicationList" },
+			{ label: "My applications", look: LOOKS.application, route: "ApplicationList" },
 		],
 	});
 	return sections;
@@ -194,7 +195,7 @@ function runAccountAction(action: () => void) {
 					v-for="link in tabs"
 					:key="link.route"
 					:label="link.tab!"
-					:icon="link.icon"
+					:icon="link.look.icon"
 					:route="{ name: link.route }"
 				/>
 				<MobileNavItem
@@ -310,9 +311,19 @@ function runAccountAction(action: () => void) {
 							v-for="link in section.links"
 							:key="link.route"
 							:label="link.label"
-							:icon="link.icon"
 							:route="{ name: link.route }"
-						/>
+						>
+							<template #prefix>
+								<i
+									:class="[
+										link.look.icon,
+										ACCENTS[link.look.accent].icon,
+										'size-4',
+									]"
+									aria-hidden="true"
+								/>
+							</template>
+						</SidebarItem>
 					</SidebarSection>
 				</div>
 
@@ -392,7 +403,12 @@ function runAccountAction(action: () => void) {
 						"
 						@click="goTo(link)"
 					>
-						<i :class="[link.icon, 'size-4 shrink-0 text-ink-gray-6']" />
+						<span
+							class="grid size-7 shrink-0 place-items-center rounded-5"
+							:class="ACCENTS[link.look.accent].tile"
+						>
+							<i :class="[link.look.icon, 'size-4']" aria-hidden="true" />
+						</span>
 						<span class="flex-1">{{ link.label }}</span>
 						<i class="lucide-chevron-right size-4 text-ink-gray-4" />
 					</button>

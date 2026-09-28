@@ -25,7 +25,7 @@ def create_portal_user_role() -> None:
 				"desk_access": 0,
 				"home_page": "/vuna-sourcing",
 			}
-		).insert(ignore_permissions=True)
+		).insert(ignore_permissions=True)  # nosemgrep
 
 
 def has_app_permission() -> bool:

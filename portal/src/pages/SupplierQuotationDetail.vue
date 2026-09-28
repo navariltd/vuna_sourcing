@@ -5,12 +5,14 @@ import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
+import PrintButton from "@/components/PrintButton.vue";
 import {
 	SUPPLIER_QUOTATION_STATUS_THEME,
 	createSupplierQuotationResource,
 } from "@/data/supplierQuotation";
 import type { SupplierQuotation } from "@/data/supplierQuotation";
 import { usePortalStore } from "@/stores/portal";
+import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
 
@@ -53,7 +55,9 @@ function money(value: number | null | undefined) {
 
 <template>
 	<PageContainer
+		:look="LOOKS.supplierQuotation"
 		:title="quotation?.quotation_number || quotation?.name || name"
+		:copy="quotation?.name"
 		:breadcrumbs="[
 			{ label: 'Supplier Quotations', route: { name: 'SupplierQuotationList' } },
 			{ label: quotation?.name || name },
@@ -65,6 +69,12 @@ function money(value: number | null | undefined) {
 				:theme="SUPPLIER_QUOTATION_STATUS_THEME[quotation.status]"
 				variant="subtle"
 				:label="quotation.status"
+			/>
+			<PrintButton
+				v-if="quotation"
+				doctype="Supplier Quotation"
+				:name="quotation.name"
+				:label="'quotation'"
 			/>
 			<Button
 				v-if="quotation?.rfq"
@@ -99,7 +109,10 @@ function money(value: number | null | undefined) {
 		</EmptyState>
 
 		<div v-else-if="quotation" class="space-y-6">
-			<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4">
+			<dl
+				:class="ACCENTS[LOOKS.supplierQuotation.accent].panel"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Quoted as</dt>
 					<dd class="text-p-base text-ink-gray-8">{{ portal.activeParty?.title }}</dd>
