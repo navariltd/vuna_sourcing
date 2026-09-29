@@ -2,10 +2,11 @@
 # For license information, please see license.txt
 
 from collections import Counter
+from contextlib import contextmanager
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import add_months, cint, flt, getdate, nowdate
 from frappe.utils.html_utils import sanitize_html
 
 from vuna_sourcing.api.portal import check_party_access, get_linked_parties
@@ -151,3 +152,134 @@ def line_item(item, **extra) -> dict:
 		"amount": item.amount,
 		**extra,
 	}
+
+
+STATEMENT_FIELDS = (
+	"voucher_type",
+	"voucher_no",
+	"posting_date",
+	"due_date",
+	"bill_no",
+	"po_no",
+	"invoiced",
+	"paid",
+	"credit_note",
+	"outstanding",
+	"age",
+	"currency",
+)
+
+
+@contextmanager
+def as_administrator():
+	session = frappe.local.session
+	user = session.user
+	session.user = "Administrator"
+	frappe.local.user_perms = None
+	try:
+		yield
+	finally:
+		session.user = user
+		frappe.local.user_perms = None
+
+
+def statement_companies(party_type: str, parties: list[str]) -> list[str]:
+	return frappe.get_all(
+		"Payment Ledger Entry",
+		filters={"party_type": party_type, "party": ("in", parties or [""]), "delinked": 0},
+		pluck="company",
+		distinct=True,
+		order_by="company asc",
+	)
+
+
+def outstanding_statement(account_type: str, party_type: str, parties: list[str]) -> dict:
+	from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
+
+	naming_by = (
+		["Selling Settings", "cust_master_name"]
+		if account_type == "Receivable"
+		else ["Buying Settings", "supp_master_name"]
+	)
+	report_date = nowdate()
+	companies = []
+
+	for company in statement_companies(party_type, parties):
+		report = ReceivablePayableReport(
+			{
+				"company": company,
+				"report_date": report_date,
+				"ageing_based_on": "Due Date",
+				"party_type": party_type,
+				"party": parties,
+				"in_party_currency": 1,
+			}
+		)
+		with as_administrator():
+			_columns, data, *_rest = report.run({"account_type": account_type, "naming_by": naming_by})
+
+		rows = [row for row in data if isinstance(row, dict) and row.get("voucher_no")]
+
+		companies.append(
+			{
+				"company": company,
+				"currency": next((row.get("currency") for row in rows if row.get("currency")), None)
+				or frappe.get_cached_value("Company", company, "default_currency"),
+				"rows": [{field: row.get(field) for field in STATEMENT_FIELDS} for row in rows],
+				"totals": {
+					field: flt(sum(flt(row.get(field)) for row in rows), 2)
+					for field in ("invoiced", "paid", "credit_note", "outstanding")
+				},
+			}
+		)
+
+	return {"report_date": report_date, "companies": companies}
+
+
+def month_starts(count: int = 12) -> list:
+	first = getdate(nowdate()).replace(day=1)
+	return [add_months(first, offset) for offset in range(-(count - 1), 1)]
+
+
+def monthly_totals(doctype: str, filters: dict, date_field: str, value_field: str) -> list[dict]:
+	months = month_starts()
+	totals = dict.fromkeys(months, 0.0)
+
+	for row in frappe.get_all(
+		doctype,
+		filters={**filters, date_field: (">=", months[0])},
+		fields=[date_field, value_field],
+	):
+		month = getdate(row[date_field]).replace(day=1)
+		if month in totals:
+			totals[month] += flt(row[value_field])
+
+	return [{"month": month.isoformat(), "value": flt(total, 2)} for month, total in totals.items()]
+
+
+def status_counts(doctype: str, filters: dict) -> list[dict]:
+	counts = Counter(frappe.get_all(doctype, filters=filters, pluck="status"))
+	return [{"status": status, "count": count} for status, count in counts.most_common() if status]
+
+
+def balance(statement: dict) -> dict:
+	section = next(iter(statement["companies"]), None)
+	return {
+		"outstanding": section["totals"]["outstanding"] if section else 0,
+		"overdue": flt(
+			sum(
+				flt(row["outstanding"])
+				for row in (section["rows"] if section else [])
+				if flt(row["outstanding"]) > 0
+				and row.get("due_date")
+				and getdate(row["due_date"]) < getdate(nowdate())
+			),
+			2,
+		),
+		"currency": section["currency"] if section else None,
+	}
+
+
+def company_currency() -> str | None:
+	company = frappe.db.get_single_value("Global Defaults", "default_company")
+	return frappe.get_cached_value("Company", company, "default_currency") if company else None

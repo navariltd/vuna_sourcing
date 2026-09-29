@@ -60,6 +60,8 @@ export const LOOKS = {
   deliveryNote: { icon: "lucide-truck", accent: "green" },
   salesInvoice: { icon: "lucide-receipt-text", accent: "amber" },
   creditNote: { icon: "lucide-receipt-cent", accent: "pink" },
+  receivable: { icon: "lucide-wallet", accent: "amber" },
+  payable: { icon: "lucide-wallet", accent: "amber" },
   application: { icon: "lucide-folder-clock", accent: "gray" },
   onboard: { icon: "lucide-file-pen-line", accent: "gray" },
 } satisfies Record<string, DocumentLook>;

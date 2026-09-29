@@ -109,6 +109,7 @@ const BUYING: NavLink[] = [
 	},
 	{ label: "Purchase Invoices", look: LOOKS.purchaseInvoice, route: "PurchaseInvoiceList" },
 	{ label: "Debit Notes", look: LOOKS.debitNote, route: "DebitNoteList" },
+	{ label: "Pending Invoices", look: LOOKS.payable, route: "SupplierStatement" },
 ];
 
 const SELLING: NavLink[] = [
@@ -122,12 +123,13 @@ const SELLING: NavLink[] = [
 		tab: "Invoices",
 	},
 	{ label: "Credit Notes", look: LOOKS.creditNote, route: "CreditNoteList" },
+	{ label: "Pending Invoices", look: LOOKS.receivable, route: "CustomerStatement" },
 ];
 
 const navSections = computed<NavSection[]>(() => {
 	const sections: NavSection[] = [];
 	if (portal.suppliers.length)
-		sections.push({ label: "Buying", links: BUYING, collapsible: true });
+		sections.push({ label: "Buying/Procurement", links: BUYING, collapsible: true });
 	if (portal.customers.length)
 		sections.push({ label: "Selling", links: SELLING, collapsible: true });
 	sections.push({

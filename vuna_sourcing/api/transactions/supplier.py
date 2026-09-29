@@ -8,18 +8,24 @@ from frappe import _
 from frappe.utils import cint, flt, getdate, nowdate
 
 from vuna_sourcing.api.transactions.common import (
+	balance,
+	company_currency,
 	distinct,
 	empty_page,
 	find_documents,
 	item_description,
 	line_item,
+	month_starts,
+	monthly_totals,
 	my_parties,
+	outstanding_statement,
 	owned_document,
 	page_of,
 	party_scope,
 	payments_against,
 	returns_against,
 	safe_html,
+	status_counts,
 )
 from vuna_sourcing.utils import SUPPLIER
 
@@ -652,4 +658,63 @@ def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 		"items": items,
 		"payments": payments_against(PURCHASE_INVOICE, doc.name),
 		"debit_notes": returns_against(PURCHASE_INVOICE, doc.name),
+	}
+
+
+@frappe.whitelist()
+def get_account_statement(supplier: str | None = None) -> dict:
+	parties = supplier_scope(supplier)
+	if not parties:
+		return {"report_date": None, "companies": []}
+
+	return outstanding_statement("Payable", SUPPLIER, parties)
+
+
+OPEN_ORDER_STATUSES = ("To Receive and Bill", "To Receive", "To Bill")
+
+
+@frappe.whitelist()
+def get_dashboard(supplier: str | None = None) -> dict:
+	suppliers = supplier_scope(supplier)
+	if not suppliers:
+		return {}
+
+	submitted = {"supplier": ("in", suppliers), "docstatus": 1}
+	invited = get_rfqs(supplier=supplier, status=INVITED, limit=100)
+	open_orders = frappe.get_all(
+		PURCHASE_ORDER,
+		filters={**submitted, "status": ("in", OPEN_ORDER_STATUSES)},
+		fields=[
+			"name",
+			"transaction_date",
+			"schedule_date",
+			"grand_total",
+			"currency",
+			"status",
+			"per_received",
+		],
+		order_by="transaction_date desc",
+	)
+	paid = frappe.get_all(
+		"Payment Entry",
+		filters={
+			"payment_type": "Pay",
+			"party_type": SUPPLIER,
+			"party": ("in", suppliers),
+			"docstatus": 1,
+			"posting_date": (">=", month_starts()[0]),
+		},
+		pluck="base_paid_amount",
+	)
+
+	return {
+		"currency": company_currency(),
+		"awaiting_quote": invited["total"],
+		"open_orders": len(open_orders),
+		"balance": balance(outstanding_statement("Payable", SUPPLIER, suppliers)),
+		"paid_last_year": flt(sum(flt(amount) for amount in paid), 2),
+		"orders_by_month": monthly_totals(PURCHASE_ORDER, submitted, "transaction_date", "base_grand_total"),
+		"invoices_by_status": status_counts(PURCHASE_INVOICE, {**submitted, "is_return": 0}),
+		"rfqs_closing": sorted(invited["rows"], key=lambda row: str(row["required_by"] or "9999"))[:5],
+		"open_order_rows": [{**order, "received": flt(order.per_received, 1)} for order in open_orders[:5]],
 	}

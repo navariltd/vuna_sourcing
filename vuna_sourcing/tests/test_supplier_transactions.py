@@ -8,6 +8,8 @@ from frappe.utils import add_days, getdate, nowdate
 from frappe.www.printview import validate_print_permission
 
 from vuna_sourcing.api.transactions.supplier import (
+	get_account_statement,
+	get_dashboard,
 	get_purchase_invoice,
 	get_purchase_invoices,
 	get_purchase_order,
@@ -309,3 +311,41 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 
 		with self.set_user(staff):
 			validate_print_permission(frappe.get_doc("Purchase Invoice", invoice.name))
+
+	def test_a_supplier_sees_what_we_owe_them_from_the_erpnext_payable_report(self):
+		mine, user = self.make_supplier()
+		theirs, _other = self.make_supplier()
+		invoice = self.make_invoice(mine, qty=5, rate=100)
+		self.make_invoice(theirs)
+
+		with self.set_user(user):
+			statement = get_account_statement()
+
+		[section] = statement["companies"]
+		self.assertEqual([row["voucher_no"] for row in section["rows"]], [invoice.name])
+		self.assertEqual(section["totals"]["outstanding"], 500)
+		self.assertEqual(section["rows"][0]["bill_no"], invoice.bill_no, "their own invoice number")
+
+	def test_a_supplier_with_no_ledger_entries_gets_an_empty_statement(self):
+		_supplier, user = self.make_supplier()
+
+		with self.set_user(user):
+			self.assertEqual(get_account_statement()["companies"], [])
+
+	def test_a_suppliers_dashboard_counts_what_needs_their_attention(self):
+		mine, user = self.make_supplier()
+		theirs, _other = self.make_supplier()
+		rfq = self.make_rfq([mine])
+		order = self.make_order(mine, qty=5, rate=100)
+		self.make_invoice(mine)
+		self.make_order(theirs)
+
+		with self.set_user(user):
+			dashboard = get_dashboard()
+
+		self.assertEqual(dashboard["awaiting_quote"], 1)
+		self.assertEqual([row["name"] for row in dashboard["rfqs_closing"]], [rfq.name])
+		self.assertEqual(dashboard["open_orders"], 1, "only their own orders")
+		self.assertEqual(dashboard["orders_by_month"][-1]["value"], order.base_grand_total)
+		self.assertEqual(dashboard["balance"]["outstanding"], 500)
+		self.assertEqual(dashboard["invoices_by_status"], [{"status": "Unpaid", "count": 1}])

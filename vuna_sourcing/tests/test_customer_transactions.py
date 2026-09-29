@@ -9,6 +9,8 @@ from frappe.utils import add_days, nowdate
 from frappe.www.printview import validate_print_permission
 
 from vuna_sourcing.api.transactions.customer import (
+	get_account_statement,
+	get_dashboard,
 	get_delivery_note,
 	get_delivery_notes,
 	get_quotation,
@@ -233,3 +235,53 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 					validate_print_permission,
 					frappe.get_doc("Sales Order", name),
 				)
+
+	def test_a_customer_sees_what_they_owe_from_the_erpnext_receivable_report(self):
+		mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+		invoice = self.invoice(self.make_order(mine, qty=5, rate=100))
+		self.invoice(self.make_order(theirs))
+
+		with self.set_user(user):
+			frappe.local.session.sid = "a-browser-session"
+			frappe.local.session.data = frappe._dict(kept=True)
+			statement = get_account_statement()
+			self.assertEqual(frappe.session.user, user, "the report runs elevated, then hands back")
+			self.assertEqual(frappe.local.session.sid, "a-browser-session", "the login survives")
+			self.assertTrue(frappe.local.session.data.kept)
+
+		[section] = statement["companies"]
+		self.assertEqual([row["voucher_no"] for row in section["rows"]], [invoice.name])
+		self.assertEqual(section["totals"]["outstanding"], 500)
+
+	def test_a_customer_cannot_ask_for_another_customers_statement(self):
+		_mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+
+		with self.set_user(user):
+			self.assertRaises(frappe.PermissionError, get_account_statement, theirs)
+
+	def test_a_customers_dashboard_counts_what_needs_their_attention(self):
+		mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+		quotation = self.make_quotation(mine)
+		self.make_order(mine)
+		invoice = self.invoice(self.make_order(mine, qty=5, rate=100))
+		self.make_order(theirs)
+
+		with self.set_user(user):
+			dashboard = get_dashboard()
+
+		self.assertEqual(dashboard["quotes_to_review"], 1)
+		self.assertEqual([row.name for row in dashboard["quotes"]], [quotation.name])
+		self.assertEqual(dashboard["open_orders"], 2, "only their own orders")
+		self.assertEqual(dashboard["balance"]["outstanding"], invoice.outstanding_amount)
+		self.assertEqual(dashboard["invoiced_by_month"][-1]["value"], invoice.base_grand_total)
+		self.assertEqual(len(dashboard["invoiced_by_month"]), 12)
+
+	def test_a_customer_cannot_open_another_customers_dashboard(self):
+		_mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+
+		with self.set_user(user):
+			self.assertRaises(frappe.PermissionError, get_dashboard, theirs)
