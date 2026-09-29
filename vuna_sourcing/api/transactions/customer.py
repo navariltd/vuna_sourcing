@@ -2,19 +2,24 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.utils import cint, flt
+from frappe.utils import cint, flt, nowdate
 
 from vuna_sourcing.api.transactions.common import (
+	balance,
+	company_currency,
 	distinct,
 	empty_page,
 	find_documents,
 	line_item,
+	monthly_totals,
+	outstanding_statement,
 	owned_document,
 	page_of,
 	party_scope,
 	payments_against,
 	returns_against,
 	safe_html,
+	status_counts,
 	submitted_parents,
 )
 from vuna_sourcing.utils import CUSTOMER
@@ -382,4 +387,62 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 		"items": items,
 		"payments": payments_against(SALES_INVOICE, doc.name),
 		"credit_notes": returns_against(SALES_INVOICE, doc.name),
+	}
+
+
+@frappe.whitelist()
+def get_account_statement(customer: str | None = None) -> dict:
+	parties = customer_scope(customer)
+	if not parties:
+		return {"report_date": None, "companies": []}
+
+	return outstanding_statement("Receivable", CUSTOMER, parties)
+
+
+OPEN_ORDER_STATUSES = ("To Deliver and Bill", "To Deliver", "To Bill")
+TO_DELIVER_STATUSES = ("To Deliver and Bill", "To Deliver")
+QUOTES_TO_REVIEW = ("Open", "Replied")
+
+
+@frappe.whitelist()
+def get_dashboard(customer: str | None = None) -> dict:
+	customers = customer_scope(customer)
+	if not customers:
+		return {}
+
+	orders = customer_filters(SALES_ORDER, customers)
+	quotes = frappe.get_all(
+		QUOTATION,
+		filters={**customer_filters(QUOTATION, customers), "status": ("in", QUOTES_TO_REVIEW)},
+		or_filters=[["valid_till", ">=", nowdate()], ["valid_till", "is", "not set"]],
+		fields=["name", "transaction_date", "valid_till", "grand_total", "currency"],
+		order_by="valid_till asc",
+	)
+	open_orders = frappe.get_all(
+		SALES_ORDER,
+		filters={**orders, "status": ("in", OPEN_ORDER_STATUSES)},
+		fields=["name", "status", "delivery_date", "grand_total", "currency", "per_delivered"],
+		order_by="delivery_date asc",
+	)
+
+	return {
+		"currency": company_currency(),
+		"quotes_to_review": len(quotes),
+		"open_orders": len(open_orders),
+		"balance": balance(outstanding_statement("Receivable", CUSTOMER, customers)),
+		"invoiced_by_month": monthly_totals(
+			SALES_INVOICE,
+			{**customer_filters(SALES_INVOICE, customers), "is_return": 0},
+			"posting_date",
+			"base_grand_total",
+		),
+		"invoices_by_status": status_counts(
+			SALES_INVOICE, {**customer_filters(SALES_INVOICE, customers), "is_return": 0}
+		),
+		"quotes": quotes[:5],
+		"to_deliver": [
+			{**order, "delivered": flt(order.per_delivered, 1)}
+			for order in open_orders
+			if order.status in TO_DELIVER_STATUSES
+		][:5],
 	}

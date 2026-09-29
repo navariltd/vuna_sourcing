@@ -154,6 +154,20 @@ const routes: RouteRecordRaw[] = [
     meta: { partyType: 'Customer' },
   },
   {
+    path: '/pending-purchase-invoices',
+    name: 'SupplierStatement',
+    component: () => import('@/pages/AccountStatement.vue'),
+    props: { side: 'Supplier' },
+    meta: { partyType: 'Supplier' },
+  },
+  {
+    path: '/pending-sales-invoices',
+    name: 'CustomerStatement',
+    component: () => import('@/pages/AccountStatement.vue'),
+    props: { side: 'Customer' },
+    meta: { partyType: 'Customer' },
+  },
+  {
     path: '/applications',
     name: 'ApplicationList',
     component: () => import('@/pages/ApplicationList.vue'),
