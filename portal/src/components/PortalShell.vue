@@ -97,39 +97,39 @@ interface NavSection {
 const BUYING: NavLink[] = [
 	{ label: "Request for Quotation", look: LOOKS.rfq, route: "RfqList", tab: "RFQs" },
 	{
-		label: "Supplier Quotations",
+		label: "Supplier Quotation",
 		look: LOOKS.supplierQuotation,
 		route: "SupplierQuotationList",
 	},
 	{
-		label: "Purchase Orders",
+		label: "Purchase Order",
 		look: LOOKS.purchaseOrder,
 		route: "PurchaseOrderList",
 		tab: "Orders",
 	},
-	{ label: "Purchase Invoices", look: LOOKS.purchaseInvoice, route: "PurchaseInvoiceList" },
-	{ label: "Debit Notes", look: LOOKS.debitNote, route: "DebitNoteList" },
+	{ label: "Purchase Invoice", look: LOOKS.purchaseInvoice, route: "PurchaseInvoiceList" },
+	{ label: "Debit Note", look: LOOKS.debitNote, route: "DebitNoteList" },
 	{ label: "Pending Invoices", look: LOOKS.payable, route: "SupplierStatement" },
 ];
 
 const SELLING: NavLink[] = [
-	{ label: "Quotations", look: LOOKS.quotation, route: "QuotationList" },
-	{ label: "Sales Orders", look: LOOKS.salesOrder, route: "SalesOrderList", tab: "Orders" },
-	{ label: "Delivery Notes", look: LOOKS.deliveryNote, route: "DeliveryNoteList" },
+	{ label: "Quotation", look: LOOKS.quotation, route: "QuotationList" },
+	{ label: "Sales Order", look: LOOKS.salesOrder, route: "SalesOrderList", tab: "Orders" },
+	{ label: "Delivery Note", look: LOOKS.deliveryNote, route: "DeliveryNoteList" },
 	{
-		label: "Sales Invoices",
+		label: "Sales Invoice",
 		look: LOOKS.salesInvoice,
 		route: "SalesInvoiceList",
 		tab: "Invoices",
 	},
-	{ label: "Credit Notes", look: LOOKS.creditNote, route: "CreditNoteList" },
+	{ label: "Credit Note", look: LOOKS.creditNote, route: "CreditNoteList" },
 	{ label: "Pending Invoices", look: LOOKS.receivable, route: "CustomerStatement" },
 ];
 
 const navSections = computed<NavSection[]>(() => {
 	const sections: NavSection[] = [];
 	if (portal.suppliers.length)
-		sections.push({ label: "Buying/Procurement", links: BUYING, collapsible: true });
+		sections.push({ label: "Buying", links: BUYING, collapsible: true });
 	if (portal.customers.length)
 		sections.push({ label: "Selling", links: SELLING, collapsible: true });
 	sections.push({

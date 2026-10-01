@@ -1,7 +1,12 @@
 import { createResource } from "frappe-ui";
 import type { BadgeTheme } from "@/data/application";
+import type { ApiResponse } from "@/types/api";
 
-export type RfqStatus = "Invited" | "Submitted" | "Declined" | "Closed";
+export type RfqStatus = "Invited" | "Draft" | "Submitted" | "Declined" | "Closed";
+
+export type SupplierSubmissionStatus = "Pending" | "Submitted";
+
+export type BiddingMethod = "Sealed Bid";
 
 export interface RfqQuote {
   name: string;
@@ -11,6 +16,7 @@ export interface RfqQuote {
   quotation_number: string | null;
   total: number | null;
   currency: string | null;
+  supplier_submission_status: SupplierSubmissionStatus | null;
 }
 
 export interface RfqItem {
@@ -36,6 +42,8 @@ export interface RfqRow {
   supplier: string;
   transaction_date: string;
   required_by: string | null;
+  closes_at: string | null;
+  bidding_method: BiddingMethod | null;
   company: string;
   items: number;
   status: RfqStatus;
@@ -48,6 +56,9 @@ export interface Rfq {
   company: string;
   transaction_date: string;
   required_by: string | null;
+  closes_at: string | null;
+  bidding_method: BiddingMethod | null;
+  sealed: boolean;
   closed: boolean;
   status: RfqStatus;
   can_quote: boolean;
@@ -65,6 +76,7 @@ export interface QuoteLine {
 
 export const RFQ_STATUS_THEME: Record<RfqStatus, BadgeTheme> = {
   Invited: "blue",
+  Draft: "amber",
   Submitted: "green",
   Declined: "gray",
   Closed: "gray",
@@ -72,9 +84,10 @@ export const RFQ_STATUS_THEME: Record<RfqStatus, BadgeTheme> = {
 
 export const RFQ_STATUS_HINT: Record<RfqStatus, string> = {
   Invited: "Waiting for your prices",
+  Draft: "Saved, not sent yet",
   Submitted: "With the buyer",
   Declined: "You are not quoting",
-  Closed: "Past the date quotes were needed",
+  Closed: "Bids have closed",
 };
 
 export interface RfqPage {
@@ -85,7 +98,7 @@ export interface RfqPage {
   counts: Record<string, number>;
 }
 
-export const RFQ_STATUSES: RfqStatus[] = ["Invited", "Submitted", "Declined", "Closed"];
+export const RFQ_STATUSES: RfqStatus[] = ["Invited", "Draft", "Submitted", "Declined", "Closed"];
 
 export const rfqList = createResource({
   url: "vuna_sourcing.api.transactions.supplier.get_rfqs",
@@ -99,13 +112,22 @@ export function createRfqResource() {
   });
 }
 
-export function sendQuote(payload: {
+export interface QuotePayload {
   name: string;
   supplier: string;
   items: QuoteLine[];
   quotation_number?: string | null;
   valid_till?: string | null;
-}) {
+}
+
+export function saveQuote(payload: QuotePayload): Promise<ApiResponse<Rfq>> {
+  return createResource({
+    url: "vuna_sourcing.api.transactions.supplier.save_quote",
+    method: "POST",
+  }).submit(payload);
+}
+
+export function sendQuote(payload: QuotePayload) {
   return createResource({
     url: "vuna_sourcing.api.transactions.supplier.send_quote",
     method: "POST",

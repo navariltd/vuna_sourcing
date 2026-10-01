@@ -55,7 +55,9 @@ class TestSupplierQuotations(SourcingFixtures, IntegrationTestCase):
 	def test_the_status_is_the_one_erpnext_keeps(self):
 		"""Draft, Submitted, Expired and the rest are the doctype's own, not ours."""
 		supplier, user = self.make_supplier()
-		sent = self.send(self.make_rfq([supplier]), user)
+		rfq = self.make_rfq([supplier])
+		sent = self.send(rfq, user)
+		self.open_bids(rfq)
 		quote = frappe.get_doc("Supplier Quotation", sent["quote"]["name"])
 
 		quote.flags.ignore_permissions = True

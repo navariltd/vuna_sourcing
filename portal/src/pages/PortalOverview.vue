@@ -102,7 +102,7 @@ const lists = computed(() => {
 				rows: d.rfqs_closing.map((row: any) => ({
 					name: row.name,
 					route: { name: "RfqDetail", params: { name: row.name } },
-					detail: `Due ${shortDate(row.required_by)}`,
+					detail: `Closes ${shortDate(row.closes_at)}`,
 					trailing: `${row.items} item${row.items === 1 ? "" : "s"}`,
 				})),
 			},

@@ -5,7 +5,7 @@ import { ListView } from "frappe-ui/experimental";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import ListFilters from "@/components/ListFilters.vue";
-import { RFQ_STATUS_HINT, RFQ_STATUS_THEME, rfqList } from "@/data/rfq";
+import { RFQ_STATUSES, RFQ_STATUS_HINT, RFQ_STATUS_THEME, rfqList } from "@/data/rfq";
 import type { RfqPage, RfqRow, RfqStatus } from "@/data/rfq";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
@@ -14,7 +14,10 @@ import { LOOKS } from "@/data/accents";
 const portal = usePortalStore();
 const isMobile = useIsMobile();
 
+const ALL = "All";
+
 const filters = ref<Record<string, string>>({});
+const status = ref<RfqStatus | typeof ALL>("Invited");
 const pageLength = ref(20);
 
 const supplier = computed(() =>
@@ -24,6 +27,17 @@ const supplier = computed(() =>
 const page = computed<RfqPage | null>(() => rfqList.data ?? null);
 const rows = computed<RfqRow[]>(() => page.value?.rows ?? []);
 const counts = computed(() => page.value?.counts ?? {});
+const everything = computed(() =>
+	Object.values(counts.value).reduce((sum, count) => sum + count, 0)
+);
+
+const statusTabs = computed(() => [
+	...RFQ_STATUSES.map((value) => ({
+		label: `${value} (${counts.value[value] ?? 0})`,
+		value,
+	})),
+	{ label: `${ALL} (${everything.value})`, value: ALL },
+]);
 
 function load() {
 	if (!supplier.value) {
@@ -33,13 +47,14 @@ function load() {
 
 	rfqList.fetch({
 		supplier: supplier.value,
+		status: status.value === ALL ? null : status.value,
 		search: filters.value.search || null,
 		start: 0,
 		limit: pageLength.value,
 	});
 }
 
-watch([supplier, filters, pageLength], load, { immediate: true, deep: true });
+watch([supplier, filters, status, pageLength], load, { immediate: true, deep: true });
 
 const columns = computed(() =>
 	isMobile.value
@@ -50,7 +65,7 @@ const columns = computed(() =>
 		: [
 				{ label: "Request", key: "name", width: "minmax(160px, 2fr)" },
 				{ label: "Items", key: "items", width: "80px" },
-				{ label: "Needed by", key: "required_by", width: "minmax(120px, 1fr)" },
+				{ label: "Bids close", key: "closes_at", width: "minmax(150px, 1fr)" },
 				{ label: "Status", key: "status", width: "minmax(140px, 1fr)" },
 		  ]
 );
@@ -62,12 +77,14 @@ const options = {
 	getRowRoute: (row: RfqRow) => ({ name: "RfqDetail", params: { name: row.name } }),
 };
 
-function formatDate(value: string | null) {
+function formatDateTime(value: string | null) {
 	if (!value) return "—";
-	return new Date(value).toLocaleDateString(undefined, {
+	return new Date(value.replace(" ", "T")).toLocaleString(undefined, {
 		day: "numeric",
 		month: "short",
 		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
 	});
 }
 
@@ -84,6 +101,12 @@ function loadMore() {
 				theme="blue"
 				variant="subtle"
 				:label="`${counts.Invited} awaiting your prices`"
+			/>
+			<Badge
+				v-if="supplier && counts.Draft"
+				theme="amber"
+				variant="subtle"
+				:label="`${counts.Draft} draft${counts.Draft === 1 ? '' : 's'} not sent`"
 			/>
 			<Button
 				v-if="supplier"
@@ -105,10 +128,14 @@ function loadMore() {
 		<template v-else>
 			<ListFilters
 				v-model="filters"
-				class="mb-4"
+				class="mb-3"
 				:fields="[]"
 				search-placeholder="Search by request number"
 			/>
+
+			<div class="mb-4 overflow-x-auto">
+				<TabButtons v-model="status" :options="statusTabs" />
+			</div>
 
 			<div v-if="rfqList.loading && !page" class="flex justify-center py-16">
 				<Spinner class="size-5" />
@@ -124,6 +151,15 @@ function loadMore() {
 			</EmptyState>
 
 			<EmptyState
+				v-else-if="!rows.length && status !== ALL"
+				icon="lucide-inbox"
+				:title="`No ${status.toLowerCase()} requests`"
+				:description="RFQ_STATUS_HINT[status]"
+			>
+				<Button variant="subtle" label="Show all requests" @click="status = ALL" />
+			</EmptyState>
+
+			<EmptyState
 				v-else-if="!rows.length"
 				icon="lucide-file-text"
 				title="Nothing to quote yet"
@@ -136,9 +172,8 @@ function loadMore() {
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>
 							<span v-if="isMobile" class="truncate text-xs text-ink-gray-5">
-								{{ row.items }} {{ row.items === 1 ? "item" : "items" }} · needed
-								by
-								{{ formatDate(row.required_by) }}
+								{{ row.items }} {{ row.items === 1 ? "item" : "items" }} · closes
+								{{ formatDateTime(row.closes_at) }}
 							</span>
 						</span>
 
@@ -147,10 +182,10 @@ function loadMore() {
 						</span>
 
 						<span
-							v-else-if="column.key === 'required_by'"
+							v-else-if="column.key === 'closes_at'"
 							class="text-base text-ink-gray-7"
 						>
-							{{ formatDate(row.required_by) }}
+							{{ formatDateTime(row.closes_at) }}
 						</span>
 
 						<Tooltip v-else :text="RFQ_STATUS_HINT[row.status as RfqStatus]">

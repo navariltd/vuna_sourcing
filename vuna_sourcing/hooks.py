@@ -43,7 +43,7 @@ app_include_js = "vuna_sourcing.bundle.js"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Request for Quotation": "overrides/client/request_for_quotation.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -152,6 +152,27 @@ has_permission = {
 
 has_website_permission = {
 	doctype: "vuna_sourcing.api.transactions.access.is_own_document" for doctype in PORTAL_DOCTYPES
+}
+
+permission_query_conditions["Supplier Quotation"] = [
+	"vuna_sourcing.api.transactions.access.own_documents_condition",
+	"vuna_sourcing.api.transactions.access.visible_quotes_condition",
+]
+
+has_permission["Supplier Quotation"] = [
+	"vuna_sourcing.api.transactions.access.is_own_document",
+	"vuna_sourcing.api.transactions.access.is_visible_quote",
+]
+
+doc_events = {
+	"Request for Quotation": {
+		"validate": "vuna_sourcing.overrides.server.request_for_quotation.validate",
+		"before_submit": "vuna_sourcing.overrides.server.request_for_quotation.before_submit",
+		"on_submit": "vuna_sourcing.overrides.server.request_for_quotation.on_submit",
+	},
+	"Supplier Quotation": {
+		"before_submit": "vuna_sourcing.overrides.server.supplier_quotation.validate_submittable",
+	},
 }
 
 # Document Events
