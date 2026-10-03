@@ -5,8 +5,10 @@ from collections import Counter
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate, nowdate
+from frappe.utils import cint, flt, format_datetime, nowdate
 
+from vuna_sourcing.api.response import ApiResponse
+from vuna_sourcing.api.transactions.bidding import closes_at, is_closed, is_sealed
 from vuna_sourcing.api.transactions.common import (
 	balance,
 	company_currency,
@@ -41,9 +43,14 @@ NO_QUOTE = "No Quote"
 RECEIVED = "Received"
 
 INVITED = "Invited"
+DRAFT = "Draft"
 SUBMITTED = "Submitted"
 DECLINED = "Declined"
 CLOSED = "Closed"
+
+SUBMISSION_STATUS_FIELD = "supplier_submission_status"
+QUOTE_PENDING = "Pending"
+QUOTE_SENT = "Submitted"
 
 QUOTATION_FIELDS = [
 	"name",
@@ -127,6 +134,7 @@ def supplier_documents(
 
 
 def invited_supplier(rfq: str, supplier: str | None = None) -> str:
+	"""Validate the Supplier was sent the quotation"""
 	invited = frappe.get_all(
 		RFQ_SUPPLIER,
 		filters={"parent": rfq, "parenttype": RFQ, "supplier": ("in", supplier_scope(supplier) or [""])},
@@ -140,10 +148,6 @@ def invited_supplier(rfq: str, supplier: str | None = None) -> str:
 	return invited[0]
 
 
-def is_closed(required_by) -> bool:
-	return bool(required_by) and getdate(required_by) < getdate(nowdate())
-
-
 def find_quote(rfq: str, supplier: str) -> dict | None:
 	names = frappe.get_all(SUPPLIER_QUOTATION_ITEM, filters={"request_for_quotation": rfq}, pluck="parent")
 	if not names:
@@ -152,7 +156,16 @@ def find_quote(rfq: str, supplier: str) -> dict | None:
 	return frappe.db.get_value(
 		SUPPLIER_QUOTATION,
 		{"name": ("in", set(names)), "supplier": supplier, "docstatus": ("<", 2)},
-		["name", "docstatus", "status", "valid_till", "quotation_number", "total", "currency"],
+		[
+			"name",
+			"docstatus",
+			"status",
+			"valid_till",
+			"quotation_number",
+			"total",
+			"currency",
+			SUBMISSION_STATUS_FIELD,
+		],
 		as_dict=True,
 		order_by="creation desc",
 	)
@@ -171,13 +184,19 @@ def set_quote_status(rfq: str, supplier: str, status: str) -> None:
 	frappe.db.set_value(RFQ_SUPPLIER, row, "quote_status", status, update_modified=False)
 
 
+def is_pending(quote) -> bool:
+	return bool(quote) and quote.get(SUBMISSION_STATUS_FIELD) == QUOTE_PENDING
+
+
 def quote_state(row_status: str | None, quote: dict | None, closed: bool) -> str:
 	if row_status == NO_QUOTE:
 		return DECLINED
-	if row_status == RECEIVED or quote:
+	if row_status == RECEIVED or (quote and not is_pending(quote)):
 		return SUBMITTED
 	if closed:
 		return CLOSED
+	if quote:
+		return DRAFT
 	return INVITED
 
 
@@ -219,7 +238,15 @@ def get_rfqs(
 	requests = frappe.get_all(
 		RFQ,
 		filters=filters,
-		fields=["name", "transaction_date", "schedule_date", "company"],
+		fields=[
+			"name",
+			"transaction_date",
+			"schedule_date",
+			"company",
+			"bidding_method",
+			"bid_closing",
+			"quotes_opened",
+		],
 		order_by="transaction_date desc",
 	)
 
@@ -242,9 +269,11 @@ def get_rfqs(
 				"supplier": row.supplier,
 				"transaction_date": request.transaction_date,
 				"required_by": request.schedule_date,
+				"closes_at": closes_at(request),
+				"bidding_method": request.bidding_method,
 				"company": request.company,
 				"items": counts.get(request.name, 0),
-				"status": quote_state(row.quote_status, quote, is_closed(request.schedule_date)),
+				"status": quote_state(row.quote_status, quote, is_closed(request)),
 				"quote": quote,
 			}
 		)
@@ -268,7 +297,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 
 	row = next((row for row in doc.suppliers if row.supplier == supplier), None)
 	quote = find_quote(name, supplier)
-	closed = is_closed(doc.schedule_date)
+	closed = is_closed(doc)
 	status = quote_state(row.quote_status if row else None, quote, closed)
 
 	quoted_lines = {}
@@ -305,9 +334,12 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 		"company": doc.company,
 		"transaction_date": doc.transaction_date,
 		"required_by": doc.schedule_date,
+		"closes_at": closes_at(doc),
+		"bidding_method": doc.bidding_method,
+		"sealed": is_sealed(doc),
 		"closed": closed,
 		"status": status,
-		"can_quote": status == INVITED,
+		"can_quote": status in (INVITED, DRAFT),
 		"terms": safe_html(doc.terms),
 		"items": items,
 		"quote": quote,
@@ -361,6 +393,66 @@ def apply_rates(doc, lines: list[dict]) -> None:
 			row.lead_time_days = cint(given.get("lead_time_days"))
 
 
+def open_request(name: str):
+	request = frappe.get_doc(RFQ, name)
+
+	if request.docstatus != 1:
+		frappe.throw(_("This quotation request is not open."), frappe.PermissionError)
+
+	if is_closed(request):
+		frappe.throw(_("Bids for this request closed at {0}.").format(format_datetime(closes_at(request))))
+
+	return request
+
+
+def draft_or_new_quote(request, supplier: str):
+	quote = find_quote(request.name, supplier)
+
+	if is_pending(quote):
+		doc = frappe.get_doc(SUPPLIER_QUOTATION, quote.name)
+		doc.flags.ignore_permissions = True
+		return doc
+
+	if quote or is_sent(request.name, supplier):
+		frappe.throw(_("You have already sent a quotation for this request."))
+
+	return build_quote(request, supplier)
+
+
+def fill_quote(
+	doc,
+	items: list | str | None,
+	quotation_number: str | None,
+	valid_till: str | None,
+	terms: str | None,
+) -> None:
+	lines = frappe.parse_json(items) if isinstance(items, str) else (items or [])
+	apply_rates(doc, lines)
+	doc.quotation_number = quotation_number
+	doc.valid_till = valid_till
+	if terms is not None:
+		doc.terms = terms
+
+
+@frappe.whitelist(methods=["POST"])
+def save_quote(
+	name: str,
+	items: list | str | None = None,
+	supplier: str | None = None,
+	quotation_number: str | None = None,
+	valid_till: str | None = None,
+	terms: str | None = None,
+) -> ApiResponse[dict]:
+	supplier = invited_supplier(name, supplier)
+	doc = draft_or_new_quote(open_request(name), supplier)
+
+	fill_quote(doc, items, quotation_number, valid_till, terms)
+	doc.set(SUBMISSION_STATUS_FIELD, QUOTE_PENDING)
+	doc.save()
+
+	return ApiResponse.success(_("Draft saved."), get_rfq(name, supplier))
+
+
 @frappe.whitelist(methods=["POST"])
 def send_quote(
 	name: str,
@@ -371,25 +463,9 @@ def send_quote(
 	terms: str | None = None,
 ) -> dict:
 	supplier = invited_supplier(name, supplier)
-	request = frappe.get_doc(RFQ, name)
+	doc = draft_or_new_quote(open_request(name), supplier)
 
-	if request.docstatus != 1:
-		frappe.throw(_("This quotation request is not open."), frappe.PermissionError)
-
-	if is_closed(request.schedule_date):
-		frappe.throw(_("This quotation request closed on {0}.").format(request.schedule_date))
-
-	if is_sent(name, supplier) or find_quote(name, supplier):
-		frappe.throw(_("You have already sent a quotation for this request."))
-
-	lines = frappe.parse_json(items) if isinstance(items, str) else (items or [])
-
-	doc = build_quote(request, supplier)
-	apply_rates(doc, lines)
-	doc.quotation_number = quotation_number
-	doc.valid_till = valid_till
-	if terms is not None:
-		doc.terms = terms
+	fill_quote(doc, items, quotation_number, valid_till, terms)
 
 	unpriced = [row.item_code for row in doc.items if not flt(row.rate)]
 	if unpriced:
@@ -397,7 +473,7 @@ def send_quote(
 	if not doc.valid_till:
 		frappe.throw(_("Tell us how long your prices stay valid."))
 
-	doc.flags.ignore_permissions = True
+	doc.set(SUBMISSION_STATUS_FIELD, QUOTE_SENT)
 	doc.save()
 	set_quote_status(name, supplier, RECEIVED)
 
@@ -413,6 +489,10 @@ def decline_quote(name: str, reason: str, supplier: str | None = None) -> dict:
 
 	if is_sent(name, supplier):
 		frappe.throw(_("You have already sent a quotation for this request."))
+
+	draft = find_quote(name, supplier)
+	if is_pending(draft):
+		frappe.delete_doc(SUPPLIER_QUOTATION, draft.name, ignore_permissions=True)
 
 	set_quote_status(name, supplier, NO_QUOTE)
 
@@ -680,7 +760,7 @@ def get_dashboard(supplier: str | None = None) -> dict:
 		return {}
 
 	submitted = {"supplier": ("in", suppliers), "docstatus": 1}
-	invited = get_rfqs(supplier=supplier, status=INVITED, limit=100)
+	invited = get_rfqs(supplier=supplier, status=f"{INVITED},{DRAFT}", limit=100)
 	open_orders = frappe.get_all(
 		PURCHASE_ORDER,
 		filters={**submitted, "status": ("in", OPEN_ORDER_STATUSES)},
@@ -715,6 +795,6 @@ def get_dashboard(supplier: str | None = None) -> dict:
 		"paid_last_year": flt(sum(flt(amount) for amount in paid), 2),
 		"orders_by_month": monthly_totals(PURCHASE_ORDER, submitted, "transaction_date", "base_grand_total"),
 		"invoices_by_status": status_counts(PURCHASE_INVOICE, {**submitted, "is_return": 0}),
-		"rfqs_closing": sorted(invited["rows"], key=lambda row: str(row["required_by"] or "9999"))[:5],
+		"rfqs_closing": sorted(invited["rows"], key=lambda row: str(row["closes_at"] or "9999"))[:5],
 		"open_order_rows": [{**order, "received": flt(order.per_received, 1)} for order in open_orders[:5]],
 	}

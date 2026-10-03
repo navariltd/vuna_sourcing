@@ -194,6 +194,11 @@ class TestSupplierRFQ(SourcingFixtures, IntegrationTestCase):
 			frappe.db.get_value("Request for Quotation Supplier", {"parent": rfq.name}, "quote_status"),
 			"No Quote",
 		)
+		self.assertIn(
+			"No Quote",
+			frappe.get_meta("Request for Quotation Supplier").get_field("quote_status").options.split("\n"),
+			"a declined supplier is stored with a status the field allows",
+		)
 		self.assertTrue(
 			frappe.db.exists("Comment", {"reference_name": rfq.name, "content": ("like", "%do not stock%")})
 		)

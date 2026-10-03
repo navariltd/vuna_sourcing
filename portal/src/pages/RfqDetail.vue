@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Badge, Button, Dialog, ErrorMessage, FormControl, Spinner } from "frappe-ui";
+import { Alert, Badge, Button, Dialog, ErrorMessage, FormControl, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
 import PrintButton from "@/components/PrintButton.vue";
-import { RFQ_STATUS_THEME, createRfqResource, declineQuote, sendQuote } from "@/data/rfq";
-import type { QuoteLine, Rfq } from "@/data/rfq";
+import {
+	RFQ_STATUS_THEME,
+	createRfqResource,
+	declineQuote,
+	saveQuote,
+	sendQuote,
+} from "@/data/rfq";
+import type { QuoteLine, QuotePayload, Rfq } from "@/data/rfq";
+import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
 import { ACCENTS, LOOKS } from "@/data/accents";
@@ -28,15 +35,18 @@ const reference = ref<string | null>(null);
 const validTill = ref<string | null>(null);
 
 const submitting = ref(false);
+const saving = ref(false);
+const savedMessage = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 const declining = ref(false);
 const declineReason = ref("");
-
 const supplier = computed(() =>
 	portal.activeParty?.party_type === "Supplier" ? portal.activeParty.name : null
 );
 
 const rfq = computed<Rfq | null>(() => request.data ?? null);
+
+const isSealedBid = computed(() => rfq.value?.bidding_method === "Sealed Bid");
 
 const total = computed(() =>
 	(rfq.value?.items ?? []).reduce((sum, item) => {
@@ -72,23 +82,57 @@ function lines(): QuoteLine[] {
 	}));
 }
 
-async function send() {
-	if (!rfq.value || !supplier.value) return;
+function payload(): QuotePayload | null {
+	if (!rfq.value || !supplier.value) return null;
+
+	return {
+		name: rfq.value.name,
+		supplier: supplier.value,
+		items: lines(),
+		quotation_number: reference.value,
+		valid_till: validTill.value,
+	};
+}
+
+function show(updated: Rfq) {
+	request.setData(updated);
+	fill(updated);
+}
+
+async function saveDraft() {
+	const quote = payload();
+	if (!quote) return;
 
 	errorMessage.value = null;
+	savedMessage.value = null;
+	saving.value = true;
+
+	try {
+		const response = await saveQuote(quote);
+		if (!isOk(response)) {
+			errorMessage.value = response.message || "We could not save your draft.";
+			return;
+		}
+		show(response.data);
+		savedMessage.value = response.message;
+	} catch (error: any) {
+		errorMessage.value =
+			error?.messages?.[0] || error?.message || "We could not save your draft.";
+	} finally {
+		saving.value = false;
+	}
+}
+
+async function send() {
+	const quote = payload();
+	if (!quote) return;
+
+	errorMessage.value = null;
+	savedMessage.value = null;
 	submitting.value = true;
 
 	try {
-		const updated = (await sendQuote({
-			name: rfq.value.name,
-			supplier: supplier.value,
-			items: lines(),
-			quotation_number: reference.value,
-			valid_till: validTill.value,
-		})) as Rfq;
-
-		request.setData(updated);
-		fill(updated);
+		show((await sendQuote(quote)) as Rfq);
 	} catch (error: any) {
 		errorMessage.value =
 			error?.messages?.[0] || error?.message || "We could not send your quotation.";
@@ -121,6 +165,17 @@ function formatDate(value: string | null) {
 		day: "numeric",
 		month: "short",
 		year: "numeric",
+	});
+}
+
+function formatDateTime(value: string | null) {
+	if (!value) return "—";
+	return new Date(value.replace(" ", "T")).toLocaleString(undefined, {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
 	});
 }
 
@@ -181,7 +236,7 @@ function money(value: number) {
 		<div v-else-if="rfq" class="space-y-6">
 			<dl
 				:class="ACCENTS[LOOKS.rfq.accent].panel"
-				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
+				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-2 lg:grid-cols-4"
 			>
 				<div>
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Quoting as</dt>
@@ -197,7 +252,21 @@ function money(value: number) {
 					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Needed by</dt>
 					<dd class="text-p-base text-ink-gray-8">{{ formatDate(rfq.required_by) }}</dd>
 				</div>
+				<div>
+					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Bids close</dt>
+					<dd class="text-p-base text-ink-gray-8">
+						{{ formatDateTime(rfq.closes_at) }}
+					</dd>
+				</div>
 			</dl>
+
+			<Alert
+				v-if="isSealedBid && rfq.can_quote"
+				theme="blue"
+				icon="lucide-lock"
+				title="This is a sealed bid"
+				description="Once you send your quotation it cannot be changed."
+			/>
 
 			<div v-if="rfq.attachments.length" class="flex flex-wrap gap-2">
 				<a
@@ -323,6 +392,16 @@ function money(value: number) {
 				<RichText class="mt-1" :html="rfq.terms" />
 			</div>
 
+			<div
+				v-if="rfq.status === 'Draft'"
+				class="rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
+			>
+				<p class="text-base font-medium text-ink-gray-8">This quotation is a draft</p>
+				<p class="mt-1 text-p-sm text-ink-gray-6">
+					{{ savedMessage || "Saved as Draft. You can revise later and then submit it" }}
+				</p>
+			</div>
+
 			<ErrorMessage v-if="errorMessage" :message="errorMessage" />
 
 			<div
@@ -330,19 +409,29 @@ function money(value: number) {
 				class="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
 			>
 				<Button
-					variant="ghost"
+					variant="solid"
 					theme="red"
 					label="Not quoting"
 					@click="declining = true"
 				/>
 
-				<Button
-					variant="solid"
-					theme="green"
-					label="Send quotation"
-					:loading="submitting"
-					@click="send"
-				/>
+				<div class="flex flex-wrap items-center gap-2">
+					<Button
+						variant="subtle"
+						label="Save draft"
+						:loading="saving"
+						:disabled="submitting"
+						@click="saveDraft"
+					/>
+					<Button
+						variant="solid"
+						theme="green"
+						label="Send quotation"
+						:loading="submitting"
+						:disabled="saving"
+						@click="send"
+					/>
+				</div>
 			</div>
 
 			<div
@@ -350,42 +439,46 @@ function money(value: number) {
 				class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
 			>
 				<p class="text-base font-medium text-ink-gray-8">
-					Your quotation is with the buyer
+					{{
+						rfq.sealed
+							? "Your quotation is sealed"
+							: "Your quotation is with the buyer"
+					}}
 				</p>
 				<p class="mt-1 text-p-sm text-ink-gray-6">
 					Sent as {{ rfq.quote?.name
 					}}<template v-if="rfq.quote?.valid_till"
 						>, valid until {{ formatDate(rfq.quote.valid_till) }}</template
 					>.
+					<template v-if="rfq.sealed">
+						The committee opens all quotations together after
+						{{ formatDateTime(rfq.closes_at) }}.
+					</template>
 				</p>
 			</div>
 		</div>
 
 		<Dialog
-			v-model="declining"
-			:options="{
-				title: 'Not quoting for this request',
-				actions: [
-					{
-						label: 'Confirm',
-						variant: 'solid',
-						theme: 'red',
-						onClick: decline,
-					},
-				],
-			}"
+			v-model:open="declining"
+			title="Not quoting for this request"
+			message="Let the buyer know why, so they can plan. You cannot quote after this, and any draft you saved is thrown away."
+			icon="lucide-circle-x"
+			theme="red"
+			:actions="[
+				{
+					label: 'Confirm',
+					variant: 'solid',
+					theme: 'red',
+					disabled: !declineReason.trim(),
+					onClick: decline,
+				},
+			]"
 		>
-			<template #body-content>
-				<p class="text-p-sm text-ink-gray-6">
-					Let the buyer know why, so they can plan. You cannot quote after this.
-				</p>
-				<FormControl
-					v-model="declineReason"
-					class="mt-3"
-					type="textarea"
-					placeholder="We do not stock this item at the moment."
-				/>
-			</template>
+			<FormControl
+				v-model="declineReason"
+				type="textarea"
+				placeholder="We do not stock this item at the moment."
+			/>
 		</Dialog>
 	</PageContainer>
 </template>

@@ -6,7 +6,6 @@ from frappe import _
 from frappe.utils import now_datetime
 
 from vuna_sourcing.api.permission import create_portal_user_role
-from vuna_sourcing.setup.app_setup import apply_single_defaults
 
 
 def before_tests():
@@ -40,7 +39,6 @@ def before_tests():
 
 	create_portal_user_role()
 	grant_supplier_portal_permissions()
-	apply_single_defaults("Sourcing Settings")
 	frappe.db.commit()  # nosemgrep
 
 

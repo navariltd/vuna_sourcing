@@ -2,13 +2,14 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.utils import add_days, nowdate
+from frappe.utils import add_days, add_to_date, get_datetime, getdate, now_datetime, nowdate
 
 from vuna_sourcing.tests import make_test_user
 
 
 class SourcingFixtures:
 	item = "_Test Portal RFQ Item"
+	committee = "_Test RFQ Opening Committee"
 
 	@classmethod
 	def setUpClass(cls):
@@ -33,7 +34,25 @@ class SourcingFixtures:
 		cls.warehouse = frappe.get_all(
 			"Warehouse", filters={"is_group": 0, "company": cls.company}, limit=1, pluck="name"
 		)[0]
+		if not frappe.db.exists("RFQ Opening Committee", cls.committee):
+			cls.make_committee(
+				[make_test_user(["Purchase User"], first_name="Opener").name], name=cls.committee
+			)
 		frappe.db.commit()
+
+	@staticmethod
+	def make_committee(members, name=None):
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "RFQ Opening Committee",
+					"committee_name": name or "_Test Committee " + frappe.generate_hash(length=6),
+					"members": [{"user": member} for member in members],
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
 
 	def make_supplier(self):
 		user = make_test_user(["Supplier"], first_name="Supplier").name
@@ -63,13 +82,17 @@ class SourcingFixtures:
 		).insert(ignore_permissions=True)
 		return customer.name, user
 
-	def make_rfq(self, suppliers, required_by=None, qty=5):
+	def make_rfq(self, suppliers, required_by=None, qty=5, committee=None, minimum_expected_quotes=0):
 		doc = frappe.get_doc(
 			{
 				"doctype": "Request for Quotation",
 				"company": self.company,
 				"transaction_date": nowdate(),
 				"schedule_date": required_by or add_days(nowdate(), 7),
+				"bidding_method": "Sealed Bid",
+				"bid_closing": add_to_date(now_datetime(), days=7),
+				"opening_committee": committee or self.committee,
+				"minimum_expected_quotes": minimum_expected_quotes,
 				"message_for_supplier": "Please quote your best price.",
 				"suppliers": [{"supplier": supplier, "send_email": 0} for supplier in suppliers],
 				"items": [
@@ -85,7 +108,17 @@ class SourcingFixtures:
 			}
 		).insert(ignore_permissions=True)
 		doc.submit()
+
+		if required_by and getdate(required_by) < getdate(nowdate()):
+			self.close_bids(doc, get_datetime(required_by))
+
 		return doc
+
+	def close_bids(self, rfq, at=None):
+		rfq.db_set("bid_closing", at or add_to_date(now_datetime(), minutes=-1))
+
+	def open_bids(self, rfq):
+		rfq.db_set("quotes_opened", 1)
 
 	def lines(self, detail, rate=100, lead_time_days=3):
 		return [
