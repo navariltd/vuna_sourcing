@@ -135,17 +135,17 @@ class TestSupplierQuoteDrafts(SourcingFixtures, IntegrationTestCase):
 			self.assertIn(name, frappe.get_list("Supplier Quotation", pluck="name"))
 			self.assertTrue(frappe.has_permission("Supplier Quotation", doc=name))
 
-	def test_only_the_administrator_sees_drafts(self):
+	def test_no_desk_user_sees_drafts_not_even_admins(self):
 		supplier, user = self.make_supplier()
 		name = self.quote_name(self.save_draft(self.make_rfq([supplier]), user))
 		system_manager = make_test_user(["Purchase User", "System Manager"], first_name="Manager").name
 
-		with self.set_user(system_manager):
-			self.assertNotIn(name, frappe.get_list("Supplier Quotation", pluck="name"))
+		for viewer in (system_manager, "Administrator"):
+			with self.set_user(viewer):
+				self.assertNotIn(name, frappe.get_list("Supplier Quotation", pluck="name"))
 
-		with self.set_user("Administrator"):
-			self.assertIn(name, frappe.get_list("Supplier Quotation", pluck="name"))
-			self.assertTrue(frappe.has_permission("Supplier Quotation", doc=name))
+		with self.set_user(system_manager):
+			self.assertFalse(frappe.has_permission("Supplier Quotation", doc=name))
 
 	def test_the_supplier_still_sees_their_own_draft(self):
 		supplier, user = self.make_supplier()

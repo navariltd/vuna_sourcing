@@ -22,44 +22,13 @@ function show_opening_status(frm, status) {
 }
 
 function opening_conditions(status) {
-	const closing = frappe.datetime.str_to_user(status.closes_at);
-	const conditions = [
-		{
-			label: __("Bids closed"),
-			met: status.closed,
-			detail: status.closed
-				? __("Closed at {0}", [closing])
-				: __("Closes at {0}", [closing]),
-		},
-		{
-			label: __("Minimum quotations received"),
-			met: status.received >= status.expected,
-			detail: __("{0} received, {1} required", [status.received, status.expected]),
-		},
-		{
-			label: __("Every committee member confirmed"),
-			met: status.confirmations === status.members,
-			detail: status.waiting.length
-				? __("{0} of {1} confirmed. Waiting for {2}", [
-						status.confirmations,
-						status.members,
-						status.waiting.join(", "),
-				  ])
-				: __("{0} of {1} confirmed", [status.confirmations, status.members]),
-		},
-	];
-
-	const rows = conditions
+	const rows = status.conditions
 		.map(
 			(condition) => `
 				<tr>
-					<td style="width: 110px">
-						<span class="indicator-pill ${condition.met ? "green" : "gray"}">
-							${condition.met ? __("Met") : __("Waiting")}
-						</span>
-					</td>
-					<td class="bold">${condition.label}</td>
-					<td class="text-muted">${frappe.utils.escape_html(condition.detail)}</td>
+					<td style="width: 130px">${condition_pill(condition)}</td>
+					<td class="bold">${frappe.utils.escape_html(condition.label)}</td>
+					<td class="text-muted">${frappe.utils.escape_html(condition_detail(condition))}</td>
 				</tr>`
 		)
 		.join("");
@@ -67,7 +36,7 @@ function opening_conditions(status) {
 	const outcome = status.opened
 		? `<span class="indicator-pill green">${__("Quotations are open")}</span>`
 		: `<span class="indicator-pill orange">${__(
-				"Quotations stay sealed until every condition is met"
+				"Quotations stay sealed until every required condition is met"
 		  )}</span>`;
 
 	return `
@@ -75,12 +44,27 @@ function opening_conditions(status) {
 		<table class="table table-bordered" style="margin-bottom: 0">${rows}</table>`;
 }
 
+function condition_detail(condition) {
+	if (!condition.at) return condition.detail;
+	return `${condition.prefix} ${frappe.datetime.str_to_user(condition.at)}`;
+}
+
+function condition_pill(condition) {
+	if (!condition.required) {
+		return `<span class="indicator-pill blue">${__("Not required")}</span>`;
+	}
+
+	return condition.met
+		? `<span class="indicator-pill green">${__("Met")}</span>`
+		: `<span class="indicator-pill gray">${__("Waiting")}</span>`;
+}
+
 function confirm_opening(frm, status) {
 	frappe.confirm(
-		__(
-			"Confirm that you are opening the sealed quotations for {0}? They open once all {1} committee members confirm; {2} have so far.",
-			[frm.doc.name, status.members, status.confirmations]
-		),
+		__("Confirm that you are opening the sealed quotations for {0}? Committee: {1}.", [
+			frm.doc.name,
+			committee_progress(status),
+		]),
 		() =>
 			frappe
 				.call({
@@ -93,4 +77,11 @@ function confirm_opening(frm, status) {
 					frm.reload_doc();
 				})
 	);
+}
+
+function committee_progress(status) {
+	const committee = status.conditions.find(
+		(condition) => condition.key === "committee_confirmed"
+	);
+	return frappe.utils.escape_html(committee.detail);
 }

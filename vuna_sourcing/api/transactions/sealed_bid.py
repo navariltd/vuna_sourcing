@@ -5,13 +5,22 @@ import frappe
 from frappe import _
 from frappe.desk.form.assign_to import add as assign
 from frappe.query_builder.functions import IfNull
-from frappe.utils import cint, format_datetime, get_fullname, getdate, now_datetime
+from frappe.utils import (
+	cint,
+	format_datetime,
+	get_fullname,
+	get_system_timezone,
+	getdate,
+	now_datetime,
+)
 
 from vuna_sourcing.api.response import ApiResponse
-from vuna_sourcing.api.transactions.bidding import SEALED_BID, closes_at, is_closed, is_sealed
+from vuna_sourcing.api.transactions.bidding import SEALED_BID, closes_at, closing_passed, is_sealed
 from vuna_sourcing.api.transactions.supplier import (
+	NO_QUOTE,
 	QUOTE_PENDING,
 	RFQ,
+	RFQ_SUPPLIER,
 	SUBMISSION_STATUS_FIELD,
 	SUPPLIER_QUOTATION,
 	SUPPLIER_QUOTATION_ITEM,
@@ -19,6 +28,7 @@ from vuna_sourcing.api.transactions.supplier import (
 
 COMMITTEE = "RFQ Opening Committee"
 COMMITTEE_MEMBER = "RFQ Opening Committee Member"
+SETTINGS = "Sourcing Settings"
 
 
 def sealed_quotes_condition() -> str:
@@ -83,6 +93,10 @@ def received_quotes(request: str) -> int:
 	return sum(1 for status in statuses if status != QUOTE_PENDING)
 
 
+def declined_quotes(request: str) -> int:
+	return frappe.db.count(RFQ_SUPPLIER, {"parent": request, "parenttype": RFQ, "quote_status": NO_QUOTE})
+
+
 def assign_committee(request) -> None:
 	members = committee_members(request.opening_committee)
 	if not members:
@@ -126,20 +140,93 @@ def awaiting_confirmation(request) -> list[str]:
 	return [member for member in committee_members(request.opening_committee) if member not in confirmed]
 
 
+def opening_exceptions() -> dict[str, bool]:
+	return {
+		field: bool(cint(frappe.db.get_single_value(SETTINGS, field)))
+		for field in (
+			"allow_opening_before_bids_close",
+			"allow_opening_below_minimum",
+			"allow_any_member_to_open",
+		)
+	}
+
+
+def opening_conditions(request) -> list[dict]:
+	exceptions = opening_exceptions()
+	closing = closes_at(request)
+	closing_text = f"{format_datetime(closing)} ({get_system_timezone()})"
+	passed = closing_passed(request)
+	received = received_quotes(request.name)
+	declined = declined_quotes(request.name)
+	expected = cint(request.minimum_expected_quotes)
+
+	quotations = _("{0} received").format(received)
+	if declined:
+		quotations += ", " + _("{0} declined").format(declined)
+	quotations += ", " + _("{0} required").format(expected)
+	members = committee_members(request.opening_committee)
+	waiting = awaiting_confirmation(request)
+	confirmed = len(members) - len(waiting)
+	any_member = exceptions["allow_any_member_to_open"]
+
+	confirmations = _("{0} of {1} confirmed").format(confirmed, len(members))
+	if waiting and not (any_member and confirmed):
+		confirmations += ". " + _("Waiting for {0}").format(
+			", ".join(get_fullname(member) for member in waiting)
+		)
+
+	return [
+		{
+			"key": "bids_closed",
+			"label": _("Bids closed"),
+			"required": not exceptions["allow_opening_before_bids_close"],
+			"met": passed,
+			"detail": _("Closed at {0}").format(closing_text)
+			if passed
+			else _("Closes at {0}").format(closing_text),
+			"prefix": _("Closed at") if passed else _("Closes at"),
+			"at": closing,
+		},
+		{
+			"key": "minimum_quotations",
+			"label": _("Minimum quotations received"),
+			"required": not exceptions["allow_opening_below_minimum"],
+			"met": received >= expected,
+			"detail": quotations,
+		},
+		{
+			"key": "committee_confirmed",
+			"label": _("A committee member confirmed")
+			if any_member
+			else _("Every committee member confirmed"),
+			"required": True,
+			"met": confirmed >= 1 if any_member else not waiting,
+			"detail": confirmations,
+		},
+	]
+
+
+def unmet(conditions: list[dict], *keys: str) -> list[dict]:
+	return [
+		condition
+		for condition in conditions
+		if condition["key"] in keys and condition["required"] and not condition["met"]
+	]
+
+
 def opening_status(request, user: str) -> dict:
 	members = committee_members(request.opening_committee)
 	waiting = awaiting_confirmation(request)
 	opened = bool(cint(request.quotes_opened))
-	closed = is_closed(request)
+	conditions = opening_conditions(request)
 
 	return {
 		"opened": opened,
 		"sealed": is_sealed(request),
-		"closed": closed,
 		"closes_at": closes_at(request),
+		"conditions": conditions,
 		"members": len(members),
 		"confirmations": len(members) - len(waiting),
-		"waiting": [get_fullname(member) for member in waiting],
 		"confirmed_by": [
 			{"member": row.member, "full_name": row.full_name, "confirmed_at": row.confirmed_at}
 			for row in request.opening_confirmations
@@ -147,7 +234,10 @@ def opening_status(request, user: str) -> dict:
 		"received": received_quotes(request.name),
 		"expected": cint(request.minimum_expected_quotes),
 		"is_member": user in members,
-		"can_confirm": request.docstatus == 1 and not opened and closed and user in waiting,
+		"can_confirm": request.docstatus == 1
+		and not opened
+		and user in waiting
+		and not unmet(conditions, "bids_closed"),
 	}
 
 
@@ -167,13 +257,6 @@ def open_quotes(name: str) -> ApiResponse[dict]:
 	if cint(request.quotes_opened):
 		frappe.throw(_("The quotations for {0} are already open.").format(name))
 
-	if not is_closed(request):
-		frappe.throw(
-			_("Quotations can only be opened after bids close at {0}.").format(
-				format_datetime(closes_at(request))
-			)
-		)
-
 	if user not in committee_members(request.opening_committee):
 		frappe.throw(
 			_("Only members of {0} can open these quotations.").format(
@@ -185,14 +268,11 @@ def open_quotes(name: str) -> ApiResponse[dict]:
 	if user in {row.member for row in request.opening_confirmations}:
 		frappe.throw(_("You have already confirmed the opening of {0}.").format(name))
 
-	received = received_quotes(name)
-	expected = cint(request.minimum_expected_quotes)
-	if received < expected:
+	blocking = unmet(opening_conditions(request), "bids_closed", "minimum_quotations")
+	if blocking:
 		frappe.throw(
-			_("{0} quotation(s) received for {1}, fewer than the {2} expected.").format(
-				received, name, expected
-			),
-			title=_("Not Enough Quotations"),
+			"<br>".join(f"{condition['label']}: {condition['detail']}" for condition in blocking),
+			title=_("Quotations cannot be opened yet"),
 		)
 
 	request.append(
@@ -201,7 +281,7 @@ def open_quotes(name: str) -> ApiResponse[dict]:
 	)
 
 	waiting = awaiting_confirmation(request)
-	opened = not waiting
+	opened = not unmet(opening_conditions(request), "committee_confirmed")
 	if opened:
 		request.quotes_opened = 1
 
@@ -210,7 +290,7 @@ def open_quotes(name: str) -> ApiResponse[dict]:
 	close_opening_tasks(name, None if opened else user)
 
 	message = (
-		_("Quotations opened. {0} received.").format(received)
+		_("Quotations opened. {0} received.").format(received_quotes(name))
 		if opened
 		else _("Confirmed. Waiting for {0} more committee member(s).").format(len(waiting))
 	)

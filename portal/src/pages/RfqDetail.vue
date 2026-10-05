@@ -170,12 +170,13 @@ function formatDate(value: string | null) {
 
 function formatDateTime(value: string | null) {
 	if (!value) return "—";
-	return new Date(value.replace(" ", "T")).toLocaleString(undefined, {
+	return new Date(value).toLocaleString(undefined, {
 		day: "numeric",
 		month: "short",
 		year: "numeric",
 		hour: "2-digit",
 		minute: "2-digit",
+		timeZoneName: "short",
 	});
 }
 

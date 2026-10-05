@@ -30,6 +30,12 @@
   "allowed_file_types",
   "column_break_uploads",
   "max_file_size_mb",
+  "bidding_tab",
+  "section_sealed_bid_opening",
+  "allow_opening_before_bids_close",
+  "allow_opening_below_minimum",
+  "column_break_sealed_bid_opening",
+  "allow_any_member_to_open",
   "notifications_tab",
   "section_notifications",
   "notify_applicant",
@@ -76,14 +82,14 @@
   },
   {
    "default": "1",
-   "description": "Offer “Become a supplier” on the portal.",
+   "description": "Offer \u201cBecome a supplier\u201d on the portal.",
    "fieldname": "accept_supplier_applications",
    "fieldtype": "Check",
    "label": "Accept Supplier Applications"
   },
   {
    "default": "1",
-   "description": "Offer “Become a customer” on the portal.",
+   "description": "Offer \u201cBecome a customer\u201d on the portal.",
    "fieldname": "accept_customer_applications",
    "fieldtype": "Check",
    "label": "Accept Customer Applications"
@@ -180,6 +186,41 @@
    "precision": "2"
   },
   {
+   "fieldname": "bidding_tab",
+   "fieldtype": "Tab Break",
+   "label": "Bidding"
+  },
+  {
+   "fieldname": "section_sealed_bid_opening",
+   "fieldtype": "Section Break",
+   "label": "Opening Sealed Bids",
+   "description": "By default, sealed quotations open only after bids close, the RFQ's minimum number of quotations has arrived, and every committee member has confirmed. Tick an exception to relax that rule for all sealed bids."
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_opening_before_bids_close",
+   "fieldtype": "Check",
+   "label": "Allow Opening Before Bids Close",
+   "description": "Opening early stops suppliers from sending further quotations."
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_opening_below_minimum",
+   "fieldtype": "Check",
+   "label": "Allow Opening Below the Minimum Quotations"
+  },
+  {
+   "fieldname": "column_break_sealed_bid_opening",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_any_member_to_open",
+   "fieldtype": "Check",
+   "label": "Allow Any One Committee Member to Open",
+   "description": "The first committee member to confirm opens the quotations, instead of waiting for every member."
+  },
+  {
    "fieldname": "notifications_tab",
    "fieldtype": "Tab Break",
    "label": "Notifications"
@@ -218,7 +259,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-21 22:40:00.000000",
+ "modified": "2026-10-01 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

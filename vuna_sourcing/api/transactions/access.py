@@ -34,7 +34,6 @@ SUPPLIER_DOCTYPES = (RFQ, SUPPLIER_QUOTATION, PURCHASE_ORDER, PURCHASE_INVOICE)
 PORTAL_DOCTYPES = CUSTOMER_DOCTYPES + SUPPLIER_DOCTYPES
 
 NOT_STAFF_ROLES = {*PORTAL_ROLES, "All", "Guest"}
-ADMIN_ROLE = "System Manager"
 
 
 def is_staff(doctype: str, user: str) -> bool:
@@ -42,14 +41,6 @@ def is_staff(doctype: str, user: str) -> bool:
 		perm.role not in NOT_STAFF_ROLES and not perm.permlevel and (perm.read or perm.print)
 		for perm in get_valid_perms(doctype, user)
 	)
-
-
-def is_admin(user: str) -> bool:
-	return user == "Administrator"
-
-
-def sees_hidden_quotes(user: str) -> bool:
-	return is_admin(user)
 
 
 def as_list(filters: dict) -> list[list]:
@@ -107,17 +98,12 @@ def own_documents_condition(user: str | None = None, doctype: str | None = None)
 
 
 def is_visible_quote(doc, ptype: str | None = None, user: str | None = None, **kwargs) -> bool:
-	user = user or frappe.session.user
-	if doc.is_new() or sees_hidden_quotes(user):
+	if doc.is_new():
 		return True
 
 	return doc.get(SUBMISSION_STATUS_FIELD) != QUOTE_PENDING and not sealed_request_of(doc)
 
 
 def visible_quotes_condition(user: str | None = None, doctype: str | None = None) -> str:
-	user = user or frappe.session.user
-	if sees_hidden_quotes(user):
-		return ""
-
 	not_pending = f"ifnull(`tab{SUPPLIER_QUOTATION}`.`{SUBMISSION_STATUS_FIELD}`, '') != {frappe.db.escape(QUOTE_PENDING)}"
 	return f"({not_pending} and {sealed_quotes_condition()})"
