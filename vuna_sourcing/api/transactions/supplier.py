@@ -8,7 +8,13 @@ from frappe import _
 from frappe.utils import cint, flt, format_datetime, nowdate
 
 from vuna_sourcing.api.response import ApiResponse
-from vuna_sourcing.api.transactions.bidding import closes_at, is_closed, is_sealed
+from vuna_sourcing.api.transactions.bidding import (
+	closes_at,
+	closes_at_iso,
+	closing_passed,
+	is_closed,
+	is_sealed,
+)
 from vuna_sourcing.api.transactions.common import (
 	balance,
 	company_currency,
@@ -269,7 +275,7 @@ def get_rfqs(
 				"supplier": row.supplier,
 				"transaction_date": request.transaction_date,
 				"required_by": request.schedule_date,
-				"closes_at": closes_at(request),
+				"closes_at": closes_at_iso(request),
 				"bidding_method": request.bidding_method,
 				"company": request.company,
 				"items": counts.get(request.name, 0),
@@ -334,7 +340,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 		"company": doc.company,
 		"transaction_date": doc.transaction_date,
 		"required_by": doc.schedule_date,
-		"closes_at": closes_at(doc),
+		"closes_at": closes_at_iso(doc),
 		"bidding_method": doc.bidding_method,
 		"sealed": is_sealed(doc),
 		"closed": closed,
@@ -400,7 +406,11 @@ def open_request(name: str):
 		frappe.throw(_("This quotation request is not open."), frappe.PermissionError)
 
 	if is_closed(request):
-		frappe.throw(_("Bids for this request closed at {0}.").format(format_datetime(closes_at(request))))
+		if closing_passed(request):
+			frappe.throw(
+				_("Bids for this request closed at {0}.").format(format_datetime(closes_at(request)))
+			)
+		frappe.throw(_("Bids for this request have closed."))
 
 	return request
 
