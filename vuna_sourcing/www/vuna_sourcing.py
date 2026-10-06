@@ -25,5 +25,7 @@ def get_boot():
 			"frappe_version": frappe.__version__,
 			"site_name": frappe.local.site,
 			"read_only_mode": frappe.flags.read_only,
+			"socketio_port": frappe.conf.socketio_port,
+			"dev_server": frappe._dev_server,
 		}
 	)

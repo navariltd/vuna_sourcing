@@ -49,6 +49,13 @@ const routes: RouteRecordRaw[] = [
     props: true,
   },
   {
+    path: '/rfq/:name/bidding',
+    name: 'BidRoom',
+    component: () => import('@/pages/BidRoom.vue'),
+    meta: { partyType: 'Supplier' },
+    props: true,
+  },
+  {
     path: '/supplier-quotations',
     name: 'SupplierQuotationList',
     component: () => import('@/pages/SupplierQuotationList.vue'),

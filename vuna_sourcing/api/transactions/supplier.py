@@ -13,6 +13,7 @@ from vuna_sourcing.api.transactions.bidding import (
 	closes_at_iso,
 	closing_passed,
 	is_closed,
+	is_open_bid,
 	is_sealed,
 )
 from vuna_sourcing.api.transactions.common import (
@@ -36,6 +37,7 @@ from vuna_sourcing.api.transactions.common import (
 	status_counts,
 )
 from vuna_sourcing.utils import SUPPLIER
+from vuna_sourcing.vuna_sourcing.doctype.rfq_bid_log.rfq_bid_log import record_bid
 
 RFQ = "Request for Quotation"
 RFQ_ITEM = "Request for Quotation Item"
@@ -51,6 +53,7 @@ RECEIVED = "Received"
 INVITED = "Invited"
 DRAFT = "Draft"
 SUBMITTED = "Submitted"
+BIDDING = "Bidding"
 DECLINED = "Declined"
 CLOSED = "Closed"
 
@@ -194,11 +197,11 @@ def is_pending(quote) -> bool:
 	return bool(quote) and quote.get(SUBMISSION_STATUS_FIELD) == QUOTE_PENDING
 
 
-def quote_state(row_status: str | None, quote: dict | None, closed: bool) -> str:
+def quote_state(row_status: str | None, quote: dict | None, closed: bool, open_bid: bool = False) -> str:
 	if row_status == NO_QUOTE:
 		return DECLINED
 	if row_status == RECEIVED or (quote and not is_pending(quote)):
-		return SUBMITTED
+		return BIDDING if open_bid and not closed else SUBMITTED
 	if closed:
 		return CLOSED
 	if quote:
@@ -279,7 +282,7 @@ def get_rfqs(
 				"bidding_method": request.bidding_method,
 				"company": request.company,
 				"items": counts.get(request.name, 0),
-				"status": quote_state(row.quote_status, quote, is_closed(request)),
+				"status": quote_state(row.quote_status, quote, is_closed(request), is_open_bid(request)),
 				"quote": quote,
 			}
 		)
@@ -304,7 +307,8 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 	row = next((row for row in doc.suppliers if row.supplier == supplier), None)
 	quote = find_quote(name, supplier)
 	closed = is_closed(doc)
-	status = quote_state(row.quote_status if row else None, quote, closed)
+	open_bid = is_open_bid(doc)
+	status = quote_state(row.quote_status if row else None, quote, closed, open_bid)
 
 	quoted_lines = {}
 	if quote:
@@ -343,9 +347,10 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 		"closes_at": closes_at_iso(doc),
 		"bidding_method": doc.bidding_method,
 		"sealed": is_sealed(doc),
+		"open_bid": open_bid,
 		"closed": closed,
 		"status": status,
-		"can_quote": status in (INVITED, DRAFT),
+		"can_quote": status in (INVITED, DRAFT, BIDDING),
 		"terms": safe_html(doc.terms),
 		"items": items,
 		"quote": quote,
@@ -418,9 +423,10 @@ def open_request(name: str):
 def draft_or_new_quote(request, supplier: str):
 	quote = find_quote(request.name, supplier)
 
-	if is_pending(quote):
+	if is_pending(quote) or (quote and is_open_bid(request)):
 		doc = frappe.get_doc(SUPPLIER_QUOTATION, quote.name)
 		doc.flags.ignore_permissions = True
+		doc.flags.placing_bid = True
 		return doc
 
 	if quote or is_sent(request.name, supplier):
@@ -454,7 +460,11 @@ def save_quote(
 	terms: str | None = None,
 ) -> ApiResponse[dict]:
 	supplier = invited_supplier(name, supplier)
-	doc = draft_or_new_quote(open_request(name), supplier)
+	request = open_request(name)
+	if is_open_bid(request) and is_sent(name, supplier):
+		frappe.throw(_("You have already bid on this request. Place a new bid in the bid room instead."))
+
+	doc = draft_or_new_quote(request, supplier)
 
 	fill_quote(doc, items, quotation_number, valid_till, terms)
 	doc.set(SUBMISSION_STATUS_FIELD, QUOTE_PENDING)
@@ -473,7 +483,8 @@ def send_quote(
 	terms: str | None = None,
 ) -> dict:
 	supplier = invited_supplier(name, supplier)
-	doc = draft_or_new_quote(open_request(name), supplier)
+	request = open_request(name)
+	doc = draft_or_new_quote(request, supplier)
 
 	fill_quote(doc, items, quotation_number, valid_till, terms)
 
@@ -486,6 +497,8 @@ def send_quote(
 	doc.set(SUBMISSION_STATUS_FIELD, QUOTE_SENT)
 	doc.save()
 	set_quote_status(name, supplier, RECEIVED)
+	if is_open_bid(request):
+		record_bid(doc, name)
 
 	return get_rfq(name, supplier)
 
@@ -770,7 +783,7 @@ def get_dashboard(supplier: str | None = None) -> dict:
 		return {}
 
 	submitted = {"supplier": ("in", suppliers), "docstatus": 1}
-	invited = get_rfqs(supplier=supplier, status=f"{INVITED},{DRAFT}", limit=100)
+	invited = get_rfqs(supplier=supplier, status=f"{INVITED},{DRAFT},{BIDDING}", limit=100)
 	open_orders = frappe.get_all(
 		PURCHASE_ORDER,
 		filters={**submitted, "status": ("in", OPEN_ORDER_STATUSES)},

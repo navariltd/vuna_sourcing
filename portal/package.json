@@ -12,6 +12,7 @@
     "dompurify": "^3.4.0",
     "frappe-ui": "^1.0.0-beta.72",
     "pinia": "^4.0.3",
+    "socket.io-client": "^4.8.4",
     "vue": "^3.5.42",
     "vue-router": "^4.6.4"
   },
