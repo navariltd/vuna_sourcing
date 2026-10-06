@@ -514,10 +514,15 @@ function formatDateTime(value: string | null | undefined) {
 					</section>
 
 					<section class="overflow-hidden rounded-6 border">
-						<header class="border-b bg-surface-gray-1 px-4 py-3">
+						<header
+							class="flex items-center justify-between border-b bg-surface-gray-1 px-4 py-3"
+						>
 							<p class="text-base font-medium text-ink-gray-8">Your bids</p>
+							<span class="text-p-sm text-ink-gray-6">{{
+								board.your_bids.length
+							}}</span>
 						</header>
-						<ol class="divide-y">
+						<ol class="max-h-64 divide-y overflow-y-auto overscroll-contain">
 							<li
 								v-for="bid in board.your_bids"
 								:key="bid.name"
