@@ -82,14 +82,22 @@ class SourcingFixtures:
 		).insert(ignore_permissions=True)
 		return customer.name, user
 
-	def make_rfq(self, suppliers, required_by=None, qty=5, committee=None, minimum_expected_quotes=0):
+	def make_rfq(
+		self,
+		suppliers,
+		required_by=None,
+		qty=5,
+		committee=None,
+		minimum_expected_quotes=0,
+		bidding_method="Sealed Bid",
+	):
 		doc = frappe.get_doc(
 			{
 				"doctype": "Request for Quotation",
 				"company": self.company,
 				"transaction_date": nowdate(),
 				"schedule_date": required_by or add_days(nowdate(), 7),
-				"bidding_method": "Sealed Bid",
+				"bidding_method": bidding_method,
 				"bid_closing": add_to_date(now_datetime(), days=7),
 				"opening_committee": committee or self.committee,
 				"minimum_expected_quotes": minimum_expected_quotes,

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from frappe.utils import cint, get_datetime, get_system_timezone, getdate, now_datetime
 
 SEALED_BID = "Sealed Bid"
+OPEN_BID = "Open Bid"
 
 
 def closes_at(request) -> datetime | None:
@@ -17,11 +18,14 @@ def closes_at(request) -> datetime | None:
 	return None
 
 
-def closes_at_iso(request) -> str | None:
-	closing = closes_at(request)
-	if not closing:
+def as_iso(value) -> str | None:
+	if not value:
 		return None
-	return closing.replace(tzinfo=ZoneInfo(get_system_timezone())).isoformat()
+	return get_datetime(value).replace(tzinfo=ZoneInfo(get_system_timezone())).isoformat()
+
+
+def closes_at_iso(request) -> str | None:
+	return as_iso(closes_at(request))
 
 
 def closing_passed(request) -> bool:
@@ -31,6 +35,10 @@ def closing_passed(request) -> bool:
 
 def is_closed(request) -> bool:
 	return closing_passed(request) or bool(cint(request.get("quotes_opened")))
+
+
+def is_open_bid(request) -> bool:
+	return request.get("bidding_method") == OPEN_BID
 
 
 def is_sealed(request) -> bool:

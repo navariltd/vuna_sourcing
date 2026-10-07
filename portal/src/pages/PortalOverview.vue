@@ -4,6 +4,7 @@ import { Badge, Button, createResource } from "frappe-ui";
 import { BarChart, DonutChart, NumberCard } from "frappe-ui/charts";
 import PageContainer from "@/components/PageContainer.vue";
 import { money, shortDate } from "@/data/purchase";
+import { rfqRoute } from "@/data/rfq";
 import { usePortalStore } from "@/stores/portal";
 
 const portal = usePortalStore();
@@ -101,8 +102,10 @@ const lists = computed(() => {
 				all: "RfqList",
 				rows: d.rfqs_closing.map((row: any) => ({
 					name: row.name,
-					route: { name: "RfqDetail", params: { name: row.name } },
-					detail: `Closes ${shortDate(row.closes_at)}`,
+					route: rfqRoute(row),
+					detail: `${row.status === "Bidding" ? "Bidding · c" : "C"}loses ${shortDate(
+						row.closes_at
+					)}`,
 					trailing: `${row.items} item${row.items === 1 ? "" : "s"}`,
 				})),
 			},

@@ -8,15 +8,17 @@ import RichText from "@/components/RichText.vue";
 import PrintButton from "@/components/PrintButton.vue";
 import {
 	RFQ_STATUS_THEME,
+	createOpenBidsResource,
 	createRfqResource,
 	declineQuote,
 	saveQuote,
 	sendQuote,
 } from "@/data/rfq";
-import type { QuoteLine, QuotePayload, Rfq } from "@/data/rfq";
+import type { OpenBidBoard, QuoteLine, QuotePayload, Rfq } from "@/data/rfq";
 import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { useCountdown } from "@/composables/useCountdown";
 import { ACCENTS, LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name: string }>();
@@ -47,6 +49,29 @@ const supplier = computed(() =>
 const rfq = computed<Rfq | null>(() => request.data ?? null);
 
 const isSealedBid = computed(() => rfq.value?.bidding_method === "Sealed Bid");
+
+const inBidding = computed(
+	() => !!rfq.value?.open_bid && ["Bidding", "Submitted"].includes(rfq.value.status)
+);
+
+const editable = computed(() => !!rfq.value?.can_quote && rfq.value.status !== "Bidding");
+
+const bids = createOpenBidsResource();
+const standing = computed(() => {
+	const board: OpenBidBoard | null = bids.data?.data ?? null;
+	const yours = board?.bids.find((bid) => bid.is_you);
+	return board && yours ? { rank: yours.rank, bidders: board.bidders } : null;
+});
+
+const countdown = useCountdown(() => rfq.value?.closes_at);
+
+watch(
+	inBidding,
+	(bidding) => {
+		if (bidding && supplier.value) bids.fetch({ name: props.name, supplier: supplier.value });
+	},
+	{ immediate: true }
+);
 
 const total = computed(() =>
 	(rfq.value?.items ?? []).reduce((sum, item) => {
@@ -132,7 +157,11 @@ async function send() {
 	submitting.value = true;
 
 	try {
-		show((await sendQuote(quote)) as Rfq);
+		const updated = (await sendQuote(quote)) as Rfq;
+		show(updated);
+		if (updated.status === "Bidding") {
+			router.push({ name: "BidRoom", params: { name: updated.name } });
+		}
 	} catch (error: any) {
 		errorMessage.value =
 			error?.messages?.[0] || error?.message || "We could not send your quotation.";
@@ -262,12 +291,62 @@ function money(value: number) {
 			</dl>
 
 			<Alert
-				v-if="isSealedBid && rfq.can_quote"
+				v-if="isSealedBid && editable"
 				theme="blue"
 				icon="lucide-lock"
 				title="This is a sealed bid"
 				description="Once you send your quotation it cannot be changed."
 			/>
+
+			<Alert
+				v-if="rfq.open_bid && editable"
+				theme="blue"
+				icon="lucide-gavel"
+				title="This is an open bid"
+				description="After your first bid you join the bid room, where you can see the other bids without their names and bid again until bids close."
+			/>
+
+			<div
+				v-if="inBidding"
+				class="flex flex-wrap items-center justify-between gap-4 rounded-6 border border-outline-violet-2 bg-surface-violet-1 p-4"
+			>
+				<div class="flex items-center gap-3">
+					<span
+						class="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-violet-2 text-ink-violet-7"
+					>
+						<i class="lucide-gavel size-5" />
+					</span>
+					<div>
+						<p class="text-base font-medium text-ink-gray-8">
+							<template v-if="rfq.status === 'Bidding'">
+								Bidding is live
+								<template v-if="standing">
+									· you are ranked #{{ standing.rank }} of {{ standing.bidders }}
+								</template>
+							</template>
+							<template v-else>
+								Bidding has closed
+								<template v-if="standing">
+									· you finished #{{ standing.rank }} of {{ standing.bidders }}
+								</template>
+							</template>
+						</p>
+						<p class="text-p-sm text-ink-gray-6">
+							{{
+								rfq.status === "Bidding"
+									? `Closes in ${countdown.label.value}. Follow the other bids and improve yours in the bid room.`
+									: "See the final standings in the bid room."
+							}}
+						</p>
+					</div>
+				</div>
+				<Button
+					variant="solid"
+					icon-left="lucide-gavel"
+					:label="rfq.status === 'Bidding' ? 'Go to bid room' : 'View standings'"
+					:route="{ name: 'BidRoom', params: { name: rfq.name } }"
+				/>
+			</div>
 
 			<div v-if="rfq.attachments.length" class="flex flex-wrap gap-2">
 				<a
@@ -320,7 +399,7 @@ function money(value: number) {
 						</p>
 
 						<FormControl
-							v-if="rfq.can_quote"
+							v-if="editable"
 							class="sm:col-span-2"
 							type="number"
 							size="sm"
@@ -339,7 +418,7 @@ function money(value: number) {
 						</p>
 
 						<FormControl
-							v-if="rfq.can_quote"
+							v-if="editable"
 							class="sm:col-span-2"
 							type="number"
 							size="sm"
@@ -373,7 +452,7 @@ function money(value: number) {
 				</div>
 			</div>
 
-			<div v-if="rfq.can_quote" class="grid gap-4 sm:grid-cols-2">
+			<div v-if="editable" class="grid gap-4 sm:grid-cols-2">
 				<FormControl
 					v-model="reference"
 					type="text"
@@ -406,7 +485,7 @@ function money(value: number) {
 			<ErrorMessage v-if="errorMessage" :message="errorMessage" />
 
 			<div
-				v-if="rfq.can_quote"
+				v-if="editable"
 				class="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
 			>
 				<Button
@@ -427,7 +506,7 @@ function money(value: number) {
 					<Button
 						variant="solid"
 						theme="green"
-						label="Send quotation"
+						:label="rfq.open_bid ? 'Place bid' : 'Send quotation'"
 						:loading="submitting"
 						:disabled="saving"
 						@click="send"
@@ -436,7 +515,7 @@ function money(value: number) {
 			</div>
 
 			<div
-				v-else-if="rfq.status === 'Submitted'"
+				v-else-if="rfq.status === 'Submitted' && !rfq.open_bid"
 				class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
 			>
 				<p class="text-base font-medium text-ink-gray-8">

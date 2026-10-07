@@ -43,7 +43,10 @@ app_include_js = "vuna_sourcing.bundle.js"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Request for Quotation": "overrides/client/request_for_quotation.js"}
+doctype_js = {
+	"Request for Quotation": "overrides/client/request_for_quotation.js",
+	"Supplier Quotation": "overrides/client/supplier_quotation.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -171,6 +174,7 @@ doc_events = {
 		"on_submit": "vuna_sourcing.overrides.server.request_for_quotation.on_submit",
 	},
 	"Supplier Quotation": {
+		"validate": "vuna_sourcing.overrides.server.supplier_quotation.validate",
 		"before_submit": "vuna_sourcing.overrides.server.supplier_quotation.validate_submittable",
 	},
 }

@@ -5,7 +5,7 @@ import { ListView } from "frappe-ui/experimental";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import ListFilters from "@/components/ListFilters.vue";
-import { RFQ_STATUSES, RFQ_STATUS_HINT, RFQ_STATUS_THEME, rfqList } from "@/data/rfq";
+import { RFQ_STATUSES, RFQ_STATUS_HINT, RFQ_STATUS_THEME, rfqList, rfqRoute } from "@/data/rfq";
 import type { RfqPage, RfqRow, RfqStatus } from "@/data/rfq";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
@@ -74,7 +74,7 @@ const options = {
 	selectable: false,
 	showTooltip: false,
 	rowHeight: 48,
-	getRowRoute: (row: RfqRow) => ({ name: "RfqDetail", params: { name: row.name } }),
+	getRowRoute: rfqRoute,
 };
 
 function formatDateTime(value: string | null) {
@@ -102,6 +102,14 @@ function loadMore() {
 				theme="blue"
 				variant="subtle"
 				:label="`${counts.Invited} awaiting your prices`"
+			/>
+			<Badge
+				v-if="supplier && counts.Bidding"
+				theme="violet"
+				variant="subtle"
+				class="cursor-pointer"
+				:label="`${counts.Bidding} live bid${counts.Bidding === 1 ? '' : 's'}`"
+				@click="status = 'Bidding'"
 			/>
 			<Badge
 				v-if="supplier && counts.Draft"

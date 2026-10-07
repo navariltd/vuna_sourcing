@@ -1,0 +1,194 @@
+{
+ "actions": [],
+ "autoname": "BID-.#####",
+ "creation": "2026-10-06 09:00:00.000000",
+ "description": "Every bid a supplier places on an open bid Request for Quotation. Entries are written by the bidding API and never change.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "request_for_quotation",
+  "supplier",
+  "supplier_name",
+  "supplier_quotation",
+  "column_break_bid",
+  "revision",
+  "placed_at",
+  "placed_by",
+  "section_amounts",
+  "company",
+  "currency",
+  "conversion_rate",
+  "valid_till",
+  "column_break_amounts",
+  "total",
+  "base_total",
+  "section_items",
+  "items"
+ ],
+ "fields": [
+  {
+   "fieldname": "request_for_quotation",
+   "fieldtype": "Link",
+   "label": "Request for Quotation",
+   "read_only": 1,
+   "options": "Request for Quotation",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "read_only": 1,
+   "options": "Supplier",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "supplier_name",
+   "fieldtype": "Data",
+   "label": "Supplier Name",
+   "read_only": 1,
+   "fetch_from": "supplier.supplier_name"
+  },
+  {
+   "fieldname": "supplier_quotation",
+   "fieldtype": "Link",
+   "label": "Supplier Quotation",
+   "read_only": 1,
+   "options": "Supplier Quotation",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_bid",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "revision",
+   "fieldtype": "Int",
+   "label": "Revision",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "placed_at",
+   "fieldtype": "Datetime",
+   "label": "Placed At",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "placed_by",
+   "fieldtype": "Link",
+   "label": "Placed By",
+   "read_only": 1,
+   "options": "User"
+  },
+  {
+   "fieldname": "section_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "read_only": 1,
+   "options": "Currency"
+  },
+  {
+   "fieldname": "conversion_rate",
+   "fieldtype": "Float",
+   "label": "Exchange Rate",
+   "read_only": 1,
+   "precision": "9"
+  },
+  {
+   "fieldname": "valid_till",
+   "fieldtype": "Date",
+   "label": "Valid Till",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Total",
+   "read_only": 1,
+   "options": "currency"
+  },
+  {
+   "fieldname": "base_total",
+   "fieldtype": "Currency",
+   "label": "Total (Company Currency)",
+   "read_only": 1,
+   "options": "Company:company:default_currency",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "read_only": 1,
+   "options": "RFQ Bid Log Item"
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "RFQ Bid Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Manager"
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase User"
+  }
+ ],
+ "row_format": "Dynamic",
+ "show_title_field_in_link": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "supplier_name"
+}
