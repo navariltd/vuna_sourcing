@@ -14,9 +14,8 @@ required_apps = ["erpnext"]
 add_to_apps_screen = [
 	{
 		"name": "vuna_sourcing",
-		"logo": "/assets/vuna_sourcing/images/sourcing-logo-256.png",
-		"title": "Vuna Sourcing",
-		"route": "/vuna-sourcing",
+		"logo": "/assets/vuna_sourcing/images/sourcing-logo.png",
+		"title": "Sourcing",
 		"has_permission": "vuna_sourcing.api.permission.has_app_permission",
 	}
 ]

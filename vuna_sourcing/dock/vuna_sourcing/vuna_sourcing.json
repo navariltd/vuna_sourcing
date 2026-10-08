@@ -1,0 +1,23 @@
+{
+ "app": "vuna_sourcing",
+ "creation": "2026-10-08 12:00:00",
+ "docstatus": 0,
+ "doctype": "Dock",
+ "idx": 0,
+ "items": [
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "organization",
+   "link_to": "Sourcing",
+   "link_type": "Sidebar",
+   "title": "Sourcing"
+  }
+ ],
+ "modified": "2026-10-08 23:47:15.096158",
+ "modified_by": "Administrator",
+ "name": "vuna_sourcing",
+ "owner": "Administrator",
+ "standard": 1,
+ "user": ""
+}
