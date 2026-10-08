@@ -79,7 +79,6 @@ def get_app_branding() -> dict:
 		"name": APP_NAME,
 		"title": entry.get("title") or first("app_title"),
 		"logo": entry.get("logo"),
-		"route": entry.get("route"),
 		"publisher": first("app_publisher"),
 	}
 

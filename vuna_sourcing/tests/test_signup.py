@@ -41,7 +41,6 @@ class TestSignup(IntegrationTestCase):
 		self.assertEqual(branding["name"], APP_NAME)
 		self.assertEqual(branding["title"], entry["title"])
 		self.assertEqual(branding["logo"], entry["logo"])
-		self.assertEqual(branding["route"], entry["route"])
 		self.assertNotIn(
 			"contact_email",
 			branding,
