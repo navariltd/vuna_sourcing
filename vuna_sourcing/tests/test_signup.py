@@ -17,9 +17,7 @@ class TestSignup(IntegrationTestCase):
 		frappe.local.request_ip = None
 		self.open_registration()
 
-	def open_registration(
-		self, mode="Open to Public", site_signup_enabled=True, party_types=("Supplier", "Customer")
-	):
+	def open_registration(self, mode="Open to Public", party_types=("Supplier", "Customer")):
 		frappe.db.set_single_value(
 			"Sourcing Settings",
 			{
@@ -28,7 +26,6 @@ class TestSignup(IntegrationTestCase):
 				"accept_customer_applications": int("Customer" in party_types),
 			},
 		)
-		frappe.db.set_single_value("Website Settings", "disable_signup", 0 if site_signup_enabled else 1)
 		frappe.clear_cache()
 
 	def new_email(self):
@@ -126,13 +123,13 @@ class TestSignup(IntegrationTestCase):
 		sign_up("Amina", "Otieno", email)
 		self.assertFalse(frappe.db.exists("User", email))
 
-	def test_site_wide_signup_switch_also_closes_registration(self):
-		"""Open to Public cannot override the site's own disable_signup."""
-		self.open_registration(mode="Open to Public", site_signup_enabled=False)
+	def test_site_wide_signup_switch_does_not_close_registration(self):
+		frappe.db.set_single_value("Website Settings", "disable_signup", 1)
+		frappe.clear_cache()
 
-		self.assertFalse(get_signup_context().data.is_open)
+		self.assertTrue(get_signup_context().data.is_open)
 		result = sign_up("Amina", "Otieno", self.new_email())
-		self.assertFalse(result.ok)
+		self.assertTrue(result.ok, result.message)
 
 	def test_signup_creates_a_website_user_marked_for_this_app(self):
 		email = self.new_email()

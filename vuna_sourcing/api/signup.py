@@ -7,7 +7,6 @@ import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, escape_html, validate_email_address
-from frappe.website.utils import is_signup_disabled
 
 from vuna_sourcing import APP_NAME
 from vuna_sourcing.api.permission import PORTAL_USER_ROLE
@@ -46,11 +45,7 @@ def invitation_only_message() -> str:
 
 def registration_is_open() -> bool:
 	settings = frappe.get_cached_doc("Sourcing Settings")
-	return (
-		settings.registration_mode == OPEN_TO_PUBLIC
-		and not is_signup_disabled()
-		and bool(get_open_party_types())
-	)
+	return settings.registration_mode == OPEN_TO_PUBLIC and bool(get_open_party_types())
 
 
 @frappe.whitelist(allow_guest=True)  # nosemgrep
