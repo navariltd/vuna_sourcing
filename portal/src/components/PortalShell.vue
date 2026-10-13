@@ -26,6 +26,7 @@ import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
 import PartySwitcher from "@/components/PartySwitcher.vue";
 import PortalSettings from "@/components/PortalSettings.vue";
+import LiveBidDock from "@/components/LiveBidDock.vue";
 
 const portal = usePortalStore();
 const route = useRoute();
@@ -420,4 +421,5 @@ function runAccountAction(action: () => void) {
 	</BottomSheet>
 
 	<PortalSettings v-model:open="settingsOpen" />
+	<LiveBidDock />
 </template>

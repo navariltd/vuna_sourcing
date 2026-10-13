@@ -180,6 +180,40 @@ class TestPortalApplication(IntegrationTestCase):
 		with self.set_user(applicant):
 			return submit_application(saved["name"])
 
+	def test_drafts_stay_off_the_desk_until_submitted(self):
+		applicant = self.make_applicant()
+		draft = self.complete(applicant)["name"]
+		reviewer = make_test_user(["Purchase Master Manager"], first_name="Buyer").name
+
+		with self.set_user(reviewer):
+			self.assertNotIn(draft, frappe.get_list(REQUEST, pluck="name"))
+			self.assertFalse(frappe.has_permission(REQUEST, doc=draft))
+
+		with self.set_user(applicant):
+			submit_application(draft)
+
+		with self.set_user(reviewer):
+			self.assertIn(draft, frappe.get_list(REQUEST, pluck="name"))
+			self.assertTrue(frappe.has_permission(REQUEST, doc=draft))
+
+	def test_a_draft_started_on_the_desk_stays_visible_to_whoever_started_it(self):
+		buyer = make_test_user(["Purchase Master Manager"], first_name="Buyer").name
+		other_buyer = make_test_user(["Purchase Master Manager"], first_name="Buyer").name
+
+		with self.set_user(buyer):
+			draft = frappe.get_doc(
+				{
+					"doctype": REQUEST,
+					"party_type": "Supplier",
+					"onboarding_template": SUPPLIER_TEMPLATE,
+					"party_name": "Desk Traders " + frappe.generate_hash(length=6),
+				}
+			).insert()
+			self.assertIn(draft.name, frappe.get_list(REQUEST, pluck="name"))
+
+		with self.set_user(other_buyer):
+			self.assertNotIn(draft.name, frappe.get_list(REQUEST, pluck="name"))
+
 	def test_a_brand_new_signup_holds_no_party_role(self):
 		"""The premise: the Supplier or Customer role is the outcome of approval, not a prerequisite."""
 		applicant = self.make_applicant()

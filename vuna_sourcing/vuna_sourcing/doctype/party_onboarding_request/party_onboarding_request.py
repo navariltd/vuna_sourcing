@@ -752,6 +752,17 @@ def get_settings():
 	return frappe.get_cached_doc("Sourcing Settings")
 
 
+def drafts_hidden_condition(user: str | None = None, doctype: str | None = None) -> str:
+	user = user or frappe.session.user
+	return f"(`tab{DOCTYPE}`.`docstatus` != 0 or `tab{DOCTYPE}`.`owner` = {frappe.db.escape(user)})"
+
+
+def is_not_others_draft(doc, ptype: str | None = None, user: str | None = None, **kwargs) -> bool:
+	if doc.is_new() or doc.docstatus != 0:
+		return True
+	return doc.owner == (user or frappe.session.user)
+
+
 def get_document_types_for(party_type: str | None) -> list[str]:
 	applies_to = ["Supplier and Customer"]
 	if party_type:

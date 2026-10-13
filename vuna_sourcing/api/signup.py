@@ -65,10 +65,18 @@ def get_signup_context() -> ApiResponse[SignupContext]:
 	)
 
 
+def can_invite() -> bool:
+	return frappe.session.user != "Guest" and bool(frappe.has_permission("Sourcing Settings", "write"))
+
+
+def signups_allowed_per_hour() -> int:
+	return 300 if can_invite() else 5
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep
-@rate_limit(limit=5, seconds=60 * 60, ip_based=True)
+@rate_limit(limit=signups_allowed_per_hour, seconds=60 * 60, ip_based=True)
 def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupResult]:
-	if not registration_is_open():
+	if not (registration_is_open() or can_invite()):
 		return ApiResponse.error(invitation_only_message())
 
 	first_name = (first_name or "").strip()

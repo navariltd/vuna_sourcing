@@ -8,6 +8,7 @@ from vuna_sourcing import APP_NAME
 from vuna_sourcing.api.permission import PORTAL_USER_ROLE, has_app_permission
 from vuna_sourcing.api.response import ApiResponse, ResponseStatus
 from vuna_sourcing.api.signup import get_signup_context, sign_up
+from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.utils import get_app_branding
 
 
@@ -16,6 +17,8 @@ class TestSignup(IntegrationTestCase):
 		super().setUp()
 		frappe.local.request_ip = None
 		self.open_registration()
+		frappe.set_user("Guest")
+		self.addCleanup(frappe.set_user, "Administrator")
 
 	def open_registration(self, mode="Open to Public", party_types=("Supplier", "Customer")):
 		frappe.db.set_single_value(
@@ -115,6 +118,28 @@ class TestSignup(IntegrationTestCase):
 		result = sign_up("Amina", "Otieno", self.new_email())
 		self.assertFalse(result.ok)
 		self.assertIn("invitation", result.message.lower())
+
+	def test_staff_who_manage_sourcing_can_invite_while_registration_is_closed(self):
+		self.open_registration(mode="Invitation Only")
+		buyer = make_test_user(["Purchase Master Manager"], first_name="Buyer").name
+		email = self.new_email()
+
+		with self.set_user(buyer):
+			result = sign_up("Amina", "Otieno", email)
+
+		self.assertTrue(result.ok, result.message)
+		self.assertIn(PORTAL_USER_ROLE, frappe.get_roles(email))
+
+	def test_staff_without_settings_access_cannot_invite(self):
+		self.open_registration(mode="Invitation Only")
+		clerk = make_test_user(["Purchase User"], first_name="Clerk").name
+		email = self.new_email()
+
+		with self.set_user(clerk):
+			result = sign_up("Amina", "Otieno", email)
+
+		self.assertFalse(result.ok)
+		self.assertFalse(frappe.db.exists("User", email))
 
 	def test_invitation_only_creates_no_account(self):
 		self.open_registration(mode="Invitation Only")
