@@ -7,7 +7,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
 
-from vuna_sourcing.api.transactions.open_bid import get_bid_history, get_open_bids
+from vuna_sourcing.api.transactions.open_bid import get_bid_history, get_live_bids, get_open_bids
 from vuna_sourcing.api.transactions.supplier import (
 	decline_quote,
 	get_rfq,
@@ -221,6 +221,60 @@ class TestOpenBid(SourcingFixtures, IntegrationTestCase):
 		for user in (waiting_user, outsider_user):
 			with self.set_user(user):
 				self.assertRaises(frappe.PermissionError, get_open_bids, rfq.name)
+
+	def test_a_bid_matching_another_bidders_price_is_refused(self):
+		first, first_user = self.make_supplier()
+		second, second_user = self.make_supplier()
+		rfq = self.make_open_rfq([first, second])
+		self.bid(rfq, first_user, rate=100)
+
+		self.assertRaises(frappe.ValidationError, self.bid, rfq, second_user, 100)
+		self.assertFalse(frappe.db.exists("RFQ Bid Log", {"supplier": second}))
+
+		self.bid(rfq, second_user, rate=99)
+		self.assertEqual(self.board(rfq, second_user)["bids"][0]["is_you"], True)
+
+	def test_a_bidder_may_match_a_price_once_it_is_no_longer_live(self):
+		first, first_user = self.make_supplier()
+		second, second_user = self.make_supplier()
+		rfq = self.make_open_rfq([first, second])
+		self.bid(rfq, first_user, rate=100)
+		self.bid(rfq, first_user, rate=90)
+
+		self.bid(rfq, second_user, rate=100)
+		self.assertEqual([row["total"] for row in self.board(rfq, second_user)["bids"]], [450, 500])
+
+	def test_live_bids_follow_running_open_bids_only(self):
+		supplier, user = self.make_supplier()
+		other, other_user = self.make_supplier()
+		running = self.make_open_rfq([supplier, other])
+		closed = self.make_open_rfq([supplier])
+		declined = self.make_open_rfq([supplier])
+		self.make_rfq([supplier])
+		self.close_bids(closed)
+		with self.set_user(user):
+			decline_quote(declined.name, "No stock")
+
+		with self.set_user(user):
+			before = get_live_bids().data
+		self.assertEqual([bid["name"] for bid in before], [running.name])
+		self.assertEqual(
+			(before[0]["has_bid"], before[0]["status"], before[0]["rank"]), (False, "Invited", None)
+		)
+
+		self.bid(running, other_user, rate=80)
+		self.bid(running, user, rate=90)
+		with self.set_user(user):
+			after = get_live_bids().data[0]
+		self.assertEqual(
+			(after["has_bid"], after["status"], after["rank"], after["bidders"], after["lowest"]),
+			(True, "Bidding", 2, 2, 400),
+		)
+		self.assertNotIn(other, frappe.as_json(after))
+
+		self.close_bids(running)
+		with self.set_user(user):
+			self.assertEqual(get_live_bids().data, [])
 
 	def test_no_new_bid_after_bids_close(self):
 		supplier, user = self.make_supplier()

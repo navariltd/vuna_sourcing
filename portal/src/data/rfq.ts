@@ -157,6 +157,27 @@ export function createOpenBidsResource() {
   });
 }
 
+export interface LiveBid {
+  name: string;
+  supplier: string;
+  company: string;
+  closes_at: string | null;
+  has_bid: boolean;
+  status: RfqStatus;
+  rank: number | null;
+  bidders: number | null;
+  lowest: number | null;
+  your_total: number | null;
+  currency: string | null;
+}
+
+export function createLiveBidsResource() {
+  return createResource({
+    url: "vuna_sourcing.api.transactions.open_bid.get_live_bids",
+    auto: false,
+  });
+}
+
 export function rfqRoute(row: { name: string; status: RfqStatus }) {
   return {
     name: row.status === "Bidding" ? "BidRoom" : "RfqDetail",

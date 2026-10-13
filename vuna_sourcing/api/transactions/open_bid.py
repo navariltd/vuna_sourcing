@@ -17,10 +17,14 @@ from vuna_sourcing.api.transactions.bidding import (
 	is_open_bid,
 )
 from vuna_sourcing.api.transactions.supplier import (
+	NO_QUOTE,
+	RECEIVED,
 	RFQ,
+	RFQ_SUPPLIER,
 	SUPPLIER_QUOTATION,
 	invited_supplier,
 	is_sent,
+	supplier_scope,
 )
 from vuna_sourcing.vuna_sourcing.doctype.rfq_bid_log.rfq_bid_log import BID_LOG
 
@@ -154,6 +158,72 @@ def get_open_bids(name: str, supplier: str | None = None) -> ApiResponse[dict]:
 		frappe.throw(_("Place your bid to see the other bids."), frappe.PermissionError)
 
 	return ApiResponse.success(data=bid_board(request, supplier))
+
+
+def live_bid_summary(request, supplier: str, has_bid: bool) -> dict:
+	summary = {
+		"name": request.name,
+		"supplier": supplier,
+		"company": request.company,
+		"closes_at": closes_at_iso(request),
+		"has_bid": has_bid,
+		"status": "Bidding" if has_bid else "Invited",
+		"rank": None,
+		"bidders": None,
+		"lowest": None,
+		"your_total": None,
+		"currency": None,
+	}
+	if not has_bid:
+		return summary
+
+	board = bid_board(request, supplier)
+	yours = next((row for row in board["bids"] if row["is_you"]), None)
+	summary.update(
+		rank=yours["rank"] if yours else None,
+		bidders=board["bidders"],
+		lowest=board["lowest"],
+		your_total=yours["total"] if yours else None,
+		currency=board["currency"],
+	)
+	return summary
+
+
+@frappe.whitelist()
+def get_live_bids(supplier: str | None = None) -> ApiResponse[list[dict]]:
+	suppliers = supplier_scope(supplier)
+	if not suppliers:
+		return ApiResponse.success(data=[])
+
+	invitations = {
+		row.parent: row
+		for row in frappe.get_all(
+			RFQ_SUPPLIER,
+			filters={"parenttype": RFQ, "supplier": ("in", suppliers)},
+			fields=["parent", "supplier", "quote_status"],
+		)
+		if row.quote_status != NO_QUOTE
+	}
+	if not invitations:
+		return ApiResponse.success(data=[])
+
+	requests = frappe.get_all(
+		RFQ,
+		filters={"name": ("in", list(invitations)), "docstatus": 1, "bidding_method": OPEN_BID},
+		fields=["name", "company", "bid_closing", "schedule_date", "quotes_opened"],
+	)
+
+	live = [
+		live_bid_summary(
+			request,
+			invitations[request.name].supplier,
+			invitations[request.name].quote_status == RECEIVED,
+		)
+		for request in requests
+		if not is_closed(request)
+	]
+	live.sort(key=lambda bid: bid["closes_at"] or "9999")
+	return ApiResponse.success(data=live)
 
 
 @frappe.whitelist()

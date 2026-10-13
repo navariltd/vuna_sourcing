@@ -144,27 +144,34 @@ PORTAL_DOCTYPES = (
 	"Sales Invoice",
 )
 
+ONBOARDING_REQUEST_MODULE = (
+	"vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request"
+)
+
 permission_query_conditions = {
-	doctype: "vuna_sourcing.api.transactions.access.own_documents_condition" for doctype in PORTAL_DOCTYPES
+	**{
+		doctype: "vuna_sourcing.api.transactions.access.own_documents_condition"
+		for doctype in PORTAL_DOCTYPES
+	},
+	"Supplier Quotation": [
+		"vuna_sourcing.api.transactions.access.own_documents_condition",
+		"vuna_sourcing.api.transactions.access.visible_quotes_condition",
+	],
+	"Party Onboarding Request": f"{ONBOARDING_REQUEST_MODULE}.drafts_hidden_condition",
 }
 
 has_permission = {
-	doctype: "vuna_sourcing.api.transactions.access.is_own_document" for doctype in PORTAL_DOCTYPES
+	**{doctype: "vuna_sourcing.api.transactions.access.is_own_document" for doctype in PORTAL_DOCTYPES},
+	"Supplier Quotation": [
+		"vuna_sourcing.api.transactions.access.is_own_document",
+		"vuna_sourcing.api.transactions.access.is_visible_quote",
+	],
+	"Party Onboarding Request": f"{ONBOARDING_REQUEST_MODULE}.is_not_others_draft",
 }
 
 has_website_permission = {
 	doctype: "vuna_sourcing.api.transactions.access.is_own_document" for doctype in PORTAL_DOCTYPES
 }
-
-permission_query_conditions["Supplier Quotation"] = [
-	"vuna_sourcing.api.transactions.access.own_documents_condition",
-	"vuna_sourcing.api.transactions.access.visible_quotes_condition",
-]
-
-has_permission["Supplier Quotation"] = [
-	"vuna_sourcing.api.transactions.access.is_own_document",
-	"vuna_sourcing.api.transactions.access.is_visible_quote",
-]
 
 doc_events = {
 	"Request for Quotation": {

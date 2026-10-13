@@ -4,8 +4,94 @@
 frappe.ui.form.on("Sourcing Settings", {
 	refresh(frm) {
 		frm.add_custom_button(__("Portal Signup Link"), () => show_signup_link(frm));
+		frm.add_custom_button(__("Invite Supplier"), () => show_invite_supplier());
 	},
 });
+
+function show_invite_supplier() {
+	frappe
+		.call({ method: "vuna_sourcing.api.signup.get_signup_context" })
+		.then(({ message: context }) => {
+			const branding = context?.data || {};
+
+			const dialog = new frappe.ui.Dialog({
+				title: __("Invite Supplier"),
+				fields: [
+					{ fieldtype: "HTML", fieldname: "intro" },
+					{ fieldtype: "Section Break" },
+					{
+						fieldtype: "Data",
+						fieldname: "first_name",
+						label: __("First Name"),
+						reqd: 1,
+					},
+					{ fieldtype: "Column Break" },
+					{
+						fieldtype: "Data",
+						fieldname: "last_name",
+						label: __("Last Name"),
+						reqd: 1,
+					},
+					{ fieldtype: "Section Break" },
+					{
+						fieldtype: "Data",
+						fieldname: "email",
+						label: __("Email"),
+						options: "Email",
+						reqd: 1,
+					},
+				],
+				primary_action_label: __("Send Invitation"),
+				primary_action(values) {
+					dialog.disable_primary_action();
+					frappe
+						.call({
+							method: "vuna_sourcing.api.signup.sign_up",
+							type: "POST",
+							args: values,
+						})
+						.then(({ message: response }) => {
+							if (!response?.ok) {
+								frappe.msgprint({
+									title: __("Invitation not sent"),
+									message: response?.message,
+									indicator: "orange",
+								});
+								return;
+							}
+
+							dialog.hide();
+							if (response.data.email_sent) {
+								frappe.show_alert({
+									message: __("Invitation sent to {0}.", [response.data.email]),
+									indicator: "green",
+								});
+							} else {
+								frappe.msgprint({
+									title: __("Account created"),
+									message: __(
+										"The account for {0} was created, but the invitation email could not be sent. Check the outgoing email account and resend the welcome email from the user record.",
+										[response.data.email]
+									),
+									indicator: "orange",
+								});
+							}
+						})
+						.always(() => dialog.enable_primary_action());
+				},
+			});
+
+			const title = frappe.utils.escape_html(branding.app_title || __("Sourcing Portal"));
+			dialog.fields_dict.intro.$wrapper.html(
+				`<p class="text-muted" style="margin-bottom: 0.5rem">${__(
+					"They get an email to set a password for {0}, then they can apply to become a supplier.",
+					[title]
+				)}</p>`
+			);
+
+			dialog.show();
+		});
+}
 
 function show_signup_link(frm) {
 	frm.call("get_signup_page").then((r) => {

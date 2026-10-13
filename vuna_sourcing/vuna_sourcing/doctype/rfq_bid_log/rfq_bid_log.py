@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime
+from frappe.utils import flt, fmt_money, now_datetime
 
 BID_LOG = "RFQ Bid Log"
 BID_PLACED = "open_bid_placed"
@@ -40,7 +40,32 @@ def bidder_users(request: str) -> set[str]:
 	)
 
 
+def live_totals_of_others(request: str, supplier: str) -> list[float]:
+	live = {}
+	for bid in frappe.get_all(
+		BID_LOG,
+		filters={"request_for_quotation": request, "supplier": ("!=", supplier)},
+		fields=["supplier", "base_total"],
+		order_by="placed_at asc, revision asc",
+	):
+		live[bid.supplier] = bid.base_total
+	return list(live.values())
+
+
+def validate_price_is_unique(quote, request: str) -> None:
+	precision = quote.precision("base_total")
+	total = flt(quote.base_total, precision)
+	if any(flt(other, precision) == total for other in live_totals_of_others(request, quote.supplier)):
+		frappe.throw(
+			_("Another bidder already holds a bid of {0}. Place a different price.").format(
+				fmt_money(quote.total, currency=quote.currency)
+			),
+			title=_("Same price as another bid"),
+		)
+
+
 def record_bid(quote, request: str):
+	validate_price_is_unique(quote, request)
 	return frappe.get_doc(
 		{
 			"doctype": BID_LOG,
