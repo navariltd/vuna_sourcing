@@ -51,7 +51,9 @@ const rfq = computed<Rfq | null>(() => request.data ?? null);
 const isSealedBid = computed(() => rfq.value?.bidding_method === "Sealed Bid");
 
 const inBidding = computed(
-	() => !!rfq.value?.open_bid && ["Bidding", "Submitted"].includes(rfq.value.status)
+	() =>
+		!!rfq.value?.open_bid &&
+		["Bidding", "Submitted", "Awarded", "Not Selected"].includes(rfq.value.status)
 );
 
 const editable = computed(() => !!rfq.value?.can_quote && rfq.value.status !== "Bidding");
@@ -534,6 +536,27 @@ function money(value: number) {
 						The committee opens all quotations together after
 						{{ formatDateTime(rfq.closes_at) }}.
 					</template>
+				</p>
+			</div>
+
+			<div
+				v-else-if="rfq.status === 'Awarded'"
+				class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
+			>
+				<p class="text-base font-medium text-ink-gray-8">You won this request</p>
+				<p class="mt-1 text-p-sm text-ink-gray-6">
+					Your quotation {{ rfq.quote?.name }} was selected. The purchase order will
+					follow from our team.
+				</p>
+			</div>
+
+			<div
+				v-else-if="rfq.status === 'Not Selected'"
+				class="rounded-6 border border-outline-gray-2 bg-surface-gray-1 p-4"
+			>
+				<p class="text-base font-medium text-ink-gray-8">Not selected this time</p>
+				<p class="mt-1 text-p-sm text-ink-gray-6">
+					Thank you for quoting. Another quotation was chosen for this request.
 				</p>
 			</div>
 		</div>

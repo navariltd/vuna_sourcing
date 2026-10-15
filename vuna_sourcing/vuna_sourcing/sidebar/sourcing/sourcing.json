@@ -20,7 +20,8 @@
    "link_type": "Workspace",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 1
   },
   {
    "added": 0,
@@ -36,7 +37,8 @@
    "open_in_new_tab": 0,
    "show_arrow": 0,
    "type": "Link",
-   "url": "/vuna-sourcing"
+   "url": "/vuna-sourcing",
+   "idx": 2
   },
   {
    "added": 0,
@@ -50,7 +52,8 @@
    "label": "Onboarding",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Section Break"
+   "type": "Section Break",
+   "idx": 3
   },
   {
    "added": 0,
@@ -66,7 +69,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 4
   },
   {
    "added": 0,
@@ -82,7 +86,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 5
   },
   {
    "added": 0,
@@ -98,7 +103,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 6
   },
   {
    "added": 0,
@@ -112,7 +118,8 @@
    "label": "Suppliers",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Section Break"
+   "type": "Section Break",
+   "idx": 7
   },
   {
    "added": 0,
@@ -128,7 +135,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 8
   },
   {
    "added": 0,
@@ -144,7 +152,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 9
   },
   {
    "added": 0,
@@ -158,7 +167,8 @@
    "label": "Bidding",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Section Break"
+   "type": "Section Break",
+   "idx": 10
   },
   {
    "added": 0,
@@ -174,7 +184,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 11
   },
   {
    "added": 0,
@@ -190,7 +201,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 12
   },
   {
    "added": 0,
@@ -206,7 +218,25 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 13
+  },
+  {
+   "added": 0,
+   "child": 1,
+   "collapsible": 1,
+   "hidden": 0,
+   "icon": "award",
+   "indent": 0,
+   "is_default_module": 0,
+   "keep_closed": 0,
+   "label": "RFQ Award",
+   "link_to": "RFQ Award",
+   "link_type": "DocType",
+   "open_in_new_tab": 0,
+   "show_arrow": 0,
+   "type": "Link",
+   "idx": 14
   },
   {
    "added": 0,
@@ -220,7 +250,8 @@
    "label": "Customers",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Section Break"
+   "type": "Section Break",
+   "idx": 15
   },
   {
    "added": 0,
@@ -236,7 +267,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 16
   },
   {
    "added": 0,
@@ -252,7 +284,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 17
   },
   {
    "added": 0,
@@ -268,7 +301,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 18
   },
   {
    "added": 0,
@@ -282,7 +316,8 @@
    "label": "Contacts",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Section Break"
+   "type": "Section Break",
+   "idx": 19
   },
   {
    "added": 0,
@@ -298,7 +333,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 20
   },
   {
    "added": 0,
@@ -314,7 +350,8 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 21
   },
   {
    "added": 0,
@@ -328,7 +365,8 @@
    "label": "Settings",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Section Break"
+   "type": "Section Break",
+   "idx": 22
   },
   {
    "added": 0,
@@ -344,10 +382,11 @@
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
-   "type": "Link"
+   "type": "Link",
+   "idx": 23
   }
  ],
- "modified": "2026-10-08 23:54:20.921278",
+ "modified": "2026-10-13 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing",

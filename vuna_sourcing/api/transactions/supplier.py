@@ -56,6 +56,8 @@ SUBMITTED = "Submitted"
 BIDDING = "Bidding"
 DECLINED = "Declined"
 CLOSED = "Closed"
+AWARDED_TO_YOU = "Awarded"
+NOT_SELECTED = "Not Selected"
 
 SUBMISSION_STATUS_FIELD = "supplier_submission_status"
 QUOTE_PENDING = "Pending"
@@ -197,7 +199,15 @@ def is_pending(quote) -> bool:
 	return bool(quote) and quote.get(SUBMISSION_STATUS_FIELD) == QUOTE_PENDING
 
 
-def quote_state(row_status: str | None, quote: dict | None, closed: bool, open_bid: bool = False) -> str:
+def quote_state(
+	row_status: str | None,
+	quote: dict | None,
+	closed: bool,
+	open_bid: bool = False,
+	outcome: str | None = None,
+) -> str:
+	if outcome in (AWARDED_TO_YOU, NOT_SELECTED):
+		return outcome
 	if row_status == NO_QUOTE:
 		return DECLINED
 	if row_status == RECEIVED or (quote and not is_pending(quote)):
@@ -225,7 +235,7 @@ def get_rfqs(
 	rows = frappe.get_all(
 		RFQ_SUPPLIER,
 		filters={"parenttype": RFQ, "supplier": ("in", suppliers)},
-		fields=["parent", "supplier", "quote_status"],
+		fields=["parent", "supplier", "quote_status", "award_outcome"],
 	)
 	if not rows:
 		return empty_page(start, limit)
@@ -282,7 +292,13 @@ def get_rfqs(
 				"bidding_method": request.bidding_method,
 				"company": request.company,
 				"items": counts.get(request.name, 0),
-				"status": quote_state(row.quote_status, quote, is_closed(request), is_open_bid(request)),
+				"status": quote_state(
+					row.quote_status,
+					quote,
+					is_closed(request),
+					is_open_bid(request),
+					row.award_outcome,
+				),
 				"quote": quote,
 			}
 		)
@@ -308,7 +324,13 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 	quote = find_quote(name, supplier)
 	closed = is_closed(doc)
 	open_bid = is_open_bid(doc)
-	status = quote_state(row.quote_status if row else None, quote, closed, open_bid)
+	status = quote_state(
+		row.quote_status if row else None,
+		quote,
+		closed,
+		open_bid,
+		row.award_outcome if row else None,
+	)
 
 	quoted_lines = {}
 	if quote:

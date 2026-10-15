@@ -182,7 +182,13 @@ doc_events = {
 	"Supplier Quotation": {
 		"validate": "vuna_sourcing.overrides.server.supplier_quotation.validate",
 		"before_submit": "vuna_sourcing.overrides.server.supplier_quotation.validate_submittable",
+		"on_submit": "vuna_sourcing.api.transactions.award.refresh_for_quotation",
+		"on_cancel": "vuna_sourcing.api.transactions.award.refresh_for_quotation",
 	},
+}
+
+scheduler_events = {
+	"hourly": ["vuna_sourcing.api.transactions.award.refresh_pending_selection"],
 }
 
 # Document Events
