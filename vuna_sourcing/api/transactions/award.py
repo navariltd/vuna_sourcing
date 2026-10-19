@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import frappe
 from frappe import _
+from frappe.model.document import Document
 from frappe.utils import cint, escape_html, flt, fmt_money, format_datetime, getdate, now_datetime, today
 
 from vuna_sourcing.api.response import ApiResponse
@@ -464,7 +465,11 @@ def required_by(order) -> None:
 
 
 @frappe.whitelist()
-def make_purchase_order(source_name: str, target_doc=None, args=None):
+def make_purchase_order(
+	source_name: str,
+	target_doc: Document | dict | str | None = None,
+	args: dict | str | None = None,
+):
 	from erpnext.buying.doctype.supplier_quotation.supplier_quotation import (
 		make_purchase_order as make_standard_purchase_order,
 	)
@@ -609,7 +614,15 @@ def matches(text: str, *values) -> bool:
 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
-def quotation_query(doctype, txt, searchfield, start, page_len, filters):
+def quotation_query(
+	doctype: str,
+	txt: str,
+	searchfield: str,
+	start: int,
+	page_len: int,
+	filters: dict | str | None,
+):
+	filters = frappe.parse_json(filters) if isinstance(filters, str) else (filters or {})
 	request = filters.get("request_for_quotation")
 	if not request:
 		return []
