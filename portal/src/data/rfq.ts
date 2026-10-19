@@ -2,7 +2,15 @@ import { createResource } from "frappe-ui";
 import type { BadgeTheme } from "@/data/application";
 import type { ApiResponse } from "@/types/api";
 
-export type RfqStatus = "Invited" | "Draft" | "Bidding" | "Submitted" | "Declined" | "Closed";
+export type RfqStatus =
+  | "Invited"
+  | "Draft"
+  | "Bidding"
+  | "Submitted"
+  | "Awarded"
+  | "Not Selected"
+  | "Declined"
+  | "Closed";
 
 export type SupplierSubmissionStatus = "Pending" | "Submitted";
 
@@ -30,6 +38,7 @@ export interface RfqItem {
   supplier_part_no: string | null;
   rate: number | null;
   lead_time_days: number | null;
+  awarded_to_you: boolean;
 }
 
 export interface RfqAttachment {
@@ -108,6 +117,8 @@ export const RFQ_STATUS_THEME: Record<RfqStatus, BadgeTheme> = {
   Draft: "amber",
   Bidding: "violet",
   Submitted: "green",
+  Awarded: "green",
+  "Not Selected": "gray",
   Declined: "gray",
   Closed: "gray",
 };
@@ -116,7 +127,9 @@ export const RFQ_STATUS_HINT: Record<RfqStatus, string> = {
   Invited: "Waiting for your prices",
   Draft: "Saved, not sent yet",
   Bidding: "Live open bids you can still improve",
-  Submitted: "With the buyer",
+  Submitted: "With the buyer, awaiting a decision",
+  Awarded: "You won some or all of this request",
+  "Not Selected": "Another quotation was chosen",
   Declined: "You are not quoting",
   Closed: "Bids have closed",
 };
@@ -134,6 +147,8 @@ export const RFQ_STATUSES: RfqStatus[] = [
   "Draft",
   "Bidding",
   "Submitted",
+  "Awarded",
+  "Not Selected",
   "Declined",
   "Closed",
 ];

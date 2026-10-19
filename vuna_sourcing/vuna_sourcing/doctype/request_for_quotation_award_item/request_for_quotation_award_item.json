@@ -1,0 +1,186 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-10-15 15:21:23.262492",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "request_for_quotation_item",
+  "item_code",
+  "item_name",
+  "qty",
+  "uom",
+  "column_break_supplier",
+  "supplier_quotation",
+  "supplier_quotation_item",
+  "supplier",
+  "section_price",
+  "currency",
+  "rate",
+  "amount",
+  "column_break_price",
+  "base_rate",
+  "base_amount",
+  "item_rank",
+  "is_lowest",
+  "section_justification",
+  "justification"
+ ],
+ "fields": [
+  {
+   "fieldname": "request_for_quotation_item",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "RFQ Item",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity",
+   "read_only": 1
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_supplier",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "supplier_quotation",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplier Quotation",
+   "options": "Supplier Quotation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier_quotation_item",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Supplier Quotation Item",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplier",
+   "options": "Supplier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_price",
+   "fieldtype": "Section Break",
+   "label": "Price"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_price",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "base_rate",
+   "fieldtype": "Currency",
+   "label": "Rate (Company Currency)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "base_amount",
+   "fieldtype": "Currency",
+   "label": "Amount (Company Currency)",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "1 is the lowest price for this item.",
+   "fieldname": "item_rank",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Rank",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_lowest",
+   "fieldtype": "Check",
+   "label": "Is Lowest",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_justification",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "Why this quotation wins this item over a lower price. Required when it is not the lowest.",
+   "fieldname": "justification",
+   "fieldtype": "Small Text",
+   "label": "Justification"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-15 15:21:23.262492",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "Request for Quotation Award Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

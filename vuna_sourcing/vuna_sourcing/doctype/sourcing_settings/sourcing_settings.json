@@ -36,6 +36,7 @@
   "allow_opening_below_minimum",
   "column_break_sealed_bid_opening",
   "allow_any_member_to_open",
+  "create_purchase_orders_on_award",
   "notifications_tab",
   "section_notifications",
   "notify_applicant",
@@ -221,6 +222,13 @@
    "description": "The first committee member to confirm opens the quotations, instead of waiting for every member."
   },
   {
+   "default": "0",
+   "description": "When an award is submitted, draft a Purchase Order from each winning Supplier Quotation with only the items it won, ready for review. When off, create it from the awarded Supplier Quotation (Create > Purchase Order).",
+   "fieldname": "create_purchase_orders_on_award",
+   "fieldtype": "Check",
+   "label": "Create Purchase Orders on Award"
+  },
+  {
    "fieldname": "notifications_tab",
    "fieldtype": "Tab Break",
    "label": "Notifications"
@@ -259,7 +267,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-01 18:00:00.000000",
+ "modified": "2026-10-19 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

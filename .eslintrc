@@ -28,6 +28,7 @@
 		"frappe": true,
 		"vuna_sourcing": true,
 		"Vue": true,
+        "erpnext": true,
 		"SetVueGlobals": true,
 		"__": true,
 		"repl": true,

@@ -9,6 +9,8 @@ from frappe.utils import cint, flt, format_datetime, nowdate
 
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.api.transactions.bidding import (
+	AWARD,
+	AWARD_ITEM,
 	closes_at,
 	closes_at_iso,
 	closing_passed,
@@ -56,6 +58,8 @@ SUBMITTED = "Submitted"
 BIDDING = "Bidding"
 DECLINED = "Declined"
 CLOSED = "Closed"
+AWARDED_TO_YOU = "Awarded"
+NOT_SELECTED = "Not Selected"
 
 SUBMISSION_STATUS_FIELD = "supplier_submission_status"
 QUOTE_PENDING = "Pending"
@@ -197,7 +201,15 @@ def is_pending(quote) -> bool:
 	return bool(quote) and quote.get(SUBMISSION_STATUS_FIELD) == QUOTE_PENDING
 
 
-def quote_state(row_status: str | None, quote: dict | None, closed: bool, open_bid: bool = False) -> str:
+def quote_state(
+	row_status: str | None,
+	quote: dict | None,
+	closed: bool,
+	open_bid: bool = False,
+	outcome: str | None = None,
+) -> str:
+	if outcome in (AWARDED_TO_YOU, NOT_SELECTED):
+		return outcome
 	if row_status == NO_QUOTE:
 		return DECLINED
 	if row_status == RECEIVED or (quote and not is_pending(quote)):
@@ -225,7 +237,7 @@ def get_rfqs(
 	rows = frappe.get_all(
 		RFQ_SUPPLIER,
 		filters={"parenttype": RFQ, "supplier": ("in", suppliers)},
-		fields=["parent", "supplier", "quote_status"],
+		fields=["parent", "supplier", "quote_status", "award_outcome"],
 	)
 	if not rows:
 		return empty_page(start, limit)
@@ -282,7 +294,13 @@ def get_rfqs(
 				"bidding_method": request.bidding_method,
 				"company": request.company,
 				"items": counts.get(request.name, 0),
-				"status": quote_state(row.quote_status, quote, is_closed(request), is_open_bid(request)),
+				"status": quote_state(
+					row.quote_status,
+					quote,
+					is_closed(request),
+					is_open_bid(request),
+					row.award_outcome,
+				),
 				"quote": quote,
 			}
 		)
@@ -308,7 +326,13 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 	quote = find_quote(name, supplier)
 	closed = is_closed(doc)
 	open_bid = is_open_bid(doc)
-	status = quote_state(row.quote_status if row else None, quote, closed, open_bid)
+	status = quote_state(
+		row.quote_status if row else None,
+		quote,
+		closed,
+		open_bid,
+		row.award_outcome if row else None,
+	)
 
 	quoted_lines = {}
 	if quote:
@@ -321,6 +345,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 			)
 		}
 
+	won = items_awarded_to(name, supplier)
 	items = []
 	for item in doc.items:
 		quoted = quoted_lines.get(item.name) or {}
@@ -335,6 +360,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 				"supplier_part_no": item.supplier_part_no,
 				"rate": quoted.get("rate"),
 				"lead_time_days": quoted.get("lead_time_days"),
+				"awarded_to_you": item.name in won,
 			}
 		)
 
@@ -359,6 +385,23 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 			filters={"attached_to_doctype": RFQ, "attached_to_name": name},
 			fields=["file_name", "file_url"],
 		),
+	}
+
+
+def items_awarded_to(request: str, supplier: str) -> set[str]:
+	award = frappe.qb.DocType(AWARD)
+	item = frappe.qb.DocType(AWARD_ITEM)
+	return {
+		row[0]
+		for row in (
+			frappe.qb.from_(item)
+			.join(award)
+			.on(award.name == item.parent)
+			.select(item.request_for_quotation_item)
+			.where(award.request_for_quotation == request)
+			.where(award.docstatus == 1)
+			.where(item.supplier == supplier)
+		).run()
 	}
 
 

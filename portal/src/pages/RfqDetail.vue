@@ -51,10 +51,15 @@ const rfq = computed<Rfq | null>(() => request.data ?? null);
 const isSealedBid = computed(() => rfq.value?.bidding_method === "Sealed Bid");
 
 const inBidding = computed(
-	() => !!rfq.value?.open_bid && ["Bidding", "Submitted"].includes(rfq.value.status)
+	() =>
+		!!rfq.value?.open_bid &&
+		["Bidding", "Submitted", "Awarded", "Not Selected"].includes(rfq.value.status)
 );
 
 const editable = computed(() => !!rfq.value?.can_quote && rfq.value.status !== "Bidding");
+const itemsWon = computed(
+	() => (rfq.value?.items ?? []).filter((item) => item.awarded_to_you).length
+);
 
 const bids = createOpenBidsResource();
 const standing = computed(() => {
@@ -380,8 +385,16 @@ function money(value: number) {
 						class="grid gap-3 px-4 py-3 sm:grid-cols-12 sm:items-center"
 					>
 						<div class="sm:col-span-5">
-							<p class="text-base font-medium text-ink-gray-8">
+							<p
+								class="flex items-center gap-2 text-base font-medium text-ink-gray-8"
+							>
 								{{ item.item_name || item.item_code }}
+								<Badge
+									v-if="item.awarded_to_you"
+									theme="green"
+									variant="subtle"
+									label="Awarded to you"
+								/>
 							</p>
 							<p
 								v-if="item.description"
@@ -534,6 +547,36 @@ function money(value: number) {
 						The committee opens all quotations together after
 						{{ formatDateTime(rfq.closes_at) }}.
 					</template>
+				</p>
+			</div>
+
+			<div
+				v-else-if="rfq.status === 'Awarded'"
+				class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
+			>
+				<p class="text-base font-medium text-ink-gray-8">
+					{{
+						itemsWon === rfq.items.length
+							? "You won this request"
+							: `You won ${itemsWon} of ${rfq.items.length} items`
+					}}
+				</p>
+				<p class="mt-1 text-p-sm text-ink-gray-6">
+					Your quotation {{ rfq.quote?.name }} was selected<template
+						v-if="itemsWon !== rfq.items.length"
+					>
+						for the items marked "Awarded to you"</template
+					>. The purchase order will follow from our team.
+				</p>
+			</div>
+
+			<div
+				v-else-if="rfq.status === 'Not Selected'"
+				class="rounded-6 border border-outline-gray-2 bg-surface-gray-1 p-4"
+			>
+				<p class="text-base font-medium text-ink-gray-8">Not selected this time</p>
+				<p class="mt-1 text-p-sm text-ink-gray-6">
+					Thank you for quoting. Another quotation was chosen for this request.
 				</p>
 			</div>
 		</div>

@@ -74,7 +74,10 @@ async function load() {
 	const doc = (await request.fetch({ name: props.name, supplier: supplier.value })) as Rfq;
 	if (!doc) return;
 
-	if (!doc.open_bid || !["Bidding", "Submitted"].includes(doc.status)) {
+	if (
+		!doc.open_bid ||
+		!["Bidding", "Submitted", "Awarded", "Not Selected"].includes(doc.status)
+	) {
 		router.replace({ name: "RfqDetail", params: { name: props.name } });
 		return;
 	}
