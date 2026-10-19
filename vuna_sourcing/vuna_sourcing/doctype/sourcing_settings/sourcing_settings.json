@@ -223,7 +223,7 @@
   },
   {
    "default": "0",
-   "description": "Create a draft Purchase Order for the winning supplier when an RFQ Award is submitted. Otherwise the award has a Create Purchase Order button.",
+   "description": "When an award is submitted, draft a Purchase Order from each winning Supplier Quotation with only the items it won, ready for review. When off, create it from the awarded Supplier Quotation (Create > Purchase Order).",
    "fieldname": "create_purchase_orders_on_award",
    "fieldtype": "Check",
    "label": "Create Purchase Orders on Award"
@@ -267,7 +267,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-13 12:00:00.000000",
+ "modified": "2026-10-19 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

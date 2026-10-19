@@ -4,6 +4,10 @@ frappe.ui.form.on("Supplier Quotation", {
 	refresh(frm) {
 		if (frm.is_new() || !frm.doc.items.some((row) => row.request_for_quotation)) return;
 
+		if (frm.doc.award_outcome !== "Awarded") {
+			frm.remove_custom_button(__("Purchase Order"), __("Create"));
+		}
+
 		frappe
 			.call({
 				method: `${OPEN_BID_API}.get_bid_history`,

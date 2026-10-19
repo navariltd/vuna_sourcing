@@ -9,7 +9,13 @@ from frappe.utils import cint, get_datetime, get_system_timezone, getdate, now_d
 SEALED_BID = "Sealed Bid"
 OPEN_BID = "Open Bid"
 
+AWARD = "Request for Quotation Award"
+AWARD_ITEM = "Request for Quotation Award Item"
+FULL_AWARD = "Full Award"
+PARTIAL_AWARD = "Partial Award"
+
 PENDING_SELECTION = "Pending Selection"
+PARTIALLY_AWARDED = "Partially Awarded"
 AWARDED = "Awarded"
 NOT_AWARDED = "Not Awarded"
 

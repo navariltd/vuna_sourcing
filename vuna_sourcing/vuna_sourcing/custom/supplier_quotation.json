@@ -141,28 +141,7 @@
  ],
  "custom_perms": [],
  "doctype": "Supplier Quotation",
- "links": [
-  {
-   "creation": "2026-10-14 23:24:18.910841",
-   "custom": 1,
-   "docstatus": 0,
-   "group": "Award",
-   "hidden": 0,
-   "idx": 0,
-   "is_child_table": 0,
-   "link_doctype": "RFQ Award",
-   "link_fieldname": "supplier_quotation",
-   "modified": "2026-10-14 23:24:18.910841",
-   "modified_by": "Administrator",
-   "name": "4fdkn2dvu6",
-   "owner": "Administrator",
-   "parent": "Supplier Quotation",
-   "parent_doctype": null,
-   "parentfield": "links",
-   "parenttype": "DocType",
-   "table_fieldname": null
-  }
- ],
+ "links": [],
  "property_setters": [],
  "sync_on_migrate": 1
 }

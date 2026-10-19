@@ -185,6 +185,20 @@ doc_events = {
 		"on_submit": "vuna_sourcing.api.transactions.award.refresh_for_quotation",
 		"on_cancel": "vuna_sourcing.api.transactions.award.refresh_for_quotation",
 	},
+	"Purchase Order": {
+		"validate": "vuna_sourcing.api.transactions.award.validate_awarded_items",
+	},
+}
+
+override_whitelisted_methods = {
+	"erpnext.buying.doctype.supplier_quotation.supplier_quotation.make_purchase_order": (
+		"vuna_sourcing.api.transactions.award.make_purchase_order"
+	),
+}
+
+override_doctype_dashboards = {
+	"Request for Quotation": "vuna_sourcing.overrides.server.dashboards.request_for_quotation",
+	"Supplier Quotation": "vuna_sourcing.overrides.server.dashboards.supplier_quotation",
 }
 
 scheduler_events = {

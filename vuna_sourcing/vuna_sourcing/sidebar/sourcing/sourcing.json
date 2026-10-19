@@ -230,8 +230,8 @@
    "indent": 0,
    "is_default_module": 0,
    "keep_closed": 0,
-   "label": "RFQ Award",
-   "link_to": "RFQ Award",
+   "label": "Request for Quotation Award",
+   "link_to": "Request for Quotation Award",
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,
@@ -386,7 +386,7 @@
    "idx": 23
   }
  ],
- "modified": "2026-10-13 12:00:00.000000",
+ "modified": "2026-10-15 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing",

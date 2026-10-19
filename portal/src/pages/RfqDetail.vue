@@ -57,6 +57,9 @@ const inBidding = computed(
 );
 
 const editable = computed(() => !!rfq.value?.can_quote && rfq.value.status !== "Bidding");
+const itemsWon = computed(
+	() => (rfq.value?.items ?? []).filter((item) => item.awarded_to_you).length
+);
 
 const bids = createOpenBidsResource();
 const standing = computed(() => {
@@ -382,8 +385,16 @@ function money(value: number) {
 						class="grid gap-3 px-4 py-3 sm:grid-cols-12 sm:items-center"
 					>
 						<div class="sm:col-span-5">
-							<p class="text-base font-medium text-ink-gray-8">
+							<p
+								class="flex items-center gap-2 text-base font-medium text-ink-gray-8"
+							>
 								{{ item.item_name || item.item_code }}
+								<Badge
+									v-if="item.awarded_to_you"
+									theme="green"
+									variant="subtle"
+									label="Awarded to you"
+								/>
 							</p>
 							<p
 								v-if="item.description"
@@ -543,10 +554,19 @@ function money(value: number) {
 				v-else-if="rfq.status === 'Awarded'"
 				class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
 			>
-				<p class="text-base font-medium text-ink-gray-8">You won this request</p>
+				<p class="text-base font-medium text-ink-gray-8">
+					{{
+						itemsWon === rfq.items.length
+							? "You won this request"
+							: `You won ${itemsWon} of ${rfq.items.length} items`
+					}}
+				</p>
 				<p class="mt-1 text-p-sm text-ink-gray-6">
-					Your quotation {{ rfq.quote?.name }} was selected. The purchase order will
-					follow from our team.
+					Your quotation {{ rfq.quote?.name }} was selected<template
+						v-if="itemsWon !== rfq.items.length"
+					>
+						for the items marked "Awarded to you"</template
+					>. The purchase order will follow from our team.
 				</p>
 			</div>
 

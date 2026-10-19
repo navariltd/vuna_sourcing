@@ -38,6 +38,7 @@ export interface RfqItem {
   supplier_part_no: string | null;
   rate: number | null;
   lead_time_days: number | null;
+  awarded_to_you: boolean;
 }
 
 export interface RfqAttachment {
@@ -127,7 +128,7 @@ export const RFQ_STATUS_HINT: Record<RfqStatus, string> = {
   Draft: "Saved, not sent yet",
   Bidding: "Live open bids you can still improve",
   Submitted: "With the buyer, awaiting a decision",
-  Awarded: "You won this request",
+  Awarded: "You won some or all of this request",
   "Not Selected": "Another quotation was chosen",
   Declined: "You are not quoting",
   Closed: "Bids have closed",

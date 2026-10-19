@@ -9,6 +9,8 @@ from frappe.utils import cint, flt, format_datetime, nowdate
 
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.api.transactions.bidding import (
+	AWARD,
+	AWARD_ITEM,
 	closes_at,
 	closes_at_iso,
 	closing_passed,
@@ -343,6 +345,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 			)
 		}
 
+	won = items_awarded_to(name, supplier)
 	items = []
 	for item in doc.items:
 		quoted = quoted_lines.get(item.name) or {}
@@ -357,6 +360,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 				"supplier_part_no": item.supplier_part_no,
 				"rate": quoted.get("rate"),
 				"lead_time_days": quoted.get("lead_time_days"),
+				"awarded_to_you": item.name in won,
 			}
 		)
 
@@ -381,6 +385,23 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 			filters={"attached_to_doctype": RFQ, "attached_to_name": name},
 			fields=["file_name", "file_url"],
 		),
+	}
+
+
+def items_awarded_to(request: str, supplier: str) -> set[str]:
+	award = frappe.qb.DocType(AWARD)
+	item = frappe.qb.DocType(AWARD_ITEM)
+	return {
+		row[0]
+		for row in (
+			frappe.qb.from_(item)
+			.join(award)
+			.on(award.name == item.parent)
+			.select(item.request_for_quotation_item)
+			.where(award.request_for_quotation == request)
+			.where(award.docstatus == 1)
+			.where(item.supplier == supplier)
+		).run()
 	}
 
 

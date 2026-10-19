@@ -1,13 +1,13 @@
 const SEALED_BID = "Sealed Bid";
 const SEALED_BID_API = "vuna_sourcing.api.transactions.sealed_bid";
 const AWARD_API = "vuna_sourcing.api.transactions.award";
-const AWARD = "RFQ Award";
-
-const AWARD_OUTCOME_COLORS = { Awarded: "green" };
+const AWARD = "Request for Quotation Award";
+const AWARDED = "Awarded";
 
 frappe.ui.form.on("Request for Quotation", {
 	setup() {
-		show_award_outcome_badges();
+		show_awarded_badge("Request for Quotation Supplier", "supplier", "award_outcome");
+		show_awarded_badge("Request for Quotation Item", "item_code", "award_status");
 	},
 
 	refresh(frm) {
@@ -23,70 +23,72 @@ frappe.ui.form.on("Request for Quotation", {
 	},
 });
 
-function show_award_outcome_badges() {
-	const supplier = frappe.meta.docfield_map["Request for Quotation Supplier"]?.supplier;
-	if (!supplier) return;
+function show_awarded_badge(doctype, fieldname, status_field) {
+	const field = frappe.meta.docfield_map[doctype]?.[fieldname];
+	if (!field) return;
 
 	const link = frappe.form.get_formatter("Link");
-	supplier.formatter = (value, df, options, row) => {
+	field.formatter = (value, df, options, row) => {
 		const html = link(value, df, options, row);
-		const color = AWARD_OUTCOME_COLORS[row?.award_outcome];
-		if (!color) return html;
-		return `${html} <span class="indicator-pill ${color}">${__(row.award_outcome)}</span>`;
+		if (row?.[status_field] !== AWARDED) return html;
+		return `${html} <span class="indicator-pill green">${__(AWARDED)}</span>`;
 	};
 }
 
 function add_award_actions(frm) {
-	if (frm.doc.award_status === "Awarded") {
-		frm.add_custom_button(__("View Award"), () => open_award(frm));
-		return;
-	}
+	const status = frm.doc.award_status;
+	const open = ["Pending Selection", "Partially Awarded"].includes(status);
 
-	if (frm.doc.award_status !== "Pending Selection") return;
-
-	if (frappe.model.can_create(AWARD)) {
+	if (open && frappe.model.can_create(AWARD)) {
 		frm.add_custom_button(__("Award Supplier"), () => start_award(frm), __("Award"));
 	}
-	if (frappe.model.can_submit(AWARD)) {
+	if (open && frappe.model.can_submit(AWARD)) {
+		const label =
+			status === "Partially Awarded"
+				? __("Close Remaining Items")
+				: __("Close Without Award");
+		frm.add_custom_button(label, () => close_remaining_items(frm, label), __("Award"));
+	}
+	if (["Partially Awarded", "Awarded"].includes(status)) {
 		frm.add_custom_button(
-			__("Close Without Award"),
-			() => close_without_award(frm),
+			__("View Awards"),
+			() => frappe.set_route("List", AWARD, { request_for_quotation: frm.doc.name }),
 			__("Award")
 		);
 	}
-}
-
-function open_award(frm) {
-	frappe.db
-		.get_value(AWARD, { request_for_quotation: frm.doc.name, docstatus: 1 }, "name")
-		.then(({ message }) => message?.name && frappe.set_route("Form", AWARD, message.name));
 }
 
 function start_award(frm) {
 	frappe
 		.call({ method: `${AWARD_API}.get_award_overview`, args: { name: frm.doc.name } })
 		.then(({ message }) => {
-			const lowest = message.data.quotes.find((quote) => quote.is_lowest);
+			const today = frappe.datetime.get_today();
+			const lowest = message.data.quotes.find(
+				(quote) => !quote.valid_till || quote.valid_till >= today
+			);
 			frappe.new_doc(AWARD, {
 				request_for_quotation: frm.doc.name,
-				supplier_quotation: lowest?.supplier_quotation,
+				award_basis: lowest ? "Full Award" : "Partial Award",
+				awarded_quotation: lowest?.supplier_quotation,
 			});
 		});
 }
 
-function close_without_award(frm) {
+function close_remaining_items(frm, label) {
 	frappe.prompt(
 		{
 			fieldtype: "Small Text",
 			fieldname: "reason",
 			label: __("Reason"),
 			reqd: 1,
-			description: __("Suppliers who quoted are told they were not selected."),
+			description: __(
+				"Items not yet awarded are closed. Suppliers who won nothing are told they were not selected."
+			),
 		},
 		({ reason }) =>
 			frappe
 				.call({
-					method: `${AWARD_API}.close_without_award`,
+					method: `${AWARD_API}.close_remaining_items`,
 					args: { name: frm.doc.name, reason },
 					freeze: true,
 				})
@@ -94,7 +96,7 @@ function close_without_award(frm) {
 					frappe.show_alert({ message: message.message, indicator: "orange" });
 					frm.reload_doc();
 				}),
-		__("Close {0} Without Award", [frm.doc.name]),
+		label,
 		__("Close")
 	);
 }
