@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Badge, Button, Spinner } from "frappe-ui";
+import { Badge, Button, Dialog, ErrorMessage, Spinner, toast } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
@@ -13,6 +13,8 @@ import {
 	createSalesOrderResource,
 } from "@/data/selling";
 import type { SalesOrder } from "@/data/selling";
+import { errorText, withdrawOrder } from "@/data/orders";
+import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
 import { ACCENTS, LOOKS } from "@/data/accents";
 
@@ -35,6 +37,32 @@ function load() {
 }
 
 watch([customer, () => props.name], load, { immediate: true });
+
+const confirmingWithdraw = ref(false);
+const withdrawing = ref(false);
+const withdrawError = ref<string | null>(null);
+
+async function withdraw() {
+	if (!order.value || !customer.value) return;
+
+	withdrawing.value = true;
+	withdrawError.value = null;
+	try {
+		const response = await withdrawOrder(customer.value, order.value.name);
+		if (!isOk(response)) {
+			withdrawError.value = response.message || "We could not withdraw this order.";
+			return;
+		}
+		confirmingWithdraw.value = false;
+		toast.success(response.message || "Order withdrawn.");
+		router.push({ name: "SalesOrderEdit", params: { name: order.value.name } });
+	} catch (error) {
+		withdrawError.value = errorText(error, "We could not withdraw this order.");
+		load();
+	} finally {
+		withdrawing.value = false;
+	}
+}
 </script>
 
 <template>
@@ -54,7 +82,12 @@ watch([customer, () => props.name], load, { immediate: true });
 				variant="subtle"
 				:label="order.status"
 			/>
-			<PrintButton v-if="order" doctype="Sales Order" :name="order.name" :label="'order'" />
+			<PrintButton
+				v-if="order && !order.is_draft"
+				doctype="Sales Order"
+				:name="order.name"
+				:label="'order'"
+			/>
 			<Button
 				variant="subtle"
 				icon="lucide-refresh-cw"
@@ -89,6 +122,48 @@ watch([customer, () => props.name], load, { immediate: true });
 		</EmptyState>
 
 		<div v-else-if="order" class="space-y-6">
+			<div
+				v-if="order.editable"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
+			>
+				<div>
+					<p class="text-base font-medium text-ink-gray-8">This order is a draft</p>
+					<p class="mt-1 text-p-sm text-ink-gray-6">
+						Only you can see it. Send it when you are ready and our team will confirm
+						it.
+					</p>
+				</div>
+				<Button
+					variant="solid"
+					icon-left="lucide-pencil"
+					label="Continue editing"
+					:route="{ name: 'SalesOrderEdit', params: { name: order.name } }"
+				/>
+			</div>
+
+			<div
+				v-else-if="order.is_draft"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-outline-violet-2 bg-surface-violet-1 p-4"
+			>
+				<div>
+					<p class="text-base font-medium text-ink-gray-8">We have your order</p>
+					<p class="mt-1 text-p-sm text-ink-gray-6">
+						Our team is reviewing it. Need a change? Withdraw it while it is still
+						awaiting confirmation.
+					</p>
+				</div>
+				<Button
+					v-if="order.withdrawable"
+					variant="subtle"
+					theme="red"
+					icon-left="lucide-undo-2"
+					label="Withdraw order"
+					@click="confirmingWithdraw = true"
+				/>
+			</div>
+
+			<ErrorMessage v-if="withdrawError" :message="withdrawError" />
+
 			<dl
 				:class="ACCENTS[LOOKS.salesOrder.accent].panel"
 				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
@@ -200,7 +275,7 @@ watch([customer, () => props.name], load, { immediate: true });
 				</div>
 			</div>
 
-			<div class="rounded-6 border p-4">
+			<div v-if="!order.is_draft" class="rounded-6 border p-4">
 				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Deliveries</p>
 
 				<p v-if="!order.deliveries.length" class="mt-1 text-p-sm text-ink-gray-5">
@@ -239,5 +314,22 @@ watch([customer, () => props.name], load, { immediate: true });
 				<RichText class="mt-1" :html="order.terms" />
 			</div>
 		</div>
+
+		<Dialog
+			v-model:open="confirmingWithdraw"
+			title="Withdraw this order?"
+			icon="lucide-undo-2"
+			theme="amber"
+			message="Our team stops reviewing it and it goes back to your drafts, where you can change it and send it again, or delete it."
+			:actions="[
+				{
+					label: 'Withdraw order',
+					variant: 'solid',
+					theme: 'red',
+					loading: withdrawing,
+					onClick: withdraw,
+				},
+			]"
+		/>
 	</PageContainer>
 </template>

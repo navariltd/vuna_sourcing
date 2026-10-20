@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import cint, flt, nowdate
 
 from vuna_sourcing.api.transactions.common import (
@@ -21,6 +22,13 @@ from vuna_sourcing.api.transactions.common import (
 	safe_html,
 	status_counts,
 	submitted_parents,
+)
+from vuna_sourcing.api.transactions.customer_orders import (
+	FROM_PORTAL_FIELD,
+	ORDER_PENDING,
+	ORDER_SUBMITTED,
+	PORTAL_STATUS_FIELD,
+	can_order,
 )
 from vuna_sourcing.utils import CUSTOMER
 
@@ -50,7 +58,13 @@ ORDER_FIELDS = [
 	"status",
 	"per_delivered",
 	"per_billed",
+	"docstatus",
+	FROM_PORTAL_FIELD,
+	PORTAL_STATUS_FIELD,
 ]
+
+PORTAL_ORDER_STATUS = {ORDER_PENDING: "Draft"}
+AWAITING_CONFIRMATION = "Awaiting Confirmation"
 
 DELIVERY_FIELDS = [
 	"name",
@@ -171,32 +185,62 @@ def get_sales_orders(
 	if not customers:
 		return empty_page(start, limit)
 
-	orders = customer_documents(SALES_ORDER, customers, search, ORDER_FIELDS, search_fields=("name", "po_no"))
-
-	return page_of(
-		[
-			{
-				"name": order.name,
-				"customer": order.customer,
-				"po_no": order.po_no,
-				"transaction_date": order.transaction_date,
-				"delivery_date": order.delivery_date,
-				"currency": order.currency,
-				"grand_total": order.grand_total,
-				"delivered": flt(order.per_delivered, 1),
-				"billed": flt(order.per_billed, 1),
-				"status": order.status or "To Deliver and Bill",
-			}
-			for order in orders
-		],
-		start,
-		limit,
+	orders = find_documents(
+		SALES_ORDER, order_filters(customers), search, ORDER_FIELDS, search_fields=("name", "po_no")
 	)
+
+	return {
+		**page_of(
+			[
+				{
+					"name": order.name,
+					"customer": order.customer,
+					"po_no": order.po_no,
+					"transaction_date": order.transaction_date,
+					"delivery_date": order.delivery_date,
+					"currency": order.currency,
+					"grand_total": order.grand_total,
+					"delivered": flt(order.per_delivered, 1),
+					"billed": flt(order.per_billed, 1),
+					"status": order_status(order),
+					"is_draft": order.docstatus == 0,
+				}
+				for order in orders
+				if is_visible_order(order)
+			],
+			start,
+			limit,
+		),
+		"can_order": can_order(customer),
+	}
+
+
+def order_filters(customers: list[str]) -> dict:
+	return {"customer": ("in", customers or [""]), "docstatus": ("<", 2)}
+
+
+def is_visible_order(order) -> bool:
+	return order.docstatus == 1 or (order.docstatus == 0 and bool(order.get(FROM_PORTAL_FIELD)))
+
+
+def order_status(order) -> str:
+	if order.docstatus == 0:
+		return PORTAL_ORDER_STATUS.get(order.get(PORTAL_STATUS_FIELD), AWAITING_CONFIRMATION)
+
+	return order.status or "To Deliver and Bill"
+
+
+def customer_order(name: str, customer: str | None = None):
+	doc = owned_document(SALES_ORDER, name, order_filters(customer_scope(customer)))
+	if not is_visible_order(doc):
+		frappe.throw(_("This document does not belong to you."), frappe.PermissionError)
+
+	return doc
 
 
 @frappe.whitelist()
 def get_sales_order(name: str, customer: str | None = None) -> dict:
-	doc = customer_document(SALES_ORDER, name, customer)
+	doc = customer_order(name, customer)
 
 	items = [
 		line_item(
@@ -212,7 +256,10 @@ def get_sales_order(name: str, customer: str | None = None) -> dict:
 	return {
 		"name": doc.name,
 		"customer": doc.customer,
-		"status": doc.status,
+		"status": order_status(doc),
+		"is_draft": doc.docstatus == 0,
+		"editable": doc.docstatus == 0 and doc.get(PORTAL_STATUS_FIELD) == ORDER_PENDING,
+		"withdrawable": doc.docstatus == 0 and doc.get(PORTAL_STATUS_FIELD) == ORDER_SUBMITTED,
 		"po_no": doc.po_no,
 		"po_date": doc.po_date,
 		"transaction_date": doc.transaction_date,

@@ -11,6 +11,8 @@ const props = defineProps<{
 	wide?: boolean;
 	copy?: string;
 	look?: DocumentLook;
+	stickyHeader?: boolean;
+	fluid?: boolean;
 }>();
 
 const copied = ref(false);
@@ -53,11 +55,16 @@ async function copyValue() {
 <template>
 	<div
 		class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-8"
-		:class="wide ? 'max-w-7xl' : 'max-w-4xl'"
+		:class="fluid ? 'max-w-[1720px]' : wide ? 'max-w-7xl' : 'max-w-4xl'"
 	>
 		<header
 			v-if="breadcrumbs?.length"
 			class="mb-6 flex flex-wrap items-center justify-between gap-3"
+			:class="
+				stickyHeader
+					? 'sm:sticky sm:top-0 sm:z-20 sm:-mx-6 sm:-mt-4 sm:border-b sm:border-outline-gray-1 sm:bg-surface-base sm:px-6 sm:pb-3 sm:pt-4'
+					: ''
+			"
 		>
 			<div class="min-w-0">
 				<div class="flex min-w-0 items-center gap-1">
@@ -86,7 +93,7 @@ async function copyValue() {
 					</Tooltip>
 				</div>
 			</div>
-			<div class="flex shrink-0 items-center gap-2">
+			<div class="flex flex-wrap items-center gap-2">
 				<slot name="actions" />
 			</div>
 		</header>
