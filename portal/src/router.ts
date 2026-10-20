@@ -121,6 +121,19 @@ const routes: RouteRecordRaw[] = [
     meta: { partyType: 'Customer' },
   },
   {
+    path: '/sales-orders/new',
+    name: 'SalesOrderNew',
+    component: () => import('@/pages/SalesOrderForm.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/sales-orders/:name/edit',
+    name: 'SalesOrderEdit',
+    component: () => import('@/pages/SalesOrderForm.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
+  },
+  {
     path: '/sales-orders/:name',
     name: 'SalesOrderDetail',
     component: () => import('@/pages/SalesOrderDetail.vue'),

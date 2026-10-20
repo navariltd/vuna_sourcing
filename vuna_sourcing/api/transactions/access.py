@@ -13,6 +13,11 @@ from vuna_sourcing.api.transactions.customer import (
 	SALES_ORDER,
 	customer_filters,
 )
+from vuna_sourcing.api.transactions.customer_orders import (
+	FROM_PORTAL_FIELD,
+	ORDER_PENDING,
+	PORTAL_STATUS_FIELD,
+)
 from vuna_sourcing.api.transactions.sealed_bid import (
 	sealed_quotes_condition,
 	sealed_request_of,
@@ -107,3 +112,17 @@ def is_visible_quote(doc, ptype: str | None = None, user: str | None = None, **k
 def visible_quotes_condition(user: str | None = None, doctype: str | None = None) -> str:
 	not_pending = f"ifnull(`tab{SUPPLIER_QUOTATION}`.`{SUBMISSION_STATUS_FIELD}`, '') != {frappe.db.escape(QUOTE_PENDING)}"
 	return f"({not_pending} and {sealed_quotes_condition()})"
+
+
+def is_pending_portal_order(doc) -> bool:
+	return bool(doc.get(FROM_PORTAL_FIELD)) and doc.get(PORTAL_STATUS_FIELD) == ORDER_PENDING
+
+
+def is_not_pending_portal_order(doc, ptype: str | None = None, user: str | None = None, **kwargs) -> bool:
+	return doc.is_new() or not is_pending_portal_order(doc)
+
+
+def pending_portal_orders_hidden_condition(user: str | None = None, doctype: str | None = None) -> str:
+	from_portal = f"ifnull(`tab{SALES_ORDER}`.`{FROM_PORTAL_FIELD}`, 0) = 1"
+	pending = f"ifnull(`tab{SALES_ORDER}`.`{PORTAL_STATUS_FIELD}`, '') = {frappe.db.escape(ORDER_PENDING)}"
+	return f"not ({from_portal} and {pending})"

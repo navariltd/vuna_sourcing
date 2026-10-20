@@ -23,6 +23,7 @@ export interface SalesOrderRow {
   delivered: number;
   billed: number;
   status: string;
+  is_draft: boolean;
 }
 
 export interface DeliveryNoteRow {
@@ -64,6 +65,8 @@ export const QUOTATION_STATUS_THEME: Record<string, BadgeTheme> = {
 };
 
 export const SALES_ORDER_STATUS_THEME: Record<string, BadgeTheme> = {
+  Draft: "gray",
+  "Awaiting Confirmation": "violet",
   "To Deliver and Bill": "blue",
   "To Deliver": "blue",
   "To Bill": "amber",
@@ -161,6 +164,9 @@ export interface SalesOrder {
   name: string;
   customer: string;
   status: string;
+  is_draft: boolean;
+  editable: boolean;
+  withdrawable: boolean;
   po_no: string | null;
   po_date: string | null;
   transaction_date: string;
@@ -174,7 +180,12 @@ export interface SalesOrder {
   terms: string | null;
   quotations: string[];
   items: SalesOrderItem[];
-  deliveries: { name: string; posting_date: string; status: string; is_return: 0 | 1 }[];
+  deliveries: {
+    name: string;
+    posting_date: string;
+    status: string;
+    is_return: 0 | 1;
+  }[];
   invoices: string[];
 }
 

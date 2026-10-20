@@ -19,6 +19,7 @@ class SourcingSettings(Document):
 		accept_customer_applications: DF.Check
 		accept_supplier_applications: DF.Check
 		allow_any_member_to_open: DF.Check
+		allow_customer_sales_orders: DF.Check
 		allow_opening_before_bids_close: DF.Check
 		allow_opening_below_minimum: DF.Check
 		allowed_file_types: DF.Data | None

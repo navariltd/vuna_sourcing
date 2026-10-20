@@ -23,7 +23,10 @@ const customer = computed(() =>
 	portal.activeParty?.party_type === "Customer" ? portal.activeParty.name : null
 );
 
-const page = computed<PurchasePage<SalesOrderRow> | null>(() => salesOrderList.data ?? null);
+const page = computed<(PurchasePage<SalesOrderRow> & { can_order: boolean }) | null>(
+	() => salesOrderList.data ?? null
+);
+const canOrder = computed(() => !!page.value?.can_order);
 const rows = computed<SalesOrderRow[]>(() => page.value?.rows ?? []);
 
 function load() {
@@ -63,8 +66,8 @@ const options = {
 	selectable: false,
 	showTooltip: false,
 	rowHeight: 48,
-	getRowRoute: (row: { name: string }) => ({
-		name: "SalesOrderDetail",
+	getRowRoute: (row: SalesOrderRow) => ({
+		name: row.status === "Draft" ? "SalesOrderEdit" : "SalesOrderDetail",
 		params: { name: row.name },
 	}),
 };
@@ -84,6 +87,13 @@ function loadMore() {
 				aria-label="Refresh"
 				:loading="salesOrderList.loading"
 				@click="load"
+			/>
+			<Button
+				v-if="customer && canOrder"
+				variant="solid"
+				icon-left="lucide-plus"
+				label="New order"
+				:route="{ name: 'SalesOrderNew' }"
 			/>
 		</template>
 
@@ -119,8 +129,20 @@ function loadMore() {
 				v-else-if="!rows.length"
 				icon="lucide-shopping-cart"
 				title="No orders yet"
-				:description="`Orders from ${portal.activeParty?.title} appear here once we confirm them.`"
-			/>
+				:description="
+					canOrder
+						? `Place an order for ${portal.activeParty?.title} and follow it here until it is delivered.`
+						: `Orders from ${portal.activeParty?.title} appear here once we confirm them.`
+				"
+			>
+				<Button
+					v-if="canOrder"
+					variant="solid"
+					icon-left="lucide-plus"
+					label="Place an order"
+					:route="{ name: 'SalesOrderNew' }"
+				/>
+			</EmptyState>
 
 			<template v-else>
 				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
@@ -128,8 +150,10 @@ function loadMore() {
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>
 							<span v-if="isMobile" class="truncate text-xs text-ink-gray-5">
-								{{ money(row.grand_total, row.currency) }} · {{ row.delivered }}%
-								delivered
+								{{ money(row.grand_total, row.currency) }}
+								<template v-if="!row.is_draft">
+									· {{ row.delivered }}% delivered</template
+								>
 							</span>
 						</span>
 
@@ -165,7 +189,7 @@ function loadMore() {
 							v-else-if="column.key === 'delivered'"
 							class="text-base text-ink-gray-7"
 						>
-							{{ row.delivered }}%
+							{{ row.is_draft ? "—" : `${row.delivered}%` }}
 						</span>
 
 						<Badge

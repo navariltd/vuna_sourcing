@@ -157,6 +157,10 @@ permission_query_conditions = {
 		"vuna_sourcing.api.transactions.access.own_documents_condition",
 		"vuna_sourcing.api.transactions.access.visible_quotes_condition",
 	],
+	"Sales Order": [
+		"vuna_sourcing.api.transactions.access.own_documents_condition",
+		"vuna_sourcing.api.transactions.access.pending_portal_orders_hidden_condition",
+	],
 	"Party Onboarding Request": f"{ONBOARDING_REQUEST_MODULE}.drafts_hidden_condition",
 }
 
@@ -165,6 +169,10 @@ has_permission = {
 	"Supplier Quotation": [
 		"vuna_sourcing.api.transactions.access.is_own_document",
 		"vuna_sourcing.api.transactions.access.is_visible_quote",
+	],
+	"Sales Order": [
+		"vuna_sourcing.api.transactions.access.is_own_document",
+		"vuna_sourcing.api.transactions.access.is_not_pending_portal_order",
 	],
 	"Party Onboarding Request": f"{ONBOARDING_REQUEST_MODULE}.is_not_others_draft",
 }
