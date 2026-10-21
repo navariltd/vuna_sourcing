@@ -23,6 +23,7 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 	"""Customers placing Sales Orders from the portal, run as the customer."""
 
 	price_list = "_Test Portal Order Prices"
+	other_company = "_Test Portal Order Company"
 
 	@classmethod
 	def setUpClass(cls):
@@ -36,6 +37,19 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 					"currency": frappe.get_cached_value("Company", cls.company, "default_currency"),
 					"selling": 1,
 					"enabled": 1,
+				}
+			).insert(ignore_permissions=True)
+
+		if not frappe.db.exists("Company", cls.other_company):
+			frappe.get_doc(
+				{
+					"doctype": "Company",
+					"company_name": cls.other_company,
+					"abbr": "_TPOC",
+					"default_currency": frappe.get_cached_value("Company", cls.company, "default_currency"),
+					"country": frappe.get_cached_value("Company", cls.company, "country"),
+					"create_chart_of_accounts_based_on": "Standard Template",
+					"chart_of_accounts": "Standard",
 				}
 			).insert(ignore_permissions=True)
 		frappe.db.commit()
@@ -185,7 +199,7 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 		self.assertRaisesRegex(frappe.ValidationError, "do not have a price", self.order)
 
 	def test_only_sales_items_of_the_ordering_company_can_be_ordered(self):
-		other_company = next(name for name in frappe.get_all("Company", pluck="name") if name != self.company)
+		other_company = self.other_company
 		elsewhere = self.make_item(company=other_company)
 		not_for_sale = self.make_item(is_sales_item=0)
 		self.add_price(elsewhere, 50)
@@ -206,7 +220,7 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 			self.assertRaisesRegex(frappe.ValidationError, "cannot be ordered", self.order)
 
 	def test_a_customer_orders_only_from_companies_on_their_accounts(self):
-		other_company = next(name for name in frappe.get_all("Company", pluck="name") if name != self.company)
+		other_company = self.other_company
 
 		self.assertRaises(frappe.ValidationError, self.order, company=other_company)
 

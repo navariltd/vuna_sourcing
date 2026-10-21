@@ -30,7 +30,7 @@ class SourcingFixtures:
 				}
 			).insert(ignore_permissions=True)
 
-		cls.company = frappe.get_all("Company", limit=1, pluck="name")[0]
+		cls.company = frappe.get_all("Company", order_by="creation asc", limit=1, pluck="name")[0]
 		cls.warehouse = frappe.get_all(
 			"Warehouse", filters={"is_group": 0, "company": cls.company}, limit=1, pluck="name"
 		)[0]
