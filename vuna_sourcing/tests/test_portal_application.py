@@ -6,8 +6,10 @@ from contextlib import contextmanager
 
 import frappe
 from frappe.tests import IntegrationTestCase
+from frappe.utils import add_days, today
 
 from vuna_sourcing.api.onboarding import (
+	attach_uploaded_file,
 	download_application,
 	get_application,
 	get_application_progress,
@@ -162,9 +164,38 @@ class TestPortalApplication(IntegrationTestCase):
 			"addresses": [self.address(is_shipping_address=1 if party_type == "Customer" else 0)],
 		}
 
-	def upload(self, docname):
-		"""The way the portal attaches: through upload_attachment, as the applicant."""
-		return save_attachment(docname, f"{frappe.generate_hash(length=8)}.pdf", blank_pdf(), DOC_CERT)
+	def upload(self, docname, filename=None, content=None, document_type=DOC_CERT, purpose=None):
+		"""The way the portal attaches: Frappe's upload_file stores the upload, then calls our method."""
+		form_dict = frappe.local.form_dict
+		frappe.local.form_dict = frappe._dict(
+			application=docname, document_type=document_type, purpose=purpose
+		)
+		frappe.local.uploaded_file = content if content is not None else blank_pdf()
+		frappe.local.uploaded_filename = filename or f"{frappe.generate_hash(length=8)}.pdf"
+		try:
+			response = attach_uploaded_file()
+		finally:
+			frappe.local.uploaded_file = frappe.local.uploaded_filename = None
+			frappe.local.form_dict = form_dict
+		return frappe.get_doc(
+			"File", {"file_url": response.data["file_url"], "attached_to_name": docname}
+		).as_dict()
+
+	def require_expiry(self, document_type=DOC_CERT, template=SUPPLIER_TEMPLATE):
+		row = frappe.db.get_value(
+			"Party Onboarding Document Requirement", {"parent": template, "document_type": document_type}
+		)
+		frappe.db.set_value("Party Onboarding Document Requirement", row, "has_expiry", 1)
+		frappe.clear_document_cache("Party Onboarding Template", template)
+
+		def restore():
+			frappe.db.set_value("Party Onboarding Document Requirement", row, "has_expiry", 0)
+			frappe.clear_document_cache("Party Onboarding Template", template)
+
+		self.addCleanup(restore)
+
+	def certificate(self, saved, **dates):
+		return [{"document_type": DOC_CERT, "attachment": saved["documents"][0]["attachment"], **dates}]
 
 	def complete(self, applicant, party_type="Supplier", extra=None):
 		"""A draft with everything submit needs, saved as the applicant."""
@@ -476,7 +507,7 @@ class TestPortalApplication(IntegrationTestCase):
 			progress = get_application_progress(saved["name"])
 
 		self.assertFalse(progress["can_submit"])
-		self.assertIn(DOC_CERT, progress["missing_documents"])
+		self.assertIn(f"{DOC_CERT}: not attached", progress["missing_documents"])
 		self.assertEqual(progress["documents_required"], 1)
 		self.assertEqual(progress["documents_attached"], 0)
 
@@ -816,3 +847,83 @@ class TestPortalApplication(IntegrationTestCase):
 		with self.set_user(stranger):
 			self.assertRaises(frappe.PermissionError, get_own_application, saved["name"])
 			self.assertRaises(frappe.PermissionError, download_application, saved["name"])
+
+	def test_each_document_carries_its_rules_to_the_portal(self):
+		self.require_expiry()
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+
+		with self.set_user(applicant):
+			documents = {row["document_type"]: row for row in get_application(saved["name"])["documents"]}
+
+		self.assertTrue(documents[DOC_CERT]["has_expiry"])
+		self.assertFalse(documents[DOC_OPTIONAL]["has_expiry"])
+		self.assertIn("allowed_file_types", documents[DOC_CERT])
+		self.assertTrue(documents[DOC_CERT]["file_name"])
+
+	def test_a_document_that_expires_needs_an_expiry_date(self):
+		self.require_expiry()
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+
+		with self.set_user(applicant):
+			progress = get_application_progress(saved["name"])
+			self.assertFalse(progress["can_submit"])
+			self.assertIn(f"{DOC_CERT}: expiry date", progress["missing_documents"])
+			self.assertRaises(frappe.ValidationError, submit_application, saved["name"])
+
+	def test_an_expired_document_blocks_submission(self):
+		self.require_expiry()
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+
+		with self.set_user(applicant):
+			save_application(
+				{"documents": self.certificate(saved, expiry_date=add_days(today(), -1))}, saved["name"]
+			)
+			progress = get_application_progress(saved["name"])
+			self.assertTrue(any("expired" in item for item in progress["missing_documents"]))
+			self.assertRaises(frappe.ValidationError, submit_application, saved["name"])
+
+	def test_a_current_expiry_date_lets_the_application_through(self):
+		self.require_expiry()
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+
+		with self.set_user(applicant):
+			save_application(
+				{
+					"documents": self.certificate(
+						saved, issue_date=add_days(today(), -30), expiry_date=add_days(today(), 300)
+					)
+				},
+				saved["name"],
+			)
+			self.assertTrue(get_application_progress(saved["name"])["can_submit"])
+			self.assertEqual(submit_application(saved["name"])["onboarding_status"], "Pending Review")
+
+	def test_an_issue_date_cannot_be_in_the_future(self):
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+
+		with self.set_user(applicant):
+			save_application(
+				{"documents": self.certificate(saved, issue_date=add_days(today(), 5))}, saved["name"]
+			)
+			self.assertFalse(get_application_progress(saved["name"])["can_submit"])
+			self.assertRaises(frappe.ValidationError, submit_application, saved["name"])
+
+	def test_the_upload_method_only_works_after_a_real_upload(self):
+		applicant = self.make_applicant()
+		with self.set_user(applicant):
+			saved = save_application(self.base_values())
+			frappe.local.form_dict = frappe._dict(application=saved["name"], document_type=DOC_CERT)
+			self.assertRaises(frappe.ValidationError, attach_uploaded_file)
+
+	def test_a_logo_must_be_an_image(self):
+		applicant = self.make_applicant()
+		with self.set_user(applicant):
+			saved = save_application(self.base_values())
+			self.assertRaises(
+				frappe.ValidationError, self.upload, saved["name"], "logo.pdf", None, None, "logo"
+			)

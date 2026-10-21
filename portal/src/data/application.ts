@@ -7,8 +7,12 @@ export interface RequiredDocument {
   document_type: string;
   is_mandatory: number;
   description: string | null;
-  has_expiry?: number;
+  has_expiry?: boolean | number;
+  allowed_file_types?: string[];
+  max_file_size_mb?: number | null;
   attachment?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
   document_number?: string | null;
   issue_date?: string | null;
   expiry_date?: string | null;
@@ -150,9 +154,86 @@ export function submitApplication(name: string) {
   }).submit({ name });
 }
 
-export function attachmentUploadUrl(documentType?: string | null) {
-  const url = "/api/method/vuna_sourcing.api.onboarding.upload_attachment";
-  return documentType ? `${url}?document_type=${encodeURIComponent(documentType)}` : url;
+export function uploadEndpoint(
+  application: string,
+  options: { documentType?: string | null; purpose?: "logo" } = {},
+) {
+  const query = new URLSearchParams({
+    method: "vuna_sourcing.api.onboarding.attach_uploaded_file",
+    application,
+  });
+  if (options.documentType) query.set("document_type", options.documentType);
+  if (options.purpose) query.set("purpose", options.purpose);
+  return `/api/method/upload_file?${query}`;
+}
+
+export interface UploadedAttachment {
+  file_url: string;
+  file_name: string;
+  file_size: number | null;
+}
+
+export function uploadedAttachment(response: unknown): UploadedAttachment {
+  const envelope = response as ApiResponse<UploadedAttachment>;
+  if (!isOk(envelope)) throw new Error(envelope?.message || "The upload did not go through.");
+  return envelope.data;
+}
+
+export function fileExtension(name: string | null | undefined) {
+  const clean = (name ?? "").split("?")[0] ?? "";
+  return clean.includes(".") ? clean.split(".").pop()!.toLowerCase() : "";
+}
+
+export function fileSize(bytes: number | null | undefined) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function uploadProblem(file: File, document: RequiredDocument): string | null {
+  const allowed = (document.allowed_file_types ?? []).map((type) =>
+    type.toLowerCase().replace(/^\./, ""),
+  );
+  const extension = fileExtension(file.name);
+  if (allowed.length && !allowed.includes(extension)) {
+    return `${extension ? extension.toUpperCase() : "This"} files are not accepted for ${
+      document.document_type
+    }. Use ${allowed.map((type) => type.toUpperCase()).join(", ")}.`;
+  }
+  const limit = Number(document.max_file_size_mb || 0);
+  if (limit && file.size > limit * 1024 * 1024) {
+    return `This file is ${fileSize(file.size)}. The limit is ${limit} MB.`;
+  }
+  return null;
+}
+
+export function documentProblems(document: RequiredDocument, today: string): string[] {
+  const problems: string[] = [];
+  if (!document.attachment) {
+    if (document.is_mandatory) problems.push("Attach this document");
+    return problems;
+  }
+  if (document.has_expiry) {
+    if (!document.expiry_date) problems.push("Add the expiry date");
+    else if (document.expiry_date < today)
+      problems.push("This document has expired. Attach a current one");
+  }
+  if (document.issue_date && document.issue_date > today)
+    problems.push("The issue date cannot be in the future");
+  if (
+    document.issue_date &&
+    document.expiry_date &&
+    document.expiry_date < document.issue_date
+  )
+    problems.push("The expiry date cannot be before the issue date");
+  return problems;
+}
+
+export function localToday() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
 export function fetchProgress(name: string) {

@@ -365,17 +365,63 @@ class PartyOnboardingRequest(Document):
 		else:
 			frappe.throw(message, title=_("Missing Details"))
 
+	def document_rules(self) -> dict[str, frappe._dict]:
+		template = self.template
+		required = {row.document_type: row for row in (template.required_documents if template else [])}
+		types = [row.document_type for row in self.required_documents]
+		expiring_types = set(
+			frappe.get_all(
+				"Party Document Type",
+				filters={"name": ("in", types or [""]), "has_expiry": 1},
+				pluck="name",
+			)
+		)
+
+		return {
+			document_type: frappe._dict(
+				has_expiry=bool(
+					(required.get(document_type) and required[document_type].has_expiry)
+					or document_type in expiring_types
+				)
+			)
+			for document_type in types
+		}
+
+	def get_outstanding_documents(self) -> list[str]:
+		rules = self.document_rules()
+		current = getdate(today())
+		outstanding = []
+
+		for row in self.required_documents:
+			if not row.attachment:
+				if row.is_mandatory:
+					outstanding.append(_("{0}: not attached").format(row.document_type))
+				continue
+
+			if rules[row.document_type].has_expiry:
+				if not row.expiry_date:
+					outstanding.append(_("{0}: expiry date").format(row.document_type))
+				elif getdate(row.expiry_date) < current:
+					outstanding.append(
+						_("{0}: expired on {1}, attach a current one").format(
+							row.document_type, frappe.format(row.expiry_date, "Date")
+						)
+					)
+
+			if row.issue_date and getdate(row.issue_date) > current:
+				outstanding.append(_("{0}: issue date cannot be in the future").format(row.document_type))
+
+		return outstanding
+
 	def validate_mandatory_documents(self):
-		missing = [
-			row.document_type for row in self.required_documents if row.is_mandatory and not row.attachment
-		]
-		if missing:
+		outstanding = self.get_outstanding_documents()
+		if outstanding:
 			frappe.throw(
-				_("These supporting documents are required before this request can be submitted:")
+				_("These supporting documents need attention before this request can be submitted:")
 				+ "<br><ul><li>"
-				+ "</li><li>".join(frappe.bold(name) for name in missing)
+				+ "</li><li>".join(frappe.bold(item) for item in outstanding)
 				+ "</li></ul>",
-				title=_("Supporting Documents Missing"),
+				title=_("Supporting Documents Incomplete"),
 			)
 
 	def validate_document_dates(self):
