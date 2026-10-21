@@ -8,6 +8,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing.api.onboarding import (
+	download_application,
 	get_application,
 	get_application_progress,
 	get_link_options,
@@ -795,3 +796,31 @@ class TestPortalApplication(IntegrationTestCase):
 				doc = frappe.get_doc(REQUEST, submitted["name"])
 				self.assertRaises(frappe.PermissionError, doc.approve)
 				self.assertRaises(frappe.PermissionError, doc.reject, reason="nope")
+
+	def test_the_applicant_can_download_their_application(self):
+		applicant = self.make_applicant()
+		saved = self.complete(applicant, "Supplier", {"bank_account_no": "0011223344"})
+
+		with self.set_user(applicant):
+			download = download_application(saved["name"])
+
+		self.assertTrue(download.ok)
+		self.assertTrue(download.data["filename"].startswith(saved["name"]))
+		self.assertTrue(base64.b64decode(download.data["content"]).startswith(b"%PDF"))
+
+	def test_a_returned_application_can_be_downloaded_with_its_note(self):
+		applicant = self.make_applicant()
+		submitted = self.returned(applicant)
+
+		with self.set_user(applicant):
+			download = download_application(submitted["name"])
+
+		self.assertTrue(base64.b64decode(download.data["content"]).startswith(b"%PDF"))
+
+	def test_nobody_else_can_download_an_application(self):
+		owner = self.make_applicant()
+		saved = self.complete(owner)
+		stranger = self.make_applicant()
+
+		with self.set_user(stranger):
+			self.assertRaises(frappe.PermissionError, download_application, saved["name"])

@@ -6,7 +6,7 @@ import math
 import frappe
 from frappe import _
 from frappe.query_builder import Order
-from frappe.query_builder.functions import IfNull
+from frappe.query_builder.functions import Count, IfNull
 from frappe.utils import cint, cstr, flt, getdate, nowdate, strip_html
 from pypika.terms import ExistsCriterion
 
@@ -593,11 +593,36 @@ def get_order_form(customer: str, name: str | None = None) -> ApiResponse[dict]:
 	)
 
 
+def priced_items_query(company: str, price_list: str, customer: str):
+	priced, price = applicable_prices(price_list, customer, nowdate())
+	query, item = orderable_items_query(company)
+	return query.where(ExistsCriterion(priced.select(price.name).where(price.item_code == item.name))), item
+
+
+@frappe.whitelist()
+def get_order_categories(customer: str, company: str | None = None) -> ApiResponse[list]:
+	ensure_orders_enabled()
+	customer = ordering_customer(customer)
+	company = order_company(customer, company)
+
+	query, item = priced_items_query(company, customer_price_list(customer), customer)
+	rows = (
+		query.select(item.item_group, Count(item.name).distinct().as_("item_count"))
+		.where(IfNull(item.item_group, "") != "")
+		.groupby(item.item_group)
+		.orderby(item.item_group)
+		.run(as_dict=True)
+	)
+
+	return ApiResponse.success(data=[{"name": row.item_group, "count": row.item_count} for row in rows])
+
+
 @frappe.whitelist()
 def get_orderable_items(
 	customer: str,
 	company: str | None = None,
 	search: str | None = None,
+	item_group: str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> ApiResponse[dict]:
@@ -608,18 +633,17 @@ def get_orderable_items(
 	limit = min(max(cint(limit), 1), 50)
 
 	price_list = customer_price_list(customer)
-	priced, price = applicable_prices(price_list, customer, nowdate())
-
-	query, item = orderable_items_query(company)
-	query = (
-		query.select(item.name, item.item_name, item.description, item.image, item.stock_uom, item.item_group)
-		.where(ExistsCriterion(priced.select(price.name).where(price.item_code == item.name)))
-		.distinct()
-	)
+	query, item = priced_items_query(company, price_list, customer)
+	query = query.select(
+		item.name, item.item_name, item.description, item.image, item.stock_uom, item.item_group
+	).distinct()
 
 	if search and search.strip():
 		pattern = f"%{search.strip()}%"
 		query = query.where(item.name.like(pattern) | item.item_name.like(pattern))
+
+	if item_group:
+		query = query.where(item.item_group == item_group)
 
 	rows = query.orderby(item.item_name).limit(limit + 1).offset(start).run(as_dict=True)
 	page = rows[:limit]
@@ -716,6 +740,30 @@ def submit_order(
 	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no)
 	write_order(doc, ORDER_SUBMITTED)
 	return ApiResponse.success(_("Order sent. We will confirm it shortly."), order_view(doc))
+
+
+def zero_totals(doc) -> None:
+	for row in (doc, *doc.get("taxes", [])):
+		for df in row.meta.fields:
+			if df.fieldtype == "Currency":
+				row.set(df.fieldname, 0)
+
+	doc.update({"total_qty": 0, "total_net_weight": 0, "in_words": "", "base_in_words": ""})
+
+
+@frappe.whitelist(methods=["POST"])
+def clear_order(customer: str, name: str) -> ApiResponse[dict]:
+	ensure_orders_enabled()
+	doc = locked_draft(name, ordering_customer(customer))
+
+	doc.set("items", [])
+	zero_totals(doc)
+	doc.flags.ignore_permissions = True
+	doc.flags.ignore_mandatory = True
+	with as_administrator():
+		doc.save()
+
+	return ApiResponse.success(_("Cart cleared."), order_view(doc))
 
 
 @frappe.whitelist(methods=["POST"])

@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<style>
+		body { font-family: Helvetica, Arial, sans-serif; color: #171717; font-size: 11px; margin: 0; }
+		.header { border-bottom: 2px solid #171717; padding-bottom: 10px; margin-bottom: 16px; }
+		.header td { vertical-align: middle; }
+		.title { font-size: 18px; font-weight: bold; margin: 0; }
+		.muted { color: #6b6b6b; }
+		.status { display: inline-block; border: 1px solid #171717; border-radius: 10px; padding: 2px 8px; font-weight: bold; font-size: 10px; }
+		h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #d4d4d4; }
+		table { width: 100%; border-collapse: collapse; }
+		.fields td { padding: 4px 6px 4px 0; vertical-align: top; width: 50%; }
+		.label { color: #6b6b6b; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
+		.value { font-size: 11px; }
+		.grid th { text-align: left; font-size: 9px; text-transform: uppercase; color: #6b6b6b; border-bottom: 1px solid #d4d4d4; padding: 4px 6px 4px 0; }
+		.grid td { border-bottom: 1px solid #ededed; padding: 5px 6px 5px 0; vertical-align: top; }
+		.note { border: 1px solid #d4d4d4; background: #fafafa; padding: 8px 10px; white-space: pre-line; }
+		.footer { margin-top: 24px; color: #8f8f8f; font-size: 9px; }
+	</style>
+</head>
+<body>
+	<table class="header">
+		<tr>
+			<td>
+				<p class="title">{{ doc.party_name or _("Onboarding application") }}</p>
+				<p class="muted">
+					{{ _("Application") }} {{ doc.name }} · {{ _(doc.party_type or "") }}
+					{% if doc.onboarding_template %} · {{ doc.onboarding_template }}{% endif %}
+				</p>
+			</td>
+			<td style="text-align: right">
+				<span class="status">{{ _(status) }}</span>
+				<p class="muted">{{ company or "" }}</p>
+			</td>
+		</tr>
+	</table>
+
+	{% if doc.review_remarks %}
+	<h2>{{ _("Note from our team") }}</h2>
+	<div class="note">{{ doc.review_remarks }}</div>
+	{% endif %}
+
+	<h2>{{ _("Applicant") }}</h2>
+	<table class="fields">
+		{% for pair in applicant | batch(2) %}
+		<tr>
+			{% for label, value in pair %}
+			<td>
+				<div class="label">{{ _(label) }}</div>
+				<div class="value">{{ value or "—" }}</div>
+			</td>
+			{% endfor %}
+		</tr>
+		{% endfor %}
+	</table>
+
+	<h2>{{ _("Contacts") }}</h2>
+	<table class="grid">
+		<tr>
+			<th>{{ _("Name") }}</th>
+			<th>{{ _("Role") }}</th>
+			<th>{{ _("Email") }}</th>
+			<th>{{ _("Mobile") }}</th>
+		</tr>
+		{% for row in doc.contacts %}
+		<tr>
+			<td>{{ [row.first_name, row.last_name] | select | join(" ") or "—" }}{% if row.designation %}<br /><span class="muted">{{ row.designation }}</span>{% endif %}</td>
+			<td>{{ roles(row) }}</td>
+			<td>{{ row.email_id or "—" }}</td>
+			<td>{{ row.mobile_no or "—" }}</td>
+		</tr>
+		{% else %}
+		<tr><td colspan="4" class="muted">{{ _("No contacts given") }}</td></tr>
+		{% endfor %}
+	</table>
+
+	<h2>{{ _("Addresses") }}</h2>
+	<table class="grid">
+		<tr>
+			<th>{{ _("Use") }}</th>
+			<th>{{ _("Address") }}</th>
+		</tr>
+		{% for row in doc.addresses %}
+		<tr>
+			<td>{{ address_use(row) }}</td>
+			<td>{{ [row.address_line1, row.address_line2, row.city, row.state, row.pincode, row.country] | select | join(", ") or "—" }}</td>
+		</tr>
+		{% else %}
+		<tr><td colspan="2" class="muted">{{ _("No addresses given") }}</td></tr>
+		{% endfor %}
+	</table>
+
+	{% if bank %}
+	<h2>{{ _("Bank details") }}</h2>
+	<table class="fields">
+		{% for pair in bank | batch(2) %}
+		<tr>
+			{% for label, value in pair %}
+			<td>
+				<div class="label">{{ _(label) }}</div>
+				<div class="value">{{ value or "—" }}</div>
+			</td>
+			{% endfor %}
+		</tr>
+		{% endfor %}
+	</table>
+	{% endif %}
+
+	<h2>{{ _("Supporting documents") }}</h2>
+	<table class="grid">
+		<tr>
+			<th>{{ _("Document") }}</th>
+			<th>{{ _("Reference no") }}</th>
+			<th>{{ _("Issued") }}</th>
+			<th>{{ _("Expires") }}</th>
+			<th>{{ _("File") }}</th>
+		</tr>
+		{% for row in doc.required_documents %}
+		<tr>
+			<td>{{ row.document_type }}{% if row.is_mandatory %} <span class="muted">({{ _("required") }})</span>{% endif %}</td>
+			<td>{{ row.document_number or "—" }}</td>
+			<td>{{ frappe.format(row.issue_date, {"fieldtype": "Date"}) if row.issue_date else "—" }}</td>
+			<td>{{ frappe.format(row.expiry_date, {"fieldtype": "Date"}) if row.expiry_date else "—" }}</td>
+			<td>{{ _("Attached") if row.attachment else _("Not attached") }}</td>
+		</tr>
+		{% else %}
+		<tr><td colspan="5" class="muted">{{ _("No documents needed") }}</td></tr>
+		{% endfor %}
+	</table>
+
+	<p class="footer">{{ _("Downloaded on {0}").format(frappe.format(frappe.utils.now_datetime(), {"fieldtype": "Datetime"})) }}</p>
+</body>
+</html>

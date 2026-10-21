@@ -14,6 +14,9 @@ import {
 	toast,
 } from "frappe-ui";
 import AddressFields from "@/components/AddressFields.vue";
+import ApplicationSummary from "@/components/ApplicationSummary.vue";
+import type { SummarySection } from "@/components/ApplicationSummary.vue";
+import DownloadApplicationButton from "@/components/DownloadApplicationButton.vue";
 import ContactFields from "@/components/ContactFields.vue";
 import DocumentRequirementRow from "@/components/DocumentRequirementRow.vue";
 import LinkSelect from "@/components/LinkSelect.vue";
@@ -25,7 +28,6 @@ import {
 	createApplicationResource,
 	fetchProgress,
 	fullName,
-	oneLineAddress,
 	onboardingTypes,
 	resubmitApplication,
 	saveApplication,
@@ -240,6 +242,7 @@ onMounted(async () => {
 				const wanted = partyTypeFromRoute();
 				if (wanted) choosePartyType(wanted);
 			}
+			if (existing.is_correction) goToStep("review");
 			await refreshProgress();
 		} else {
 			const only = openPartyTypes.value.length === 1 ? openPartyTypes.value[0]! : null;
@@ -365,6 +368,17 @@ function back() {
 	if (stepIndex.value > 0) stepIndex.value -= 1;
 }
 
+function goToStep(key: SummarySection | "review") {
+	const index = steps.value.findIndex((step) => step.key === key);
+	if (index >= 0) stepIndex.value = index;
+	window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function backToReview() {
+	await save({ silent: true });
+	goToStep("review");
+}
+
 function onLogoUploaded(file: { file_url: string }) {
 	form.company_logo = file.file_url;
 	save({ silent: true });
@@ -414,29 +428,6 @@ const title = computed(() => {
 	if (isCorrection.value) return "Correct your application";
 	return copy.value ? `Become a ${copy.value.noun}` : "Apply to work with us";
 });
-
-const reviewRows = computed(() => {
-	const rows: [string, string | null | undefined][] = [
-		["Applying as", form.party_type],
-		["Type", form.onboarding_template],
-		[isIndividual.value ? "Name" : "Business name", form.party_name],
-		["Tax registration", form.tax_id],
-		["Registration no", form.registration_number],
-		["Primary contact", fullName(primaryContact.value)],
-		["Email", primaryContact.value?.email_id],
-		["Mobile", primaryContact.value?.mobile_no],
-		[
-			"Billing contact",
-			billingContact.value ? fullName(billingContact.value) : fullName(primaryContact.value),
-		],
-		["Registered address", oneLineAddress(registeredAddress.value)],
-	];
-	if (copy.value?.asksForDelivery) {
-		const delivery = addresses.value.filter((a) => a.is_shipping_address).map(oneLineAddress);
-		rows.push(["Deliver to", delivery.join(" · ")]);
-	}
-	return rows;
-});
 </script>
 
 <template>
@@ -454,16 +445,57 @@ const reviewRows = computed(() => {
 		<ErrorMessage v-if="loadError" :message="loadError" class="mb-4" />
 
 		<div
-			v-if="isCorrection && reviewRemarks"
-			class="mb-6 rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
+			v-if="isCorrection"
+			class="mb-6 rounded-8 border border-outline-amber-3 bg-surface-amber-1 p-4"
+			role="status"
 		>
-			<div class="flex items-start gap-2">
-				<i class="lucide-rotate-ccw mt-0.5 size-4 shrink-0 text-ink-amber-7" />
-				<div>
-					<p class="text-base font-medium text-ink-gray-8">Sent back for correction</p>
-					<p class="mt-1 whitespace-pre-line text-p-base text-ink-gray-7">
-						{{ reviewRemarks }}
+			<div class="flex items-start gap-3">
+				<i
+					class="lucide-rotate-ccw mt-0.5 size-5 shrink-0 text-ink-amber-7"
+					aria-hidden="true"
+				/>
+				<div class="min-w-0 flex-1">
+					<p class="text-base font-semibold text-ink-gray-9">
+						Our team asked for changes to your application
 					</p>
+					<blockquote
+						v-if="reviewRemarks"
+						class="mt-2 whitespace-pre-line rounded-6 border-l-[3px] border-outline-gray-7 bg-surface-base px-3 py-2 text-p-base text-ink-gray-8"
+					>
+						{{ reviewRemarks }}
+					</blockquote>
+
+					<p class="mt-3 text-p-sm font-semibold text-ink-gray-8">What to do next</p>
+					<ol class="mt-1.5 grid gap-2 text-p-sm text-ink-gray-7 sm:grid-cols-3">
+						<li class="flex items-start gap-2">
+							<span class="correction-step">1</span>
+							<span>Read the note from our team above.</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="correction-step">2</span>
+							<span>
+								Tap <b>Edit</b> on the part the note is about and make the change.
+								Everything else you entered is kept.
+							</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="correction-step">3</span>
+							<span
+								>Come back to <b>Review</b> and tap
+								<b>Resubmit for review</b>.</span
+							>
+						</li>
+					</ol>
+
+					<Button
+						v-if="currentStep.key !== 'review'"
+						class="mt-3"
+						variant="solid"
+						icon-left="lucide-list-checks"
+						label="Save and back to review"
+						:loading="saving"
+						@click="backToReview"
+					/>
 				</div>
 			</div>
 		</div>
@@ -501,7 +533,7 @@ const reviewRows = computed(() => {
 								? 'text-ink-gray-7 hover:bg-surface-gray-2'
 								: 'text-ink-gray-4'
 						"
-						:disabled="index > stepIndex"
+						:disabled="index > stepIndex && !isCorrection"
 						@click="stepIndex = index"
 					>
 						{{ index + 1 }}. {{ step.label }}
@@ -922,26 +954,28 @@ const reviewRows = computed(() => {
 					</p>
 				</div>
 
-				<div v-if="form.company_logo" class="flex items-center gap-3">
-					<Avatar
-						:image="form.company_logo"
-						:label="form.party_name || 'Logo'"
-						size="2xl"
-						:shape="isIndividual ? 'circle' : 'square'"
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<div>
+						<h2 class="text-base font-semibold text-ink-gray-9">Check your details</h2>
+						<p class="text-p-sm text-ink-gray-6">
+							This is everything you entered. Tap Edit on any part to change it.
+						</p>
+					</div>
+					<DownloadApplicationButton
+						v-if="application.data?.name"
+						:name="application.data.name"
+						:before-download="() => save({ silent: true })"
 					/>
-					<span class="text-p-sm text-ink-gray-5">{{
-						isIndividual ? "Photo" : "Logo"
-					}}</span>
 				</div>
 
-				<dl class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-2">
-					<div v-for="row in reviewRows" :key="row[0]">
-						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">
-							{{ row[0] }}
-						</dt>
-						<dd class="text-p-base text-ink-gray-8">{{ row[1] || "—" }}</dd>
-					</div>
-				</dl>
+				<ApplicationSummary
+					:application="payload()"
+					:individual="isIndividual"
+					:show-bank="asksForBank"
+					:lock-type="isCorrection"
+					editable
+					@edit="goToStep"
+				/>
 
 				<p v-if="progress" class="text-p-sm text-ink-gray-6">
 					{{ progress.documents_attached }} of {{ progress.documents_required }} required
@@ -978,6 +1012,14 @@ const reviewRows = computed(() => {
 
 				<div class="flex items-center gap-2">
 					<Button
+						v-if="isCorrection && currentStep.key !== 'review'"
+						variant="outline"
+						label="Back to review"
+						icon-left="lucide-list-checks"
+						:loading="saving"
+						@click="backToReview"
+					/>
+					<Button
 						v-if="currentStep.key !== 'review'"
 						variant="solid"
 						label="Continue"
@@ -1000,3 +1042,18 @@ const reviewRows = computed(() => {
 		</div>
 	</PageContainer>
 </template>
+
+<style scoped>
+.correction-step {
+	display: grid;
+	flex-shrink: 0;
+	place-items: center;
+	width: 1.25rem;
+	height: 1.25rem;
+	border-radius: 9999px;
+	background-color: var(--surface-gray-10);
+	color: var(--ink-base);
+	font-size: 0.6875rem;
+	font-weight: 700;
+}
+</style>

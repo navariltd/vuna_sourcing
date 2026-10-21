@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Alert, Badge, Button, Dialog, ErrorMessage, FormControl, Spinner } from "frappe-ui";
+import {
+	Alert,
+	Badge,
+	Button,
+	Dialog,
+	ErrorMessage,
+	FormControl,
+	Spinner,
+	toast,
+} from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
@@ -85,6 +94,25 @@ const total = computed(() =>
 	}, 0)
 );
 
+const unpriced = computed(() =>
+	(rfq.value?.items ?? []).filter((item) => !((prices[item.name]?.rate ?? 0) > 0))
+);
+
+const unpricedNames = computed(() => {
+	const names = unpriced.value.map((item) => item.item_name || item.item_code);
+	return names.length > 3
+		? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`
+		: names.join(", ");
+});
+
+const showMissingPrices = computed(
+	() => rfq.value?.status === "Draft" && unpriced.value.length > 0
+);
+
+function hasPrice(item: { name: string }) {
+	return (prices[item.name]?.rate ?? 0) > 0;
+}
+
 function fill(doc: Rfq) {
 	for (const item of doc.items) {
 		prices[item.name] = {
@@ -145,6 +173,11 @@ async function saveDraft() {
 		}
 		show(response.data);
 		savedMessage.value = response.message;
+		if (unpriced.value.length) {
+			toast.warning(
+				`Draft saved. ${unpriced.value.length} of ${response.data.items.length} items still need your price.`
+			);
+		}
 	} catch (error: any) {
 		errorMessage.value =
 			error?.messages?.[0] || error?.message || "We could not save your draft.";
@@ -414,9 +447,12 @@ function money(value: number) {
 						<FormControl
 							v-if="editable"
 							class="sm:col-span-2"
+							:class="
+								showMissingPrices && !hasPrice(item) ? 'rfq-missing-price' : ''
+							"
 							type="number"
 							size="sm"
-							placeholder="0.00"
+							placeholder="Your price"
 							:label="isMobile ? 'Your price' : undefined"
 							:model-value="prices[item.name]?.rate ?? undefined"
 							@update:model-value="
@@ -491,7 +527,22 @@ function money(value: number) {
 			>
 				<p class="text-base font-medium text-ink-gray-8">This quotation is a draft</p>
 				<p class="mt-1 text-p-sm text-ink-gray-6">
-					{{ savedMessage || "Saved as Draft. You can revise later and then submit it" }}
+					{{
+						savedMessage || "Saved as a draft. You can change it later, then send it."
+					}}
+					The buyer has not seen it yet.
+				</p>
+				<p
+					v-if="unpriced.length"
+					class="mt-2 flex items-start gap-1.5 text-p-sm font-medium text-ink-amber-8"
+				>
+					<i class="lucide-circle-alert mt-0.5 size-4 shrink-0" aria-hidden="true" />
+					<span>
+						{{ unpriced.length }} of {{ rfq.items.length }}
+						{{ rfq.items.length === 1 ? "item needs" : "items need" }} your price:
+						{{ unpricedNames }}. We only use the prices you enter, so fill them in
+						before you send.
+					</span>
 				</p>
 			</div>
 
@@ -508,7 +559,14 @@ function money(value: number) {
 					@click="declining = true"
 				/>
 
-				<div class="flex flex-wrap items-center gap-2">
+				<div class="flex flex-wrap items-center justify-end gap-2">
+					<p
+						v-if="unpriced.length"
+						class="w-full text-right text-p-xs text-ink-gray-5 sm:w-auto"
+					>
+						Enter a price for every item to
+						{{ rfq.open_bid ? "place your bid" : "send" }}.
+					</p>
 					<Button
 						variant="subtle"
 						label="Save draft"
@@ -521,7 +579,7 @@ function money(value: number) {
 						theme="green"
 						:label="rfq.open_bid ? 'Place bid' : 'Send quotation'"
 						:loading="submitting"
-						:disabled="saving"
+						:disabled="saving || unpriced.length > 0"
 						@click="send"
 					/>
 				</div>
@@ -605,3 +663,10 @@ function money(value: number) {
 		</Dialog>
 	</PageContainer>
 </template>
+
+<style>
+.rfq-missing-price input {
+	background-color: var(--surface-amber-1);
+	border-color: var(--outline-amber-3);
+}
+</style>

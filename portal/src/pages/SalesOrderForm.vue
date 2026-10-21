@@ -1,55 +1,33 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, toRef, watch } from "vue";
+import type { Ref } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
 import {
 	Badge,
+	BottomSheet,
 	Button,
-	Checkbox,
 	Dialog,
-	ErrorMessage,
 	FormControl,
-	FormLabel,
-	Select,
 	Spinner,
 	TextInput,
+	Tooltip,
 	toast,
 } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import ItemLink from "@/components/ItemLink.vue";
+import OrderCart from "@/components/OrderCart.vue";
+import OrderItemCard from "@/components/OrderItemCard.vue";
+import { provideOrderDraft, useOrderDraft } from "@/composables/useOrderDraft";
+import { errorText, fetchOrderCategories, fetchOrderableItems } from "@/data/orders";
+import type { OrderCategory, OrderableItem } from "@/data/orders";
 import { money } from "@/data/purchase";
-import {
-	deleteOrder,
-	errorText,
-	fetchOrderForm,
-	priceOrder,
-	saveOrder,
-	submitOrder,
-} from "@/data/orders";
-import type {
-	OrderForm,
-	OrderLineView,
-	OrderPayload,
-	OrderView,
-	OrderableItem,
-	OrderableUom,
-} from "@/data/orders";
 import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
-import { ACCENTS, LOOKS } from "@/data/accents";
+import { LOOKS } from "@/data/accents";
 
 const props = defineProps<{ name?: string }>();
 
-interface OrderLine {
-	id: number;
-	item_code: string | null;
-	item_name: string;
-	uom: string;
-	uoms: OrderableUom[];
-	qty: number;
-}
-
-const GRID_COLUMNS = "minmax(220px, 3fr) 120px 110px minmax(180px, 1fr) minmax(200px, 1fr)";
+const PAGE_SIZE = 20;
 
 const portal = usePortalStore();
 const router = useRouter();
@@ -58,373 +36,275 @@ const customer = computed(() =>
 	portal.activeParty?.party_type === "Customer" ? portal.activeParty.name : null
 );
 
-const form = ref<OrderForm | null>(null);
-const loading = ref(false);
-const unavailable = ref<string | null>(null);
+const draft = useOrderDraft(customer, toRef(props, "name"));
+provideOrderDraft(draft);
 
-const orderName = ref<string | null>(null);
-const company = ref<string | null>(null);
-const address = ref<string | null>(null);
-const deliveryDate = ref<string | null>(null);
-const poNo = ref("");
-const lines = ref<OrderLine[]>([]);
-const selected = ref(new Set<number>());
-const savedSnapshot = ref("");
-const leaving = ref(false);
-const loadedFor = ref<string | null>(null);
+const { form, loading, unavailable, orderName, company, companies, lines, units, busy } = draft;
 
-let nextLineId = 1;
-let pricedKey = "";
-let priceTimer: ReturnType<typeof setTimeout> | undefined;
-let priceRequest = 0;
+const categories = ref<OrderCategory[]>([]);
+const category = ref<string | null>(null);
+const search = ref("");
+const items = ref<OrderableItem[]>([]);
+const itemsCurrency = ref<string | null>(null);
+const hasMore = ref(false);
+const browsing = ref(false);
+const browseError = ref<string | null>(null);
+let browseRequest = 0;
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
-const priced = ref<OrderView | null>(null);
-const pricing = ref(false);
-const pricingError = ref<string | null>(null);
-
-const busy = ref<"draft" | "send" | "delete" | null>(null);
-const errorMessage = ref<string | null>(null);
+const cartOpen = ref(false);
 const confirmingSend = ref(false);
 const confirmingDelete = ref(false);
+const confirmingClear = ref(false);
+const leaving = ref(false);
 
-const companies = computed(() => form.value?.companies ?? []);
-const addresses = computed(() => form.value?.addresses ?? []);
-const currency = computed(() => priced.value?.currency ?? null);
-const filledLines = computed(() =>
-	lines.value.filter((line): line is OrderLine & { item_code: string } => !!line.item_code)
-);
+const VIEW_KEY = "vuna-sourcing:order-view";
 
-function emptyLine(): OrderLine {
-	return { id: nextLineId++, item_code: null, item_name: "", uom: "", uoms: [], qty: 1 };
-}
-
-function linesFrom(items: OrderLineView[]): OrderLine[] {
-	return items.map((item) => ({
-		id: nextLineId++,
-		item_code: item.item_code,
-		item_name: item.item_name,
-		uom: item.uom,
-		uoms: item.uoms,
-		qty: item.qty,
-	}));
-}
-
-function orderedItems() {
-	return filledLines.value.map(({ item_code, uom, qty }) => ({ item_code, uom, qty }));
-}
-
-function snapshot() {
-	return JSON.stringify({
-		company: company.value,
-		address: address.value,
-		deliveryDate: deliveryDate.value,
-		poNo: poNo.value.trim(),
-		lines: orderedItems(),
-	});
-}
-
-const dirty = computed(() => snapshot() !== savedSnapshot.value);
-
-function showLines(items: OrderLineView[]) {
-	lines.value = items.length ? linesFrom(items) : [emptyLine()];
-	selected.value = new Set();
-}
-
-function fill(data: OrderForm) {
-	const order = data.order;
-	orderName.value = order?.name ?? null;
-	company.value = order?.company ?? (data.companies.length === 1 ? data.companies[0]! : null);
-	address.value =
-		order?.shipping_address ?? (data.addresses.length === 1 ? data.addresses[0]!.name : null);
-	deliveryDate.value = order?.delivery_date ?? null;
-	poNo.value = order?.po_no ?? "";
-	showLines(order?.items ?? []);
-	priced.value = order;
-	pricedKey = priceKey();
-	savedSnapshot.value = snapshot();
-}
-
-async function load() {
-	if (!customer.value) return;
-	if (
-		props.name &&
-		props.name === orderName.value &&
-		form.value &&
-		loadedFor.value === customer.value
-	)
-		return;
-
-	loading.value = true;
-	unavailable.value = null;
-	errorMessage.value = null;
-
+function storedView(): "grid" | "list" {
 	try {
-		const response = await fetchOrderForm(customer.value, props.name);
-		if (!isOk(response)) {
-			form.value = null;
-			unavailable.value = response.message || "Ordering is not available for this account.";
-			return;
-		}
-		form.value = response.data;
-		loadedFor.value = customer.value;
-		fill(response.data);
-	} catch (error) {
-		form.value = null;
-		unavailable.value = errorText(error, "We cannot open this order.");
-	} finally {
-		loading.value = false;
+		return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
+	} catch {
+		return "grid";
 	}
 }
 
-watch([customer, () => props.name], load, { immediate: true });
+const view = ref<"grid" | "list">(storedView());
 
-function priceKey() {
-	return JSON.stringify({
-		company: company.value,
-		address: address.value,
-		items: orderedItems(),
-	});
-}
-
-function schedulePricing() {
-	clearTimeout(priceTimer);
-	const key = priceKey();
-	if (key === pricedKey) return;
-
-	if (!customer.value || !company.value || !filledLines.value.length) {
-		priced.value = null;
-		pricedKey = key;
-		pricingError.value = null;
-		return;
-	}
-
-	priceTimer = setTimeout(() => runPricing(key), 350);
-}
-
-async function runPricing(key: string) {
-	const request = ++priceRequest;
-	pricing.value = true;
-
+watch(view, (value) => {
 	try {
-		const response = await priceOrder({
-			customer: customer.value!,
-			company: company.value,
-			items: orderedItems(),
-			delivery_date: deliveryDate.value,
-			shipping_address: address.value,
-		});
-		if (request !== priceRequest) return;
+		localStorage.setItem(VIEW_KEY, value);
+	} catch {}
+});
 
-		pricedKey = key;
-		if (isOk(response)) {
-			priced.value = response.data;
-			pricingError.value = null;
-		} else {
-			pricingError.value = response.message;
-		}
-	} catch (error) {
-		if (request !== priceRequest) return;
-		pricedKey = key;
-		pricingError.value = errorText(error, "We could not price your order.");
-	} finally {
-		if (request === priceRequest) pricing.value = false;
-	}
-}
+const allCount = computed(() => categories.value.reduce((total, row) => total + row.count, 0));
 
-watch(priceKey, schedulePricing);
-onBeforeUnmount(() => clearTimeout(priceTimer));
-
-function pricedLine(line: OrderLine) {
-	if (!line.item_code || priceKey() !== pricedKey) return null;
-	return priced.value?.items.find(
-		(item) => item.item_code === line.item_code && item.uom === line.uom
-	);
-}
-
-function twinOf(line: OrderLine, item_code: string, uom: string) {
-	return lines.value.find(
-		(other) => other !== line && other.item_code === item_code && other.uom === uom
-	);
-}
-
-function removeLines(ids: Set<number>) {
-	lines.value = lines.value.filter((line) => !ids.has(line.id));
-	selected.value = new Set([...selected.value].filter((id) => !ids.has(id)));
-	if (!lines.value.length) lines.value = [emptyLine()];
-}
-
-function selectItem(line: OrderLine, item: OrderableItem) {
-	const twin = twinOf(line, item.item_code, item.uom);
-	if (twin) {
-		twin.qty += line.qty;
-		removeLines(new Set([line.id]));
-		toast.info(`${item.item_name} is already on this order, so we added to that line.`);
-		return;
-	}
-
-	Object.assign(line, {
-		item_code: item.item_code,
-		item_name: item.item_name,
-		uom: item.uom,
-		uoms: item.uoms,
-	});
-}
-
-function changeUom(line: OrderLine, uom: string) {
-	const twin = line.item_code ? twinOf(line, line.item_code, uom) : null;
-	if (twin) {
-		twin.qty += line.qty;
-		removeLines(new Set([line.id]));
-		return;
-	}
-	line.uom = uom;
-}
-
-function setQty(line: OrderLine, value: string | number) {
-	const qty = Number(value);
-	if (!Number.isFinite(qty) || qty <= 0) return;
-	line.qty = qty;
-}
-
-function addRow() {
-	lines.value.push(emptyLine());
-}
-
-const allSelected = computed(
-	() => lines.value.length > 0 && lines.value.every((line) => selected.value.has(line.id))
-);
-
-function toggleAll(value: boolean) {
-	selected.value = value ? new Set(lines.value.map((line) => line.id)) : new Set();
-}
-
-function toggleLine(line: OrderLine, value: boolean) {
-	const next = new Set(selected.value);
-	if (value) next.add(line.id);
-	else next.delete(line.id);
-	selected.value = next;
-}
-
-function deleteSelected() {
-	removeLines(selected.value);
-}
-
-const checklist = computed(() => [
-	{ label: "Choose the company you are ordering from", done: !!company.value },
-	{
-		label: "Choose a delivery address",
-		done: addresses.value.length <= 1 || !!address.value,
-	},
-	{ label: "Choose a delivery date", done: !!deliveryDate.value },
-	{ label: "Add at least one item", done: filledLines.value.length > 0 },
+const tabs = computed(() => [
+	{ name: null, label: "All", count: allCount.value },
+	...categories.value.map((row) => ({ name: row.name, label: row.name, count: row.count })),
 ]);
 
-const missing = computed(() => checklist.value.filter((step) => !step.done));
-
-const ready = computed(() => !missing.value.length && !busy.value);
-
-function payload(): OrderPayload {
-	return {
-		customer: customer.value!,
-		company: company.value,
-		name: orderName.value,
-		items: orderedItems(),
-		delivery_date: deliveryDate.value,
-		shipping_address: address.value,
-		po_no: poNo.value.trim() || null,
-	};
-}
-
-function adopt(order: OrderView) {
-	orderName.value = order.name;
-	showLines(order.items);
-	priced.value = order;
-	pricedKey = priceKey();
-	pricingError.value = null;
-	savedSnapshot.value = snapshot();
-}
-
-async function saveDraft() {
-	if (!ready.value) return;
-
-	busy.value = "draft";
-	errorMessage.value = null;
+async function loadCategories() {
+	if (!customer.value || !company.value || !form.value) {
+		categories.value = [];
+		return;
+	}
 
 	try {
-		const response = await saveOrder(payload());
-		if (!isOk(response)) {
-			errorMessage.value = response.message || "We could not save your draft.";
-			return;
-		}
-
-		const isNew = !orderName.value;
-		adopt(response.data);
-		toast.success(response.message || "Draft saved.");
-		if (isNew && response.data.name) {
-			router.replace({ name: "SalesOrderEdit", params: { name: response.data.name } });
-		}
-	} catch (error) {
-		errorMessage.value = errorText(error, "We could not save your draft.");
-	} finally {
-		busy.value = null;
+		const response = await fetchOrderCategories(customer.value, company.value);
+		if (isOk(response)) categories.value = response.data;
+	} catch {
+		categories.value = [];
 	}
 }
+
+async function browse(append = false) {
+	if (!customer.value || !company.value || !form.value) {
+		items.value = [];
+		hasMore.value = false;
+		return;
+	}
+
+	const request = ++browseRequest;
+	browsing.value = true;
+	browseError.value = null;
+
+	try {
+		const response = await fetchOrderableItems({
+			customer: customer.value,
+			company: company.value,
+			search: search.value.trim() || null,
+			item_group: category.value,
+			start: append ? items.value.length : 0,
+			limit: PAGE_SIZE,
+		});
+		if (request !== browseRequest) return;
+		if (!isOk(response)) {
+			browseError.value = response.message || "We could not load the items.";
+			return;
+		}
+		items.value = append ? [...items.value, ...response.data.rows] : response.data.rows;
+		itemsCurrency.value = response.data.currency;
+		hasMore.value = response.data.has_more;
+	} catch (error) {
+		if (request === browseRequest)
+			browseError.value = errorText(error, "We could not load the items.");
+	} finally {
+		if (request === browseRequest) browsing.value = false;
+	}
+}
+
+watch([customer, company, form], () => {
+	category.value = null;
+	loadCategories();
+	browse();
+});
+
+watch(category, () => browse());
+
+watch(search, () => {
+	clearTimeout(searchTimer);
+	searchTimer = setTimeout(() => browse(), 250);
+});
+
+onBeforeUnmount(() => clearTimeout(searchTimer));
+
+function observeVisibility(target: Ref<HTMLElement | null>, rootMargin: string) {
+	const visible = ref(true);
+	if (typeof IntersectionObserver === "undefined") return visible;
+
+	const observer = new IntersectionObserver(
+		(entries) => {
+			visible.value = entries.some((entry) => entry.isIntersecting);
+		},
+		{ rootMargin }
+	);
+	watch(
+		target,
+		(element, previous) => {
+			if (previous) observer.unobserve(previous);
+			if (element) observer.observe(element);
+		},
+		{ immediate: true }
+	);
+	onBeforeUnmount(() => observer.disconnect());
+	return visible;
+}
+
+const pageEnd = ref<HTMLElement | null>(null);
+const nearPageEnd = observeVisibility(pageEnd, "0px 0px 600px 0px");
+
+watch([nearPageEnd, browsing, hasMore], () => {
+	if (!pageEnd.value || !nearPageEnd.value || browsing.value || !hasMore.value) return;
+	if (browseError.value || !items.value.length) return;
+	browse(true);
+});
+
+const pageTop = ref<HTMLElement | null>(null);
+const nearPageTop = observeVisibility(pageTop, "800px 0px 0px 0px");
+const showJumpToTop = computed(() => !!pageTop.value && !nearPageTop.value);
+
+function scrollParent(element: HTMLElement | null): HTMLElement | null {
+	for (let node = element?.parentElement; node; node = node.parentElement) {
+		const overflow = getComputedStyle(node).overflowY;
+		if (
+			(overflow === "auto" || overflow === "scroll") &&
+			node.scrollHeight > node.clientHeight
+		)
+			return node;
+	}
+	return null;
+}
+
+function jumpToTop() {
+	const container = scrollParent(pageTop.value);
+	if (container) container.scrollTo({ top: 0, behavior: "smooth" });
+	else window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+const refreshing = ref(false);
+
+async function refresh() {
+	refreshing.value = true;
+	draft.refreshPrices();
+	try {
+		await Promise.all([loadCategories(), browse()]);
+		if (category.value && !categories.value.some((row) => row.name === category.value)) {
+			category.value = null;
+		}
+	} finally {
+		refreshing.value = false;
+	}
+}
+
+const cartTotal = computed(() =>
+	draft.priced.value && lines.value.length
+		? money(draft.priced.value.grand_total, draft.currency.value)
+		: null
+);
+
+const unitsLabel = computed(() => `${units.value} ${units.value === 1 ? "item" : "items"}`);
+
+async function save() {
+	const isNew = !orderName.value;
+	const saved = await draft.saveDraft();
+	if (saved && isNew && saved.name) {
+		router.replace({ name: "SalesOrderEdit", params: { name: saved.name } });
+	}
+}
+
+function askToSend() {
+	cartOpen.value = false;
+	confirmingSend.value = true;
+}
+
+const notice = computed(() => {
+	if (!lines.value.length && !orderName.value) return null;
+	if (orderName.value) {
+		return {
+			title: "This order has not been sent yet",
+			text: draft.dirty.value
+				? "Our team cannot see it until you send it. You also have changes that are not saved."
+				: "Our team cannot see it until you send it. Check your cart, then tap Send order.",
+		};
+	}
+	return {
+		title: "Your order is not sent yet",
+		text: "Tap Send order when you are done, or Save for later to keep it as a draft.",
+	};
+});
+
+function sendFromNotice() {
+	const nextStep = draft.missing.value[0]?.label;
+	if (!nextStep && !draft.pricingError.value) {
+		askToSend();
+		return;
+	}
+	toast.info(
+		nextStep ? `Before sending: ${nextStep.toLowerCase()}.` : draft.pricingError.value!
+	);
+	if (window.matchMedia?.("(max-width: 1023px)").matches) cartOpen.value = true;
+}
+
+function askToClear() {
+	cartOpen.value = false;
+	confirmingClear.value = true;
+}
+
+async function clearCart() {
+	await draft.clearCart();
+	confirmingClear.value = false;
+}
+
+const clearMessage = computed(() => {
+	const count = `${lines.value.length} ${lines.value.length === 1 ? "item" : "items"}`;
+	return orderName.value
+		? `All ${count} are removed from draft ${orderName.value}. The draft stays, so you can add items again.`
+		: `All ${count} are removed from your cart.`;
+});
 
 async function send() {
-	if (!ready.value) return;
-
-	busy.value = "send";
-	errorMessage.value = null;
-
-	try {
-		const response = await submitOrder(payload());
-		if (!isOk(response)) {
-			errorMessage.value = response.message || "We could not send your order.";
-			return;
-		}
-
-		adopt(response.data);
-		confirmingSend.value = false;
-		leaving.value = true;
-		toast.success(response.message || "Order sent.");
-		router.push({ name: "SalesOrderDetail", params: { name: response.data.name! } });
-	} catch (error) {
-		confirmingSend.value = false;
-		errorMessage.value = errorText(error, "We could not send your order.");
-	} finally {
-		busy.value = null;
+	const sent = await draft.send();
+	confirmingSend.value = false;
+	if (!sent?.name) {
+		if (draft.errorMessage.value) cartOpen.value = true;
+		return;
 	}
+	leaving.value = true;
+	router.push({ name: "SalesOrderDetail", params: { name: sent.name } });
 }
 
 async function removeDraft() {
-	if (!orderName.value || !customer.value) return;
-
-	busy.value = "delete";
-	errorMessage.value = null;
-
-	try {
-		const response = await deleteOrder(customer.value, orderName.value);
-		if (!isOk(response)) {
-			errorMessage.value = response.message || "We could not delete this draft.";
-			return;
-		}
-
-		confirmingDelete.value = false;
-		leaving.value = true;
-		toast.success(response.message || "Draft deleted.");
-		router.push({ name: "SalesOrderList" });
-	} catch (error) {
-		confirmingDelete.value = false;
-		errorMessage.value = errorText(error, "We could not delete this draft.");
-	} finally {
-		busy.value = null;
-	}
+	const removed = await draft.removeDraft();
+	confirmingDelete.value = false;
+	if (!removed) return;
+	leaving.value = true;
+	router.push({ name: "SalesOrderList" });
 }
 
 onBeforeRouteLeave((to) => {
-	if (leaving.value || !dirty.value || !form.value) return true;
+	if (leaving.value || !draft.dirty.value || !form.value) return true;
 	if (to.name === "SalesOrderEdit" && to.params.name === orderName.value) return true;
-	return window.confirm("You have changes that are not saved. Leave this order anyway?");
+	return window.confirm("Your cart has changes that are not saved. Leave anyway?");
 });
 
 const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "New order"));
@@ -434,7 +314,6 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 	<PageContainer
 		:look="LOOKS.salesOrder"
 		fluid
-		sticky-header
 		:title="title"
 		:breadcrumbs="[
 			{ label: 'Sales Orders', route: { name: 'SalesOrderList' } },
@@ -442,31 +321,15 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 		]"
 	>
 		<template #actions>
-			<template v-if="form && !unavailable">
-				<Badge v-if="orderName" theme="gray" variant="subtle" label="Draft" />
+			<template v-if="form && !unavailable && orderName">
+				<Badge theme="gray" variant="solid" size="lg" label="Draft" />
 				<Button
-					v-if="orderName"
 					variant="subtle"
 					theme="red"
 					icon-left="lucide-trash-2"
 					label="Delete draft"
 					:disabled="!!busy"
 					@click="confirmingDelete = true"
-				/>
-				<Button
-					variant="subtle"
-					:label="dirty || !orderName ? 'Save draft' : 'Draft saved'"
-					:disabled="!ready || (!!orderName && !dirty)"
-					:loading="busy === 'draft'"
-					@click="saveDraft"
-				/>
-				<Button
-					variant="solid"
-					icon-left="lucide-send"
-					label="Send order"
-					:disabled="!ready || !!pricingError"
-					:loading="busy === 'send'"
-					@click="confirmingSend = true"
 				/>
 			</template>
 		</template>
@@ -495,435 +358,357 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 			/>
 		</EmptyState>
 
-		<div
-			v-else-if="form"
-			class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start"
-		>
-			<div class="min-w-0 space-y-6">
-				<section class="rounded-6 border p-4 sm:p-5">
-					<h2 class="text-base font-medium text-ink-gray-8">Order details</h2>
+		<template v-else-if="form">
+			<div ref="pageTop" />
 
-					<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div
+				v-if="notice"
+				class="mb-5 flex flex-col gap-3 rounded-8 border border-outline-amber-3 bg-surface-amber-1 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
+				role="status"
+			>
+				<div class="flex min-w-0 items-start gap-2.5">
+					<i
+						class="lucide-triangle-alert mt-0.5 size-5 shrink-0 text-ink-amber-7"
+						aria-hidden="true"
+					/>
+					<div class="min-w-0">
+						<p class="text-base font-semibold text-ink-gray-9">{{ notice.title }}</p>
+						<p class="mt-0.5 text-p-sm text-ink-gray-7">{{ notice.text }}</p>
+					</div>
+				</div>
+				<Button
+					class="shrink-0"
+					variant="solid"
+					icon-left="lucide-send"
+					label="Send order"
+					:disabled="!!busy"
+					@click="sendFromNotice"
+				/>
+			</div>
+
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+				<div class="min-w-0">
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-end">
 						<FormControl
 							v-if="companies.length > 1"
 							v-model="company"
+							class="sm:w-64"
 							type="select"
 							label="Ordering from"
 							placeholder="Choose a company"
 							:options="companies.map((name) => ({ label: name, value: name }))"
-							:disabled="!!orderName || filledLines.length > 0"
-							:description="
-								orderName
-									? 'To order from another company, start a new order.'
-									: filledLines.length
-									? 'Remove the items first to change company.'
-									: 'Each company has its own items and prices.'
-							"
-							required
+							:disabled="!!orderName || lines.length > 0"
 						/>
-						<div v-else>
-							<FormLabel label="Ordering from" />
-							<p
-								class="mt-1.5 flex h-7 items-center rounded-4 bg-surface-gray-1 px-2 text-base text-ink-gray-8"
+						<div class="flex min-w-0 flex-1 items-center gap-2">
+							<TextInput
+								v-model="search"
+								class="min-w-0 flex-1"
+								type="search"
+								size="md"
+								placeholder="Search items"
+								aria-label="Search items"
+								:disabled="!company"
 							>
-								{{ company }}
-							</p>
-						</div>
-
-						<FormControl
-							v-model="deliveryDate"
-							type="date"
-							label="Deliver by"
-							:min="form.today"
-							required
-						/>
-						<FormControl
-							v-model="poNo"
-							type="text"
-							label="Your PO number"
-							placeholder="Optional — your own reference"
-							maxlength="140"
-						/>
-					</div>
-
-					<fieldset class="mt-5">
-						<legend class="flex w-full items-center justify-between gap-2">
-							<FormLabel label="Deliver to" :required="addresses.length > 1" />
-							<span v-if="addresses.length > 1" class="text-p-xs text-ink-gray-5">
-								{{ addresses.length }} addresses on your account
-							</span>
-						</legend>
-
-						<p
-							v-if="!addresses.length"
-							class="mt-2 flex items-start gap-2 rounded-6 border border-dashed p-3 text-p-sm text-ink-gray-6"
-						>
-							<i class="lucide-map-pin-off mt-0.5 size-4 shrink-0 text-ink-gray-5" />
-							We do not have a delivery address for your account yet. Send the order
-							and our team will confirm where to deliver.
-						</p>
-
-						<div v-else class="mt-2 grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
-							<label
-								v-for="option in addresses"
-								:key="option.name"
-								class="address-option flex cursor-pointer items-start gap-3 rounded-6 border p-3 transition-colors"
-								:class="
-									address === option.name
-										? 'border-ink-gray-7 bg-surface-gray-2 ring-1 ring-ink-gray-7'
-										: 'border-outline-gray-2 hover:border-outline-gray-3 hover:bg-surface-gray-1'
-								"
+								<template #prefix>
+									<i
+										class="lucide-search size-4 text-ink-gray-5"
+										aria-hidden="true"
+									/>
+								</template>
+							</TextInput>
+							<Tooltip text="Refresh items and prices">
+								<Button
+									size="md"
+									variant="outline"
+									aria-label="Refresh items and prices"
+									:disabled="!company || refreshing"
+									@click="refresh"
+								>
+									<template #icon>
+										<i
+											class="lucide-refresh-cw size-4"
+											:class="refreshing ? 'animate-spin' : ''"
+											aria-hidden="true"
+										/>
+									</template>
+								</Button>
+							</Tooltip>
+							<div
+								class="flex h-8 shrink-0 items-center rounded-6 bg-surface-gray-2 p-0.5"
+								role="group"
+								aria-label="Item layout"
 							>
-								<input
-									v-model="address"
-									type="radio"
-									name="delivery-address"
-									class="sr-only"
-									:value="option.name"
-								/>
-								<i
+								<button
+									v-for="option in [
+									{ value: 'grid', icon: 'lucide-layout-grid', label: 'Grid view' },
+									{ value: 'list', icon: 'lucide-list', label: 'List view' },
+								] as const"
+									:key="option.value"
+									type="button"
+									class="grid h-7 w-8 place-items-center rounded-5 transition-colors"
 									:class="
-										address === option.name
-											? 'lucide-circle-check-big text-ink-gray-9'
-											: 'lucide-circle text-ink-gray-4'
+										view === option.value
+											? 'bg-surface-base text-ink-gray-9 shadow-sm'
+											: 'text-ink-gray-6 hover:text-ink-gray-8'
 									"
-									class="mt-0.5 size-4 shrink-0"
-									aria-hidden="true"
-								/>
-								<span class="min-w-0 flex-1">
-									<span class="flex items-center gap-2">
-										<span
-											class="truncate text-base font-medium text-ink-gray-8"
-										>
-											{{ option.title }}
-										</span>
-										<Badge
-											v-if="option.address_type"
-											theme="gray"
-											variant="subtle"
-											size="sm"
-											:label="option.address_type"
-										/>
-									</span>
-									<span class="mt-0.5 block text-p-sm text-ink-gray-6">
-										{{ option.lines || "No address lines on file" }}
-									</span>
-								</span>
-							</label>
-						</div>
-					</fieldset>
-				</section>
-
-				<section class="rounded-6 border p-4 sm:p-5">
-					<h2 class="text-base font-medium text-ink-gray-8">
-						Items
-						<span v-if="filledLines.length" class="text-ink-gray-5">
-							({{ filledLines.length }})
-						</span>
-					</h2>
-
-					<div class="mt-3 overflow-x-auto rounded-6 border">
-						<div class="min-w-[910px]" role="table" aria-label="Order items">
-							<div
-								class="flex items-stretch bg-surface-gray-2 text-sm text-ink-gray-5"
-								role="row"
-							>
-								<div
-									class="flex w-10 shrink-0 items-center justify-center border-r"
-									role="columnheader"
+									:aria-label="option.label"
+									:aria-pressed="view === option.value"
+									:title="option.label"
+									@click="view = option.value"
 								>
-									<Checkbox
-										:model-value="allSelected"
-										aria-label="Select all lines"
-										@update:model-value="toggleAll(!!$event)"
-									/>
-								</div>
-								<div
-									class="flex w-10 shrink-0 items-center justify-center border-r"
-									role="columnheader"
-								>
-									No
-								</div>
-								<div
-									class="grid flex-1"
-									:style="{ gridTemplateColumns: GRID_COLUMNS }"
-								>
-									<div class="border-r p-2" role="columnheader">
-										Item <span class="text-ink-red-4">*</span>
-									</div>
-									<div class="border-r p-2" role="columnheader">Unit</div>
-									<div class="border-r p-2 text-right" role="columnheader">
-										Quantity <span class="text-ink-red-4">*</span>
-									</div>
-									<div class="border-r p-2 text-right" role="columnheader">
-										Rate
-									</div>
-									<div class="p-2 text-right" role="columnheader">Amount</div>
-								</div>
-							</div>
-
-							<div
-								v-for="(line, index) in lines"
-								:key="line.id"
-								class="grid-row flex items-stretch border-t"
-								:class="selected.has(line.id) ? 'bg-surface-gray-1' : ''"
-								role="row"
-							>
-								<div
-									class="flex w-10 shrink-0 items-center justify-center border-r"
-								>
-									<Checkbox
-										:model-value="selected.has(line.id)"
-										:aria-label="`Select line ${index + 1}`"
-										@update:model-value="toggleLine(line, !!$event)"
-									/>
-								</div>
-								<div
-									class="flex w-10 shrink-0 items-center justify-center border-r text-sm text-ink-gray-7"
-								>
-									{{ index + 1 }}
-								</div>
-								<div
-									class="grid flex-1"
-									:style="{ gridTemplateColumns: GRID_COLUMNS }"
-								>
-									<div class="grid-cell min-w-0 border-r" role="cell">
-										<ItemLink
-											:model-value="line.item_code"
-											:label="line.item_name"
-											:customer="customer!"
-											:company="company"
-											:aria-label="`Item on line ${index + 1}`"
-											@select="selectItem(line, $event)"
-										/>
-									</div>
-									<div class="grid-cell min-w-0 border-r" role="cell">
-										<Select
-											v-if="line.uoms.length > 1"
-											variant="ghost"
-											:aria-label="`Unit on line ${index + 1}`"
-											:options="
-												line.uoms.map((option) => ({
-													label: option.uom,
-													value: option.uom,
-												}))
-											"
-											:model-value="line.uom"
-											@update:model-value="changeUom(line, String($event))"
-										/>
-										<span
-											v-else
-											class="flex h-full items-center px-2 text-sm text-ink-gray-7"
-										>
-											{{ line.uom || "—" }}
-										</span>
-									</div>
-									<div class="grid-cell min-w-0 border-r" role="cell">
-										<TextInput
-											class="qty-input"
-											type="number"
-											variant="ghost"
-											min="0"
-											:disabled="!line.item_code"
-											:aria-label="`Quantity on line ${index + 1}`"
-											:model-value="line.qty"
-											@update:model-value="setQty(line, $event)"
-										/>
-									</div>
-									<div
-										class="flex items-center justify-end whitespace-nowrap border-r px-3 text-sm tabular-nums text-ink-gray-7"
-										role="cell"
-									>
-										<template v-if="pricedLine(line)">
-											{{ money(pricedLine(line)!.rate, currency) }}
-										</template>
-										<span
-											v-else-if="line.item_code"
-											class="inline-block h-3.5 w-16 animate-pulse rounded bg-surface-gray-2"
-										/>
-									</div>
-									<div
-										class="flex items-center justify-end whitespace-nowrap px-3 text-sm font-medium tabular-nums text-ink-gray-8"
-										role="cell"
-									>
-										<template v-if="pricedLine(line)">
-											{{ money(pricedLine(line)!.amount, currency) }}
-										</template>
-										<span
-											v-else-if="line.item_code"
-											class="inline-block h-3.5 w-20 animate-pulse rounded bg-surface-gray-2"
-										/>
-									</div>
-								</div>
+									<i :class="option.icon" class="size-4" aria-hidden="true" />
+								</button>
 							</div>
 						</div>
 					</div>
 
-					<div class="mt-2 flex flex-wrap items-center gap-2">
-						<Button
-							v-if="selected.size"
-							variant="solid"
-							theme="red"
-							icon-left="lucide-trash-2"
-							:label="
-								selected.size === 1
-									? 'Delete line'
-									: `Delete ${selected.size} lines`
-							"
-							@click="deleteSelected"
-						/>
-						<Button
-							variant="subtle"
-							icon-left="lucide-plus"
-							label="Add row"
-							:disabled="!company"
-							@click="addRow"
-						/>
-						<span v-if="!company" class="text-p-sm text-ink-gray-5">
-							Choose the company you are ordering from first.
-						</span>
-					</div>
-				</section>
-			</div>
-
-			<aside class="space-y-4 lg:sticky lg:top-20">
-				<section
-					:class="ACCENTS[LOOKS.salesOrder.accent].panel"
-					class="rounded-6 border p-4"
-				>
-					<div class="flex items-center justify-between">
-						<h2 class="text-base font-medium text-ink-gray-8">Summary</h2>
-						<span
-							v-if="pricing"
-							class="flex items-center gap-1.5 text-xs text-ink-gray-5"
-						>
-							<Spinner class="size-3" /> Updating prices
-						</span>
-					</div>
-
-					<dl class="mt-3 space-y-2 text-p-sm tabular-nums">
-						<div class="flex justify-between gap-4 text-ink-gray-7">
-							<dt>Lines</dt>
-							<dd>{{ filledLines.length }}</dd>
-						</div>
-						<div class="flex justify-between gap-4 text-ink-gray-7">
-							<dt>Subtotal</dt>
-							<dd class="whitespace-nowrap">
-								{{
-									priced && filledLines.length
-										? money(priced.net_total, currency)
-										: "—"
-								}}
-							</dd>
-						</div>
-						<div
-							v-if="priced && priced.total_taxes"
-							class="flex justify-between gap-4 text-ink-gray-7"
-						>
-							<dt>Taxes</dt>
-							<dd class="whitespace-nowrap">
-								{{ money(priced.total_taxes, currency) }}
-							</dd>
-						</div>
-						<div
-							class="flex justify-between gap-4 border-t pt-2 text-base font-medium text-ink-gray-8"
-						>
-							<dt>Total</dt>
-							<dd class="whitespace-nowrap">
-								{{
-									priced && filledLines.length
-										? money(priced.grand_total, currency)
-										: "—"
-								}}
-							</dd>
-						</div>
-					</dl>
-
-					<p class="mt-3 text-p-xs text-ink-gray-5">
-						Prices come from your account's price list. Our team confirms every order
-						before it is processed.
+					<p
+						v-if="companies.length > 1 && (orderName || lines.length)"
+						class="mt-1.5 text-p-xs text-ink-gray-5"
+					>
+						{{
+							orderName
+								? "To buy from another company, start a new order."
+								: "Empty the cart to switch company."
+						}}
 					</p>
-				</section>
 
-				<section
-					class="rounded-6 border p-4"
-					:class="
-						missing.length
-							? 'border-outline-amber-2 bg-surface-amber-1'
-							: 'border-outline-green-2 bg-surface-green-1'
-					"
-					aria-live="polite"
-				>
-					<div class="flex items-start gap-2">
-						<i
+					<nav
+						v-if="categories.length > 1"
+						class="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0"
+						aria-label="Item categories"
+					>
+						<button
+							v-for="tab in tabs"
+							:key="tab.name ?? '__all'"
+							type="button"
+							class="flex h-9 shrink-0 items-center gap-2 rounded-full border pl-3.5 pr-1.5 text-base font-medium transition-colors"
 							:class="
-								missing.length
-									? 'lucide-info text-ink-amber-7'
-									: 'lucide-circle-check-big text-ink-green-7'
+								category === tab.name
+									? 'border-outline-gray-9 bg-surface-gray-10 text-ink-base'
+									: 'border-outline-gray-2 bg-surface-base text-ink-gray-8 hover:border-outline-gray-4 hover:bg-surface-gray-1'
 							"
-							class="mt-0.5 size-4 shrink-0"
-							aria-hidden="true"
+							:aria-pressed="category === tab.name"
+							@click="category = tab.name"
+						>
+							{{ tab.label }}
+							<span
+								class="grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-xs font-semibold tabular-nums"
+								:class="
+									category === tab.name
+										? 'bg-surface-base text-ink-gray-9'
+										: 'bg-surface-gray-10 text-ink-base'
+								"
+							>
+								{{ tab.count }}
+							</span>
+						</button>
+					</nav>
+
+					<p v-if="!company" class="mt-8 text-center text-p-base text-ink-gray-5">
+						Choose the company you are ordering from to see its items.
+					</p>
+
+					<p v-else-if="browseError" class="mt-8 text-center text-p-base text-ink-red-4">
+						{{ browseError }}
+					</p>
+
+					<div
+						v-else-if="browsing && !items.length"
+						class="mt-4"
+						:class="view === 'grid' ? 'item-grid' : 'flex flex-col gap-2'"
+					>
+						<div
+							v-for="index in 8"
+							:key="index"
+							class="animate-pulse rounded-8 bg-surface-gray-2"
+							:class="view === 'grid' ? 'h-56' : 'h-14'"
 						/>
-						<div class="min-w-0">
-							<p class="text-base font-medium text-ink-gray-8">
-								{{ missing.length ? "Before you send" : "Ready to send" }}
-							</p>
-							<p class="mt-0.5 text-p-sm text-ink-gray-6">
-								{{
-									missing.length
-										? `${missing.length} of ${checklist.length} steps left.`
-										: "Check the items and totals, then send your order."
-								}}
-							</p>
-						</div>
 					</div>
 
-					<ul class="mt-3 space-y-1.5 text-p-sm">
-						<li
-							v-for="step in checklist"
-							:key="step.label"
-							class="flex items-center gap-2"
+					<EmptyState
+						v-else-if="!items.length"
+						class="mt-4"
+						icon="lucide-package-search"
+						:title="
+							search.trim() ? 'No items match your search' : 'No items to order yet'
+						"
+						:description="
+							search.trim()
+								? 'Try a different name or clear the search.'
+								: 'Items appear here once they have a price for your account.'
+						"
+					/>
+
+					<template v-else>
+						<div
+							class="mt-4 transition-opacity"
+							:class="[
+								view === 'grid'
+									? 'item-grid'
+									: 'divide-y divide-outline-gray-1 overflow-hidden rounded-8 border',
+								browsing ? 'opacity-60' : '',
+							]"
 						>
-							<i
-								:class="
-									step.done
-										? 'lucide-circle-check text-ink-green-7'
-										: 'lucide-circle text-ink-gray-4'
-								"
-								class="size-4 shrink-0"
-								aria-hidden="true"
+							<OrderItemCard
+								v-for="item in items"
+								:key="item.item_code"
+								:item="item"
+								:currency="itemsCurrency"
+								:layout="view"
+							/>
+						</div>
+						<div
+							ref="pageEnd"
+							class="mt-4 flex min-h-10 items-start justify-center pb-14"
+						>
+							<span
+								v-if="browsing && hasMore"
+								class="flex items-center gap-2 text-p-sm text-ink-gray-6"
+							>
+								<Spinner class="size-4" /> Loading more items
+							</span>
+							<Button
+								v-else-if="hasMore"
+								variant="subtle"
+								label="Load more items"
+								@click="browse(true)"
 							/>
 							<span
+								v-else-if="items.length > PAGE_SIZE"
+								class="text-p-sm text-ink-gray-5"
+							>
+								You have seen all {{ items.length }} items
+							</span>
+						</div>
+					</template>
+
+					<div class="pointer-events-none sticky bottom-[84px] z-10 h-0 lg:bottom-6">
+						<Transition
+							enter-from-class="translate-y-2 opacity-0"
+							leave-to-class="translate-y-2 opacity-0"
+							enter-active-class="transition duration-200"
+							leave-active-class="transition duration-150"
+						>
+							<button
+								v-if="showJumpToTop"
+								type="button"
+								class="pointer-events-auto absolute bottom-0 right-0 flex h-10 items-center gap-1.5 rounded-full border border-outline-gray-3 bg-surface-base px-4 text-base font-medium text-ink-gray-9 shadow-lg hover:bg-surface-gray-1"
+								@click="jumpToTop"
+							>
+								<i class="lucide-arrow-up size-4" aria-hidden="true" />
+								Back to top
+							</button>
+						</Transition>
+					</div>
+				</div>
+
+				<aside
+					class="hidden max-h-[calc(100dvh-6.5rem)] flex-col rounded-8 border bg-surface-base p-4 lg:sticky lg:top-6 lg:flex"
+				>
+					<h2
+						class="mb-3 flex shrink-0 items-center justify-between gap-2 text-lg font-semibold text-ink-gray-9"
+					>
+						Your order
+						<span
+							v-if="lines.length"
+							class="rounded-full bg-surface-gray-10 px-2.5 py-0.5 text-xs font-semibold text-ink-base"
+						>
+							{{ lines.length }} {{ lines.length === 1 ? "line" : "lines" }} ·
+							{{ unitsLabel }}
+						</span>
+					</h2>
+					<OrderCart class="flex-1" @save="save" @send="askToSend" @clear="askToClear" />
+				</aside>
+
+				<div class="sticky bottom-3 z-10 lg:hidden">
+					<button
+						type="button"
+						class="flex h-14 w-full items-center justify-between gap-3 rounded-full pl-2 pr-2 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition-transform active:scale-[0.98]"
+						:class="
+							units
+								? 'bg-surface-gray-10 text-ink-base'
+								: 'border border-outline-gray-3 bg-surface-base text-ink-gray-8'
+						"
+						:aria-label="units ? `View cart, ${unitsLabel}` : 'View cart, empty'"
+						@click="cartOpen = true"
+					>
+						<span class="flex min-w-0 items-center gap-2.5">
+							<span
+								class="relative grid size-10 shrink-0 place-items-center rounded-full"
 								:class="
-									step.done ? 'text-ink-gray-5 line-through' : 'text-ink-gray-8'
+									units
+										? 'bg-surface-base text-ink-gray-9'
+										: 'bg-surface-gray-2 text-ink-gray-7'
 								"
 							>
-								{{ step.label }}
+								<i class="lucide-shopping-basket size-5" aria-hidden="true" />
+								<span
+									v-if="lines.length"
+									class="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-surface-gray-10 px-1 text-[11px] font-bold tabular-nums text-ink-base shadow-[0_0_0_2px_var(--surface-base)]"
+								>
+									{{ lines.length }}
+								</span>
 							</span>
-							<span class="sr-only">{{ step.done ? "done" : "to do" }}</span>
-						</li>
-					</ul>
-				</section>
+							<span class="flex min-w-0 flex-col items-start leading-tight">
+								<span class="text-base font-semibold">
+									{{ units ? "View cart" : "Your cart is empty" }}
+								</span>
+								<span v-if="units" class="text-xs opacity-90">{{
+									unitsLabel
+								}}</span>
+							</span>
+						</span>
+						<span
+							v-if="units"
+							class="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-surface-base px-4 text-base font-bold tabular-nums text-ink-gray-9"
+						>
+							<Spinner v-if="draft.pricing.value" class="size-3.5" />
+							<template v-else>{{ cartTotal ?? "—" }}</template>
+							<i class="lucide-chevron-up size-4" aria-hidden="true" />
+						</span>
+						<i v-else class="lucide-chevron-up mr-3 size-4" aria-hidden="true" />
+					</button>
+				</div>
+			</div>
+		</template>
 
-				<ErrorMessage v-if="pricingError" :message="pricingError" />
-				<ErrorMessage v-if="errorMessage" :message="errorMessage" />
-			</aside>
-		</div>
+		<BottomSheet v-model:open="cartOpen" title="Your order">
+			<div class="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+				<OrderCart @save="save" @send="askToSend" @clear="askToClear" />
+			</div>
+		</BottomSheet>
+
 		<Dialog
 			v-model:open="confirmingSend"
 			title="Send this order?"
 			icon="lucide-send"
-			theme="green"
 			:message="`Your order comes to ${
-				priced ? money(priced.grand_total, currency) : 'the total shown'
-			}. Once sent you cannot change it — our team will review and confirm it.`"
+				cartTotal ?? 'the total shown'
+			}. Once sent you cannot change it. Our team will review and confirm it.`"
 			:actions="[
 				{
 					label: 'Send order',
 					variant: 'solid',
-					theme: 'green',
 					loading: busy === 'send',
 					onClick: send,
+				},
+			]"
+		/>
+
+		<Dialog
+			v-model:open="confirmingClear"
+			title="Clear your cart?"
+			icon="lucide-trash-2"
+			theme="red"
+			:message="clearMessage"
+			:actions="[
+				{
+					label: 'Clear cart',
+					variant: 'solid',
+					theme: 'red',
+					loading: busy === 'clear',
+					onClick: clearCart,
 				},
 			]"
 		/>
@@ -948,37 +733,23 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 </template>
 
 <style scoped>
-.grid-cell {
-	display: flex;
-	align-items: stretch;
+.item-grid {
+	display: grid;
+	gap: 0.75rem;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.grid-cell > :deep(*) {
-	flex: 1;
-	min-width: 0;
+@media (min-width: 640px) {
+	.item-grid {
+		grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	}
 }
 
-.grid-cell :deep([data-slot="trigger"]) {
-	display: flex;
-	width: 100%;
-	height: 100%;
-	min-height: 40px;
-	border-radius: 0;
-	outline-offset: -2px;
+.no-scrollbar {
+	scrollbar-width: none;
 }
 
-.grid-cell :deep(input:not([type="checkbox"])) {
-	height: 40px;
-	border-radius: 0;
-	outline-offset: -2px;
-}
-
-.grid-cell :deep(.qty-input input) {
-	text-align: right;
-}
-
-.address-option:has(input:focus-visible) {
-	outline: var(--focus-outline-default);
-	outline-offset: 2px;
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
 }
 </style>

@@ -1,0 +1,22 @@
+{
+ "color": "#7C7C7C",
+ "creation": "2026-10-21 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Party Onboarding Request",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Party Onboarding Request\", \"docstatus\", \"=\", \"1\", false], [\"Party Onboarding Request\", \"onboarding_status\", \"=\", \"Returned for Correction\", false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Waiting on Applicants",
+ "modified": "2026-10-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "Waiting on Applicants",
+ "owner": "Administrator",
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

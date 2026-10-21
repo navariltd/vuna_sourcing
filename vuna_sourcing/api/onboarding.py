@@ -1,11 +1,15 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+import base64
+
 import frappe
 from frappe import _
 from frappe.utils import flt
+from frappe.utils.pdf import get_pdf
 
 from vuna_sourcing.api.portal import get_current_user
+from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.utils import PARTY_TYPES, get_open_party_types
 from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
 	DOCTYPE,
@@ -470,3 +474,68 @@ def get_application_progress(name: str) -> dict:
 		"documents_required": len(required_documents),
 		"can_submit": not (always or by_type or missing_documents),
 	}
+
+
+def application_status(doc) -> str:
+	if doc.docstatus == 0:
+		return "Draft"
+	return doc.onboarding_status or "Submitted"
+
+
+def contact_roles(row) -> str:
+	flags = ((row.is_primary_contact, _("Primary")), (row.is_billing_contact, _("Billing")))
+	roles = [label for flag, label in flags if flag]
+	return ", ".join(roles) or _("Other")
+
+
+def address_use(row) -> str:
+	if row.is_primary_address:
+		return _("Registered") + (" · " + _("deliveries") if row.is_shipping_address else "")
+	return _("Delivery") if row.is_shipping_address else _(row.address_type or "")
+
+
+@frappe.whitelist()
+def download_application(name: str) -> ApiResponse[dict]:
+	get_current_user()
+	doc = get_own_application(name)
+
+	applicant = [
+		("Applying as", _(doc.party_type or "")),
+		("Type", doc.onboarding_template),
+		("Name", doc.party_name),
+		("Tax registration", doc.tax_id),
+		("Registration no", doc.registration_number),
+		("Country", doc.country),
+		("Website", doc.website),
+	]
+	bank = [
+		(label, doc.get(field))
+		for label, field in (
+			("Bank", "bank"),
+			("Account number", "bank_account_no"),
+			("Account holder", "account_holder_name"),
+			("Branch code", "branch_code"),
+			("IBAN", "iban"),
+			("SWIFT / BIC", "swift_number"),
+		)
+	]
+
+	html = frappe.render_template(
+		"vuna_sourcing/templates/application_summary.html",
+		{
+			"doc": doc,
+			"status": application_status(doc),
+			"company": doc.company,
+			"applicant": applicant,
+			"bank": bank if any(value for _label, value in bank) else [],
+			"roles": contact_roles,
+			"address_use": address_use,
+		},
+	)
+
+	return ApiResponse.success(
+		data={
+			"filename": f"{doc.name} - {doc.party_name or _('Application')}.pdf",
+			"content": base64.b64encode(get_pdf(html)).decode(),
+		}
+	)

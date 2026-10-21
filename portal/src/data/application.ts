@@ -1,5 +1,7 @@
 import { createResource } from "frappe-ui";
 import type { PartyType } from "@/data/parties";
+import { isOk } from "@/types/api";
+import type { ApiResponse } from "@/types/api";
 
 export interface RequiredDocument {
   document_type: string;
@@ -179,3 +181,21 @@ export const STATUS_THEME: Record<string, BadgeTheme> = {
   Rejected: "red",
   "Returned for Correction": "amber",
 };
+
+export async function downloadApplication(name: string) {
+  const response = (await createResource({
+    url: "vuna_sourcing.api.onboarding.download_application",
+  }).fetch({ name })) as ApiResponse<{ filename: string; content: string }>;
+
+  if (!isOk(response)) throw new Error(response.message || "We could not prepare the download.");
+
+  const bytes = Uint8Array.from(atob(response.data.content), (char) => char.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = response.data.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
