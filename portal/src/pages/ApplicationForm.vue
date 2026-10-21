@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
 	Avatar,
@@ -22,16 +22,19 @@ import DocumentRequirementRow from "@/components/DocumentRequirementRow.vue";
 import LinkSelect from "@/components/LinkSelect.vue";
 import PageContainer from "@/components/PageContainer.vue";
 import {
-	attachmentUploadUrl,
 	blankAddress,
 	blankContact,
 	createApplicationResource,
+	documentProblems,
 	fetchProgress,
 	fullName,
+	localToday,
 	onboardingTypes,
 	resubmitApplication,
 	saveApplication,
 	submitApplication,
+	uploadEndpoint,
+	uploadedAttachment,
 } from "@/data/application";
 import type {
 	Application,
@@ -270,13 +273,14 @@ function payload(): Partial<Application> {
 	};
 }
 
-async function save({ silent = false } = {}) {
+async function save({ silent = false, refill = true } = {}) {
 	if (isLocked.value) return;
+	clearTimeout(documentSaveTimer);
 	saving.value = true;
 	try {
 		const saved = (await saveApplication(payload(), application.data?.name)) as Application;
 		application.data = saved;
-		hydrate(saved);
+		if (refill) hydrate(saved);
 		await refreshProgress();
 		if (!silent) toast.success("Progress saved");
 		return saved;
@@ -346,11 +350,15 @@ const stepIssues = computed<string[]>(() => {
 			}
 			break;
 
-		case "documents":
-			documents.value
-				.filter((row) => row.is_mandatory && !row.attachment)
-				.forEach((row) => missing.push(row.document_type));
+		case "documents": {
+			const today = localToday();
+			documents.value.forEach((row) =>
+				documentProblems(row, today).forEach((problem) =>
+					missing.push(`${row.document_type}: ${problem.toLowerCase()}`)
+				)
+			);
 			break;
+		}
 	}
 
 	return missing;
@@ -379,9 +387,18 @@ async function backToReview() {
 	goToStep("review");
 }
 
-function onLogoUploaded(file: { file_url: string }) {
-	form.company_logo = file.file_url;
-	save({ silent: true });
+function onLogoUploaded(response: unknown) {
+	try {
+		form.company_logo = uploadedAttachment(response).file_url;
+		save({ silent: true });
+	} catch (error: any) {
+		toast.error(error?.message || "The upload did not go through.");
+	}
+}
+
+function onUploadFailed(error: any) {
+	const message = typeof error === "string" ? error : error?.messages?.[0] || error?.message;
+	if (message) toast.error(message);
 }
 
 function removeLogo() {
@@ -389,10 +406,19 @@ function removeLogo() {
 	save({ silent: true });
 }
 
+let documentSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
 function updateDocument(index: number, patch: Partial<RequiredDocument>) {
 	documents.value[index] = { ...documents.value[index]!, ...patch };
-	save({ silent: true });
+	clearTimeout(documentSaveTimer);
+	if ("attachment" in patch) {
+		save({ silent: true });
+		return;
+	}
+	documentSaveTimer = setTimeout(() => save({ silent: true, refill: false }), 1200);
 }
+
+onBeforeUnmount(() => clearTimeout(documentSaveTimer));
 
 async function submit() {
 	submitting.value = true;
@@ -685,11 +711,12 @@ const title = computed(() => {
 						<div class="flex items-center gap-2 pt-1">
 							<FileUploader
 								v-if="application.data?.name"
-								:doctype="'Party Onboarding Request'"
-								:docname="application.data.name"
-								:upload-endpoint="attachmentUploadUrl()"
-								file-types="image/*"
+								:upload-endpoint="
+									uploadEndpoint(application.data.name, { purpose: 'logo' })
+								"
+								file-types=".png,.jpg,.jpeg,.webp,.gif"
 								@success="onLogoUploaded"
+								@failure="onUploadFailed"
 							>
 								<template
 									#default="{ openFileSelector, uploading, progress: percent }"
@@ -937,7 +964,7 @@ const title = computed(() => {
 					<ul class="list-inside list-disc space-y-1 text-p-sm text-ink-gray-7">
 						<li v-for="item in progress.missing_details" :key="item">{{ item }}</li>
 						<li v-for="item in progress.missing_documents" :key="item">
-							{{ item }} (document)
+							{{ item }}
 						</li>
 					</ul>
 				</div>

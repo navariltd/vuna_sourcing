@@ -255,6 +255,9 @@ def get_application(name: str | None = None) -> dict | None:
 			return None
 
 	doc = get_own_application(name)
+	rules = doc.document_rules()
+	settings = frappe.get_cached_doc("Sourcing Settings")
+	files = attached_files(doc)
 
 	return {
 		"name": doc.name,
@@ -273,14 +276,32 @@ def get_application(name: str | None = None) -> dict | None:
 				"idx": row.idx,
 				"document_type": row.document_type,
 				"is_mandatory": row.is_mandatory,
+				"has_expiry": rules[row.document_type].has_expiry,
 				"description": row.description,
+				**settings.get_upload_rules(row.document_type),
 				"attachment": row.attachment,
+				"file_name": files.get(row.attachment, {}).get("file_name"),
+				"file_size": files.get(row.attachment, {}).get("file_size"),
 				"document_number": row.document_number,
 				"issue_date": row.issue_date,
 				"expiry_date": row.expiry_date,
 			}
 			for row in doc.required_documents
 		],
+	}
+
+
+def attached_files(doc) -> dict[str, dict]:
+	urls = [row.attachment for row in doc.required_documents if row.attachment]
+	if not urls:
+		return {}
+	return {
+		row.file_url: row
+		for row in frappe.get_all(
+			"File",
+			filters={"attached_to_doctype": DOCTYPE, "attached_to_name": doc.name, "file_url": ("in", urls)},
+			fields=["file_url", "file_name", "file_size"],
+		)
 	}
 
 
@@ -402,23 +423,50 @@ def submit_application(name: str) -> dict:
 
 
 @frappe.whitelist(methods=["POST"])
-def upload_attachment(docname: str, document_type: str | None = None) -> dict:
+def attach_uploaded_file() -> ApiResponse[dict]:
 	get_current_user()
 
-	file = frappe.request.files.get("file") if frappe.request else None
-	if not file:
+	content = getattr(frappe.local, "uploaded_file", None)
+	filename = getattr(frappe.local, "uploaded_filename", None)
+	if content is None or not filename:
 		frappe.throw(_("No file was received."), title=_("Upload failed"))
 
-	return save_attachment(docname, file.filename, file.stream.read(), document_type)
+	application = frappe.form_dict.get("application")
+	if not application:
+		frappe.throw(_("Choose the application this file belongs to."), title=_("Upload failed"))
+
+	file_doc = save_attachment(
+		application,
+		filename,
+		content,
+		frappe.form_dict.get("document_type") or None,
+		logo=frappe.form_dict.get("purpose") == "logo",
+	)
+	return ApiResponse.success(
+		data={
+			"file_url": file_doc["file_url"],
+			"file_name": file_doc["file_name"],
+			"file_size": file_doc["file_size"],
+		}
+	)
 
 
-def save_attachment(docname: str, filename: str, content: bytes, document_type: str | None = None) -> dict:
+LOGO_FILE_TYPES = ("png", "jpg", "jpeg", "webp", "gif")
+
+
+def save_attachment(
+	docname: str,
+	filename: str,
+	content: bytes,
+	document_type: str | None = None,
+	logo: bool = False,
+) -> dict:
 	doc = get_own_application(docname, for_write=True)
 
 	if document_type and not any(row.document_type == document_type for row in doc.required_documents):
 		frappe.throw(_("{0} is not a document this application asks for.").format(frappe.bold(document_type)))
 
-	validate_upload(filename, content, document_type)
+	validate_upload(filename, content, document_type, LOGO_FILE_TYPES if logo else None)
 
 	file_doc = frappe.get_doc(
 		{
@@ -436,11 +484,18 @@ def save_attachment(docname: str, filename: str, content: bytes, document_type: 
 	return file_doc.as_dict()
 
 
-def validate_upload(filename: str, content: bytes, document_type: str | None = None):
+def validate_upload(
+	filename: str,
+	content: bytes,
+	document_type: str | None = None,
+	only: tuple[str, ...] | None = None,
+):
 	rules = frappe.get_cached_doc("Sourcing Settings").get_upload_rules(document_type)
 
 	extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 	allowed = [ext.lower().lstrip(".") for ext in rules["allowed_file_types"]]
+	if only:
+		allowed = [ext for ext in allowed if ext in only] or list(only)
 	if allowed and extension not in allowed:
 		frappe.throw(
 			_("{0} files are not accepted here. Allowed: {1}.").format(
@@ -465,12 +520,13 @@ def get_application_progress(name: str) -> dict:
 	always, by_type = doc.get_outstanding_details()
 
 	required_documents = [row for row in doc.required_documents if row.is_mandatory]
-	missing_documents = [row.document_type for row in required_documents if not row.attachment]
+	missing_documents = doc.get_outstanding_documents()
+	attached = [row for row in required_documents if row.attachment]
 
 	return {
 		"missing_details": always + by_type,
 		"missing_documents": missing_documents,
-		"documents_attached": len(required_documents) - len(missing_documents),
+		"documents_attached": len(attached),
 		"documents_required": len(required_documents),
 		"can_submit": not (always or by_type or missing_documents),
 	}
