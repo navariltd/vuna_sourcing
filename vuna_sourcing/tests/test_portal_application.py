@@ -14,6 +14,7 @@ from vuna_sourcing.api.onboarding import (
 	get_link_options,
 	get_my_applications,
 	get_onboarding_types,
+	get_own_application,
 	resubmit_application,
 	save_application,
 	save_attachment,
@@ -797,25 +798,15 @@ class TestPortalApplication(IntegrationTestCase):
 				self.assertRaises(frappe.PermissionError, doc.approve)
 				self.assertRaises(frappe.PermissionError, doc.reject, reason="nope")
 
-	def test_the_applicant_can_download_their_application(self):
+	def test_the_applicant_gets_their_own_application(self):
 		applicant = self.make_applicant()
-		saved = self.complete(applicant, "Supplier", {"bank_account_no": "0011223344"})
+		saved = self.complete(applicant)
 
 		with self.set_user(applicant):
-			download = download_application(saved["name"])
+			own = get_own_application(saved["name"])
 
-		self.assertTrue(download.ok)
-		self.assertTrue(download.data["filename"].startswith(saved["name"]))
-		self.assertTrue(base64.b64decode(download.data["content"]).startswith(b"%PDF"))
-
-	def test_a_returned_application_can_be_downloaded_with_its_note(self):
-		applicant = self.make_applicant()
-		submitted = self.returned(applicant)
-
-		with self.set_user(applicant):
-			download = download_application(submitted["name"])
-
-		self.assertTrue(base64.b64decode(download.data["content"]).startswith(b"%PDF"))
+		self.assertEqual(own.name, saved["name"])
+		self.assertEqual(own.owner, applicant)
 
 	def test_nobody_else_can_download_an_application(self):
 		owner = self.make_applicant()
@@ -823,4 +814,5 @@ class TestPortalApplication(IntegrationTestCase):
 		stranger = self.make_applicant()
 
 		with self.set_user(stranger):
+			self.assertRaises(frappe.PermissionError, get_own_application, saved["name"])
 			self.assertRaises(frappe.PermissionError, download_application, saved["name"])

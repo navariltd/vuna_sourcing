@@ -494,11 +494,10 @@ def address_use(row) -> str:
 	return _("Delivery") if row.is_shipping_address else _(row.address_type or "")
 
 
-@frappe.whitelist()
-def download_application(name: str) -> ApiResponse[dict]:
-	get_current_user()
-	doc = get_own_application(name)
+APPLICATION_TEMPLATE = "vuna_sourcing/templates/application_summary.html"
 
+
+def application_html(doc) -> str:
 	applicant = [
 		("Applying as", _(doc.party_type or "")),
 		("Type", doc.onboarding_template),
@@ -520,8 +519,7 @@ def download_application(name: str) -> ApiResponse[dict]:
 		)
 	]
 
-	html = frappe.render_template(
-		"vuna_sourcing/templates/application_summary.html",
+	return frappe.get_template(APPLICATION_TEMPLATE).render(
 		{
 			"doc": doc,
 			"status": application_status(doc),
@@ -530,12 +528,18 @@ def download_application(name: str) -> ApiResponse[dict]:
 			"bank": bank if any(value for _label, value in bank) else [],
 			"roles": contact_roles,
 			"address_use": address_use,
-		},
+		}
 	)
+
+
+@frappe.whitelist()
+def download_application(name: str) -> ApiResponse[dict]:
+	get_current_user()
+	doc = get_own_application(name)
 
 	return ApiResponse.success(
 		data={
 			"filename": f"{doc.name} - {doc.party_name or _('Application')}.pdf",
-			"content": base64.b64encode(get_pdf(html)).decode(),
+			"content": base64.b64encode(get_pdf(application_html(doc))).decode(),
 		}
 	)
