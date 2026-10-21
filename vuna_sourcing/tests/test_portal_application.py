@@ -8,11 +8,13 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing.api.onboarding import (
+	download_application,
 	get_application,
 	get_application_progress,
 	get_link_options,
 	get_my_applications,
 	get_onboarding_types,
+	get_own_application,
 	resubmit_application,
 	save_application,
 	save_attachment,
@@ -795,3 +797,22 @@ class TestPortalApplication(IntegrationTestCase):
 				doc = frappe.get_doc(REQUEST, submitted["name"])
 				self.assertRaises(frappe.PermissionError, doc.approve)
 				self.assertRaises(frappe.PermissionError, doc.reject, reason="nope")
+
+	def test_the_applicant_gets_their_own_application(self):
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+
+		with self.set_user(applicant):
+			own = get_own_application(saved["name"])
+
+		self.assertEqual(own.name, saved["name"])
+		self.assertEqual(own.owner, applicant)
+
+	def test_nobody_else_can_download_an_application(self):
+		owner = self.make_applicant()
+		saved = self.complete(owner)
+		stranger = self.make_applicant()
+
+		with self.set_user(stranger):
+			self.assertRaises(frappe.PermissionError, get_own_application, saved["name"])
+			self.assertRaises(frappe.PermissionError, download_application, saved["name"])

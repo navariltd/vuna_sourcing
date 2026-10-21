@@ -184,3 +184,37 @@ class TestSupplierQuoteDrafts(SourcingFixtures, IntegrationTestCase):
 		quote.flags.ignore_permissions = True
 		quote.submit()
 		self.assertEqual(quote.docstatus, 1)
+
+	def add_buying_price(self, rate):
+		price_list = frappe.db.get_single_value("Buying Settings", "buying_price_list") or "Standard Buying"
+		if not frappe.db.exists("Price List", price_list):
+			frappe.get_doc(
+				{"doctype": "Price List", "price_list_name": price_list, "buying": 1, "enabled": 1}
+			).insert(ignore_permissions=True)
+		existing = frappe.db.get_value("Item Price", {"item_code": self.item, "price_list": price_list})
+		if existing:
+			frappe.db.set_value("Item Price", existing, "price_list_rate", rate)
+			return
+		frappe.get_doc(
+			{
+				"doctype": "Item Price",
+				"item_code": self.item,
+				"price_list": price_list,
+				"price_list_rate": rate,
+			}
+		).insert(ignore_permissions=True)
+
+	def test_a_draft_without_prices_keeps_the_prices_empty(self):
+		self.add_buying_price(777)
+		supplier, user = self.make_supplier()
+		rfq = self.make_rfq([supplier])
+
+		detail = self.save_draft(rfq, user)
+
+		self.assertIsNone(detail["items"][0]["rate"], "the supplier never typed a price")
+		quote = frappe.get_doc("Supplier Quotation", self.quote_name(detail))
+		self.assertEqual(
+			[(row.rate, row.price_list_rate) for row in quote.items],
+			[(0, 0)],
+			"the buyer's own price list never fills in the supplier's prices",
+		)

@@ -7,7 +7,9 @@ from frappe.utils import add_days, nowdate
 
 from vuna_sourcing.api.transactions.customer import get_sales_order, get_sales_orders
 from vuna_sourcing.api.transactions.customer_orders import (
+	clear_order,
 	delete_order,
+	get_order_categories,
 	get_order_form,
 	get_orderable_items,
 	price_order,
@@ -586,3 +588,94 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 		self.assertEqual(priced["grand_total"], 400)
 		self.assertIsNone(priced["name"])
 		self.assertEqual(frappe.db.count("Sales Order", {"customer": self.customer}), before)
+
+	def make_item_group(self):
+		name = "_Test Portal Order Group " + frappe.generate_hash(length=6)
+		frappe.get_doc(
+			{"doctype": "Item Group", "item_group_name": name, "parent_item_group": "All Item Groups"}
+		).insert(ignore_permissions=True)
+		return name
+
+	def test_categories_list_only_groups_with_priced_items(self):
+		group = self.make_item_group()
+		empty_group = self.make_item_group()
+		for _index in range(2):
+			self.add_price(self.make_item(item_group=group), 10)
+		self.make_item(item_group=empty_group)
+
+		with self.set_user(self.user):
+			categories = {row["name"]: row["count"] for row in get_order_categories(self.customer).data}
+
+		self.assertEqual(categories[group], 2)
+		self.assertNotIn(empty_group, categories)
+
+	def test_items_can_be_browsed_by_category(self):
+		group = self.make_item_group()
+		in_group = self.make_item(item_group=group)
+		self.add_price(in_group, 10)
+
+		with self.set_user(self.user):
+			listed = [
+				row["item_code"]
+				for row in get_orderable_items(self.customer, self.company, item_group=group).data["rows"]
+			]
+
+		self.assertEqual(listed, [in_group])
+
+	def test_clearing_a_draft_removes_its_items_on_the_desk(self):
+		draft = self.order(qty=3)
+
+		with self.set_user(self.user):
+			cleared = clear_order(self.customer, draft["name"]).data
+
+		self.assertEqual(cleared["items"], [])
+		self.assertEqual(cleared["grand_total"], 0)
+		self.assertFalse(frappe.db.exists("Sales Order Item", {"parent": draft["name"]}))
+		self.assertEqual(
+			frappe.db.get_value("Sales Order", draft["name"], ["total_qty", "net_total", "grand_total"]),
+			(0, 0, 0),
+		)
+		self.assertEqual(
+			frappe.db.get_value("Sales Order", draft["name"], "portal_submission_status"), "Pending"
+		)
+
+	def test_a_sent_order_cannot_be_cleared(self):
+		draft = self.order()
+		with self.set_user(self.user):
+			submit_order(
+				customer=self.customer,
+				company=self.company,
+				name=draft["name"],
+				items=[{"item_code": self.item_code, "qty": 1, "uom": "Nos"}],
+				delivery_date=add_days(nowdate(), 7),
+			)
+			self.assertRaisesRegex(
+				frappe.ValidationError, "can no longer be changed", clear_order, self.customer, draft["name"]
+			)
+
+		self.assertTrue(frappe.db.exists("Sales Order Item", {"parent": draft["name"]}))
+
+	def test_another_customer_cannot_clear_the_draft(self):
+		draft = self.order()
+		other, other_user = self.make_ordering_customer()
+
+		with self.set_user(other_user):
+			self.assertRaises(frappe.PermissionError, clear_order, other, draft["name"])
+
+		self.assertTrue(frappe.db.exists("Sales Order Item", {"parent": draft["name"]}))
+
+	def test_a_cleared_draft_can_be_filled_and_sent_again(self):
+		draft = self.order(qty=3)
+
+		with self.set_user(self.user):
+			clear_order(self.customer, draft["name"])
+			sent = submit_order(
+				customer=self.customer,
+				company=self.company,
+				name=draft["name"],
+				items=[{"item_code": self.item_code, "qty": 2, "uom": "Nos"}],
+				delivery_date=add_days(nowdate(), 7),
+			).data
+
+		self.assertEqual(sent["grand_total"], 200)
+		self.assertEqual(sent["status"], "Submitted")

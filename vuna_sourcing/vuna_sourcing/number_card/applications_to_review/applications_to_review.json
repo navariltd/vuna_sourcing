@@ -1,0 +1,22 @@
+{
+ "color": "#E79913",
+ "creation": "2026-10-21 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Party Onboarding Request",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Party Onboarding Request\", \"docstatus\", \"=\", \"1\", false], [\"Party Onboarding Request\", \"onboarding_status\", \"=\", \"Pending Review\", false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Applications to Review",
+ "modified": "2026-10-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "Applications to Review",
+ "owner": "Administrator",
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

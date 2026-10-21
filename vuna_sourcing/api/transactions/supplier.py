@@ -358,7 +358,7 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 				"uom": item.uom,
 				"required_by": item.schedule_date,
 				"supplier_part_no": item.supplier_part_no,
-				"rate": quoted.get("rate"),
+				"rate": quoted.get("rate") or None,
 				"lead_time_days": quoted.get("lead_time_days"),
 				"awarded_to_you": item.name in won,
 			}
@@ -436,15 +436,20 @@ def build_quote(request, supplier: str):
 
 def apply_rates(doc, lines: list[dict]) -> None:
 	by_rfq_item = {line.get("rfq_item"): line for line in lines if line.get("rfq_item")}
+	typed = {}
 
 	for row in doc.items:
 		given = by_rfq_item.get(row.request_for_quotation_item)
 		if not given:
+			typed[row.request_for_quotation_item] = flt(row.rate)
 			continue
 
 		row.rate = flt(given.get("rate"))
+		typed[row.request_for_quotation_item] = row.rate
 		if given.get("lead_time_days") is not None:
 			row.lead_time_days = cint(given.get("lead_time_days"))
+
+	doc.flags.supplier_rates = typed
 
 
 def open_request(name: str):

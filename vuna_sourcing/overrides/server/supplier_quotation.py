@@ -9,7 +9,31 @@ from vuna_sourcing.api.transactions.sealed_bid import sealed_request_of
 from vuna_sourcing.api.transactions.supplier import QUOTE_PENDING, SUBMISSION_STATUS_FIELD
 
 
+def keep_supplier_rates(doc) -> None:
+	rates = doc.flags.supplier_rates
+	if rates is None:
+		return
+
+	for row in doc.items:
+		if row.request_for_quotation_item not in rates:
+			continue
+		rate = rates[row.request_for_quotation_item]
+		row.update(
+			{
+				"price_list_rate": rate,
+				"rate": rate,
+				"discount_percentage": 0,
+				"discount_amount": 0,
+				"margin_type": None,
+				"margin_rate_or_amount": 0,
+			}
+		)
+	doc.calculate_taxes_and_totals()
+
+
 def validate(doc, method: str | None = None) -> None:
+	keep_supplier_rates(doc)
+
 	if doc.is_new() or doc.flags.placing_bid:
 		return
 

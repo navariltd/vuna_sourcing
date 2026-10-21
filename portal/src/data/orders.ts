@@ -97,10 +97,26 @@ export function fetchOrderForm(
   });
 }
 
+export interface OrderCategory {
+  name: string;
+  count: number;
+}
+
+export function fetchOrderCategories(
+  customer: string,
+  company: string | null,
+): Promise<ApiResponse<OrderCategory[]>> {
+  return createResource({ url: `${ORDERS}.get_order_categories` }).fetch({
+    customer,
+    company,
+  });
+}
+
 export function fetchOrderableItems(params: {
   customer: string;
   company: string | null;
   search?: string | null;
+  item_group?: string | null;
   start?: number;
   limit?: number;
 }): Promise<ApiResponse<OrderableItemsPage>> {
@@ -117,6 +133,10 @@ export function saveOrder(payload: OrderPayload) {
 
 export function submitOrder(payload: OrderPayload) {
   return post<OrderView>("submit_order", payload);
+}
+
+export function clearOrder(customer: string, name: string) {
+  return post<OrderView>("clear_order", { customer, name });
 }
 
 export function deleteOrder(customer: string, name: string) {

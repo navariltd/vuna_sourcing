@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import {
-	Avatar,
-	Badge,
-	Button,
+	BottomSheet,
 	SettingsBody,
 	SettingsContent,
 	SettingsDialog,
@@ -14,20 +12,55 @@ import {
 	SettingsSidebar,
 } from "frappe-ui";
 import { ThemeSwitcher } from "frappe-ui/experimental";
-import { session } from "@/data/session";
-import { usePortalStore } from "@/stores/portal";
+import ProfileSettings from "@/components/ProfileSettings.vue";
+import { useIsMobile } from "@/composables/useViewport";
 
 const open = defineModel<boolean>("open", { default: false });
 
-const portal = usePortalStore();
-
-const parties = computed(() => portal.parties);
+const isMobile = useIsMobile();
 
 const tab = ref("profile");
+
+const TABS = [
+	{ value: "profile", label: "Profile", icon: "lucide-user" },
+	{ value: "preferences", label: "Preferences", icon: "lucide-settings-2" },
+] as const;
 </script>
 
 <template>
-	<SettingsDialog v-model:open="open" v-model:tab="tab">
+	<BottomSheet v-if="isMobile" v-model:open="open" title="Settings">
+		<div class="flex flex-col gap-4 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+			<div class="grid grid-cols-2 rounded-8 bg-surface-gray-2 p-1" role="tablist">
+				<button
+					v-for="option in TABS"
+					:key="option.value"
+					type="button"
+					role="tab"
+					class="flex h-9 items-center justify-center gap-1.5 rounded-6 text-base font-medium transition-colors"
+					:class="
+						tab === option.value
+							? 'bg-surface-base text-ink-gray-9 shadow-sm'
+							: 'text-ink-gray-6'
+					"
+					:aria-selected="tab === option.value"
+					@click="tab = option.value"
+				>
+					<i :class="option.icon" class="size-4" aria-hidden="true" />
+					{{ option.label }}
+				</button>
+			</div>
+
+			<ProfileSettings v-if="tab === 'profile'" />
+			<div v-else class="flex flex-col gap-2">
+				<p class="text-p-sm text-ink-gray-6">
+					Choose how the portal looks on this device.
+				</p>
+				<ThemeSwitcher />
+			</div>
+		</div>
+	</BottomSheet>
+
+	<SettingsDialog v-else v-model:open="open" v-model:tab="tab">
 		<SettingsSidebar>
 			<SettingsNavGroup label="Account">
 				<SettingsNavItem :value="'profile'" icon="lucide-user">Profile</SettingsNavItem>
@@ -44,70 +77,13 @@ const tab = ref("profile");
 					title="Profile"
 					description="How we know you and what you act for."
 				/>
-
 				<SettingsBody>
-					<div class="flex items-center gap-3 rounded-6 border p-4">
-						<Avatar
-							:image="portal.user?.image || undefined"
-							:label="portal.user?.full_name || '?'"
-							size="xl"
-						/>
-						<div class="min-w-0">
-							<p class="truncate text-base font-medium text-ink-gray-8">
-								{{ portal.user?.full_name }}
-							</p>
-							<p class="truncate text-p-sm text-ink-gray-5">
-								{{ portal.user?.email }}
-							</p>
-						</div>
-					</div>
-
-					<div class="mt-4 rounded-6 border p-4">
-						<p class="text-xs uppercase tracking-wide text-ink-gray-5">
-							Accounts you act for
-						</p>
-
-						<p v-if="!parties.length" class="mt-2 text-p-sm text-ink-gray-5">
-							None yet. Once an application is approved it appears here.
-						</p>
-
-						<div v-else class="mt-2 divide-y">
-							<div
-								v-for="party in parties"
-								:key="`${party.party_type}-${party.name}`"
-								class="flex items-center justify-between gap-3 py-2"
-							>
-								<span class="flex min-w-0 items-center gap-2">
-									<Avatar
-										:image="party.image || undefined"
-										:label="party.title"
-										size="sm"
-										shape="square"
-									/>
-									<span class="truncate text-p-base text-ink-gray-8">{{
-										party.title
-									}}</span>
-								</span>
-								<Badge theme="gray" variant="subtle" :label="party.party_type" />
-							</div>
-						</div>
-					</div>
-
-					<div class="mt-4 flex justify-end">
-						<Button
-							variant="subtle"
-							theme="red"
-							label="Sign out"
-							icon-left="lucide-log-out"
-							@click="session.logout.submit()"
-						/>
-					</div>
+					<ProfileSettings />
 				</SettingsBody>
 			</SettingsPanel>
 
 			<SettingsPanel :value="'preferences'">
 				<SettingsHeader title="Preferences" />
-
 				<SettingsBody>
 					<ThemeSwitcher />
 				</SettingsBody>

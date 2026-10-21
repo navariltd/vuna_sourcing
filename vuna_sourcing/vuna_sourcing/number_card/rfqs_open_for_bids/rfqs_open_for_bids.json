@@ -1,0 +1,22 @@
+{
+ "color": "#2490EF",
+ "creation": "2026-10-21 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Request for Quotation",
+ "dynamic_filters_json": "[[\"Request for Quotation\", \"bid_closing\", \">\", \"frappe.datetime.now_datetime()\", false]]",
+ "filters_json": "[[\"Request for Quotation\", \"docstatus\", \"=\", \"1\", false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "RFQs Open for Bids",
+ "modified": "2026-10-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vuna Sourcing",
+ "name": "RFQs Open for Bids",
+ "owner": "Administrator",
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}
