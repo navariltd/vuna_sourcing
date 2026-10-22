@@ -1,7 +1,7 @@
 {
  "app": "vuna_sourcing",
  "charts": [],
- "content": "[{\"id\": \"hdr_today\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Needs your attention</b></span>\", \"col\": 12}}, {\"id\": \"nc_0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Applications to Review\", \"col\": 4}}, {\"id\": \"nc_1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Waiting on Applicants\", \"col\": 4}}, {\"id\": \"nc_2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"RFQs Open for Bids\", \"col\": 4}}, {\"id\": \"nc_3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Quotations to Evaluate\", \"col\": 4}}, {\"id\": \"nc_4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Awards in Draft\", \"col\": 4}}, {\"id\": \"nc_5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portal Orders to Confirm\", \"col\": 4}}, {\"id\": \"spacer_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"hdr_actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick actions</b></span>\", \"col\": 12}}, {\"id\": \"sc_0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New RFQ\", \"col\": 4}}, {\"id\": \"sc_1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Review Applications\", \"col\": 4}}, {\"id\": \"sc_2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Confirm Portal Orders\", \"col\": 4}}, {\"id\": \"sc_3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Evaluate Quotations\", \"col\": 4}}, {\"id\": \"sc_4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Requests for Quotation\", \"col\": 4}}, {\"id\": \"sc_5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"RFQ Awards\", \"col\": 4}}, {\"id\": \"spacer_2\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"hdr_lists\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Latest to act on</b></span>\", \"col\": 12}}, {\"id\": \"ql_0\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Applications Awaiting Review\", \"col\": 4}}, {\"id\": \"ql_1\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Portal Orders to Confirm\", \"col\": 4}}, {\"id\": \"ql_2\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Quotations Received\", \"col\": 4}}]",
+ "content": "[{\"id\": \"hdr_today\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Needs your attention</b></span>\", \"col\": 12}}, {\"id\": \"nc_0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Applications to Review\", \"col\": 4}}, {\"id\": \"nc_1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Waiting on Applicants\", \"col\": 4}}, {\"id\": \"nc_2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"RFQs Open for Bids\", \"col\": 4}}, {\"id\": \"nc_3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Quotations to Evaluate\", \"col\": 4}}, {\"id\": \"nc_4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Awards in Draft\", \"col\": 4}}, {\"id\": \"nc_5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portal Orders to Confirm\", \"col\": 4}}, {\"id\": \"nc_6\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Credit Requests to Review\", \"col\": 4}}, {\"id\": \"nc_7\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Credit Notes to Issue\", \"col\": 4}}, {\"id\": \"spacer_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"hdr_actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick actions</b></span>\", \"col\": 12}}, {\"id\": \"sc_0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New RFQ\", \"col\": 4}}, {\"id\": \"sc_1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Review Applications\", \"col\": 4}}, {\"id\": \"sc_2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Confirm Portal Orders\", \"col\": 4}}, {\"id\": \"sc_3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Evaluate Quotations\", \"col\": 4}}, {\"id\": \"sc_4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Requests for Quotation\", \"col\": 4}}, {\"id\": \"sc_5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"RFQ Awards\", \"col\": 4}}, {\"id\": \"sc_6\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Review Credit Requests\", \"col\": 4}}, {\"id\": \"spacer_2\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"hdr_lists\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Latest to act on</b></span>\", \"col\": 12}}, {\"id\": \"ql_0\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Applications Awaiting Review\", \"col\": 6}}, {\"id\": \"ql_1\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Portal Orders to Confirm\", \"col\": 6}}, {\"id\": \"ql_2\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Quotations Received\", \"col\": 6}}, {\"id\": \"ql_3\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Credit Requests to Review\", \"col\": 6}}]",
  "creation": "2026-09-18 16:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Sourcing",
  "links": [],
- "modified": "2026-10-21 13:00:00.000000",
+ "modified": "2026-10-22 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing",
@@ -41,6 +41,14 @@
   {
    "label": "Portal Orders to Confirm",
    "number_card_name": "Portal Orders to Confirm"
+  },
+  {
+   "label": "Credit Requests to Review",
+   "number_card_name": "Credit Requests to Review"
+  },
+  {
+   "label": "Credit Notes to Issue",
+   "number_card_name": "Credit Notes to Issue"
   }
  ],
  "owner": "Administrator",
@@ -61,6 +69,11 @@
    "document_type": "Supplier Quotation",
    "label": "Quotations Received",
    "quick_list_filter": "[[\"Supplier Quotation\", \"docstatus\", \"=\", \"0\"], [\"Supplier Quotation\", \"supplier_submission_status\", \"=\", \"Submitted\"]]"
+  },
+  {
+   "document_type": "Credit Note Request",
+   "label": "Credit Requests to Review",
+   "quick_list_filter": "[[\"Credit Note Request\", \"docstatus\", \"=\", \"1\"], [\"Credit Note Request\", \"request_status\", \"=\", \"Pending Review\"]]"
   }
  ],
  "restrict_to_domain": "",
@@ -115,6 +128,15 @@
    "label": "RFQ Awards",
    "link_to": "Request for Quotation Award",
    "stats_filter": "[[\"Request for Quotation Award\", \"docstatus\", \"=\", \"0\"]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} to review",
+   "label": "Review Credit Requests",
+   "link_to": "Credit Note Request",
+   "stats_filter": "[[\"Credit Note Request\", \"docstatus\", \"=\", \"1\"], [\"Credit Note Request\", \"request_status\", \"=\", \"Pending Review\"]]",
    "type": "DocType"
   }
  ],

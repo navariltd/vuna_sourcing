@@ -23,6 +23,7 @@ from vuna_sourcing.api.transactions.common import (
 	status_counts,
 	submitted_parents,
 )
+from vuna_sourcing.api.transactions.credit_requests import invoice_credit_state
 from vuna_sourcing.api.transactions.customer_orders import (
 	FROM_PORTAL_FIELD,
 	ORDER_PENDING,
@@ -434,6 +435,7 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 		"items": items,
 		"payments": payments_against(SALES_INVOICE, doc.name),
 		"credit_notes": returns_against(SALES_INVOICE, doc.name),
+		"credit_request": invoice_credit_state(doc),
 	}
 
 

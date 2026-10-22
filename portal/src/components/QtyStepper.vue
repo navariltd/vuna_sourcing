@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
-const props = defineProps<{
-	modelValue: number;
-	label: string;
-	size?: "sm" | "md";
-}>();
+const props = withDefaults(
+	defineProps<{
+		modelValue: number;
+		label: string;
+		size?: "sm" | "md";
+		max?: number;
+		removable?: boolean;
+	}>(),
+	{ max: Infinity, removable: true }
+);
 
 const emit = defineEmits<{ (e: "update:modelValue", value: number): void }>();
 
@@ -24,12 +29,16 @@ function commit() {
 		text.value = String(props.modelValue);
 		return;
 	}
-	if (value !== props.modelValue) emit("update:modelValue", value);
+	const allowed = Math.min(value, props.max);
+	text.value = String(allowed);
+	if (allowed !== props.modelValue) emit("update:modelValue", allowed);
 }
 
 function step(delta: number) {
-	emit("update:modelValue", Math.max(props.modelValue + delta, 0));
+	emit("update:modelValue", Math.min(Math.max(props.modelValue + delta, 0), props.max));
 }
+
+const showsRemove = computed(() => props.removable && props.modelValue <= 1);
 </script>
 
 <template>
@@ -41,13 +50,14 @@ function step(delta: number) {
 	>
 		<button
 			type="button"
-			class="grid h-full shrink-0 place-items-center rounded-l-full text-ink-gray-7 transition-colors hover:bg-surface-gray-2 active:bg-surface-gray-3"
+			class="grid h-full shrink-0 place-items-center rounded-l-full text-ink-gray-7 transition-colors hover:bg-surface-gray-2 active:bg-surface-gray-3 disabled:pointer-events-none disabled:text-ink-gray-3"
 			:class="size === 'sm' ? 'w-8' : 'w-10'"
-			:aria-label="modelValue <= 1 ? `Remove ${label}` : `One less ${label}`"
+			:disabled="!removable && modelValue <= 0"
+			:aria-label="showsRemove ? `Remove ${label}` : `One less ${label}`"
 			@click="step(-1)"
 		>
 			<i
-				:class="modelValue <= 1 ? 'lucide-trash-2' : 'lucide-minus'"
+				:class="showsRemove ? 'lucide-trash-2' : 'lucide-minus'"
 				class="size-4"
 				aria-hidden="true"
 			/>
@@ -63,8 +73,9 @@ function step(delta: number) {
 		/>
 		<button
 			type="button"
-			class="grid h-full shrink-0 place-items-center rounded-r-full text-ink-gray-7 transition-colors hover:bg-surface-gray-2 active:bg-surface-gray-3"
+			class="grid h-full shrink-0 place-items-center rounded-r-full text-ink-gray-7 transition-colors hover:bg-surface-gray-2 active:bg-surface-gray-3 disabled:pointer-events-none disabled:text-ink-gray-3"
 			:class="size === 'sm' ? 'w-8' : 'w-10'"
+			:disabled="modelValue >= max"
 			:aria-label="`One more ${label}`"
 			@click="step(1)"
 		>

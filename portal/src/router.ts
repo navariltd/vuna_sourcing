@@ -167,6 +167,32 @@ const routes: RouteRecordRaw[] = [
     meta: { partyType: 'Customer' },
   },
   {
+    path: '/credit-note-requests',
+    name: 'CreditRequestList',
+    component: () => import('@/pages/CreditRequestList.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/credit-note-requests/new',
+    name: 'CreditRequestNew',
+    component: () => import('@/pages/CreditRequestForm.vue'),
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/credit-note-requests/:name/edit',
+    name: 'CreditRequestEdit',
+    component: () => import('@/pages/CreditRequestForm.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
+  },
+  {
+    path: '/credit-note-requests/:name',
+    name: 'CreditRequestDetail',
+    component: () => import('@/pages/CreditRequestDetail.vue'),
+    props: true,
+    meta: { partyType: 'Customer' },
+  },
+  {
     path: '/sales-invoices/:name',
     name: 'SalesInvoiceDetail',
     component: () => import('@/pages/SalesInvoiceDetail.vue'),
