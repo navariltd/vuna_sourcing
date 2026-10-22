@@ -12,6 +12,7 @@ import { SALES_INVOICE_STATUS_THEME, createSalesInvoiceResource } from "@/data/s
 import type { SalesInvoice } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { ACCENTS, LOOKS } from "@/data/accents";
+import { CREDIT_REQUEST_STATUS_THEME, statusLabel } from "@/data/creditRequests";
 
 const props = defineProps<{ name: string }>();
 
@@ -121,6 +122,54 @@ watch([customer, () => props.name], load, { immediate: true });
 					</dd>
 				</div>
 			</dl>
+
+			<div
+				v-if="invoice.credit_request?.open_request"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border p-4"
+			>
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<span class="text-base text-ink-gray-8">
+						Credit note request {{ invoice.credit_request.open_request.name }}
+					</span>
+					<Badge
+						:theme="
+							CREDIT_REQUEST_STATUS_THEME[
+								invoice.credit_request.open_request.request_status
+							] || 'gray'
+						"
+						variant="subtle"
+						:label="statusLabel(invoice.credit_request.open_request.request_status)"
+					/>
+				</div>
+				<Button
+					variant="subtle"
+					label="View request"
+					:route="{
+						name: 'CreditRequestDetail',
+						params: { name: invoice.credit_request.open_request.name },
+					}"
+				/>
+			</div>
+
+			<div
+				v-else-if="invoice.credit_request?.can_request"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-dashed p-4"
+			>
+				<div class="min-w-0">
+					<p class="text-base font-medium text-ink-gray-8">
+						Something wrong with this invoice?
+					</p>
+					<p class="mt-0.5 text-p-sm text-ink-gray-5">
+						Ask us to credit damaged, wrong or missing items.
+					</p>
+				</div>
+				<Button
+					variant="solid"
+					:icon-left="LOOKS.creditRequest.icon"
+					label="Request a credit note"
+					:route="{ name: 'CreditRequestNew', query: { invoice: invoice.name } }"
+				/>
+			</div>
 
 			<div
 				v-if="

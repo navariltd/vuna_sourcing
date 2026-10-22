@@ -1,6 +1,7 @@
 import { createResource } from "frappe-ui";
 import type { BadgeTheme } from "@/data/application";
 import type { ReturnNote } from "@/data/purchase";
+import type { InvoiceCreditState } from "@/data/creditRequests";
 
 export interface QuotationRow {
   name: string;
@@ -250,6 +251,7 @@ export interface SalesInvoice {
     allocated_amount: number | null;
   }[];
   credit_notes: ReturnNote[];
+  credit_request: InvoiceCreditState;
 }
 
 export function createQuotationResource() {

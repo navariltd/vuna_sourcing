@@ -1,11 +1,18 @@
 {
  "actions": [],
- "creation": "2026-09-18 16:00:00.000000",
+ "creation": "2026-09-18 16:00:00",
  "doctype": "DocType",
  "document_type": "Setup",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "portal_transactions_tab",
+  "section_customer_orders",
+  "allow_customer_sales_orders",
+  "section_credit_requests",
+  "allow_customer_credit_requests",
+  "column_break_credit_requests",
+  "notify_customer_of_credit_decisions",
   "onboarding_tab",
   "section_registration",
   "registration_mode",
@@ -37,9 +44,6 @@
   "column_break_sealed_bid_opening",
   "allow_any_member_to_open",
   "create_purchase_orders_on_award",
-  "portal_transactions_tab",
-  "section_customer_orders",
-  "allow_customer_sales_orders",
   "notifications_tab",
   "section_notifications",
   "notify_applicant",
@@ -195,17 +199,17 @@
    "label": "Bidding"
   },
   {
+   "description": "By default, sealed quotations open only after bids close, the RFQ's minimum number of quotations has arrived, and every committee member has confirmed. Tick an exception to relax that rule for all sealed bids.",
    "fieldname": "section_sealed_bid_opening",
    "fieldtype": "Section Break",
-   "label": "Opening Sealed Bids",
-   "description": "By default, sealed quotations open only after bids close, the RFQ's minimum number of quotations has arrived, and every committee member has confirmed. Tick an exception to relax that rule for all sealed bids."
+   "label": "Opening Sealed Bids"
   },
   {
    "default": "0",
+   "description": "Opening early stops suppliers from sending further quotations.",
    "fieldname": "allow_opening_before_bids_close",
    "fieldtype": "Check",
-   "label": "Allow Opening Before Bids Close",
-   "description": "Opening early stops suppliers from sending further quotations."
+   "label": "Allow Opening Before Bids Close"
   },
   {
    "default": "0",
@@ -219,10 +223,10 @@
   },
   {
    "default": "0",
+   "description": "The first committee member to confirm opens the quotations, instead of waiting for every member.",
    "fieldname": "allow_any_member_to_open",
    "fieldtype": "Check",
-   "label": "Allow Any One Committee Member to Open",
-   "description": "The first committee member to confirm opens the quotations, instead of waiting for every member."
+   "label": "Allow Any One Committee Member to Open"
   },
   {
    "default": "0",
@@ -247,6 +251,30 @@
    "fieldname": "allow_customer_sales_orders",
    "fieldtype": "Check",
    "label": "Allow Customers to Create Sales Orders"
+  },
+  {
+   "fieldname": "section_credit_requests",
+   "fieldtype": "Section Break",
+   "label": "Credit Note Requests"
+  },
+  {
+   "default": "0",
+   "description": "Customers can pick an invoice on the portal and ask for a credit note. Accounts Managers approve each request before a credit note is made.",
+   "fieldname": "allow_customer_credit_requests",
+   "fieldtype": "Check",
+   "label": "Allow Customers to Request Credit Notes"
+  },
+  {
+   "fieldname": "column_break_credit_requests",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "allow_customer_credit_requests",
+   "description": "Email the customer when a request is approved, declined, sent back or credited.",
+   "fieldname": "notify_customer_of_credit_decisions",
+   "fieldtype": "Check",
+   "label": "Email Customers About Decisions"
   },
   {
    "fieldname": "notifications_tab",
@@ -287,7 +315,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-20 10:00:00.000000",
+ "modified": "2026-10-22 13:00:07.344361",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

@@ -60,6 +60,7 @@ export const LOOKS = {
   deliveryNote: { icon: "lucide-truck", accent: "green" },
   salesInvoice: { icon: "lucide-receipt-text", accent: "amber" },
   creditNote: { icon: "lucide-receipt-cent", accent: "pink" },
+  creditRequest: { icon: "lucide-message-square-diff", accent: "pink" },
   receivable: { icon: "lucide-wallet", accent: "amber" },
   payable: { icon: "lucide-wallet", accent: "amber" },
   application: { icon: "lucide-folder-clock", accent: "gray" },

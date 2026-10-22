@@ -19,15 +19,16 @@ class SourcingSettings(Document):
 		accept_customer_applications: DF.Check
 		accept_supplier_applications: DF.Check
 		allow_any_member_to_open: DF.Check
+		allow_customer_credit_requests: DF.Check
 		allow_customer_sales_orders: DF.Check
 		allow_opening_before_bids_close: DF.Check
 		allow_opening_below_minimum: DF.Check
 		allowed_file_types: DF.Data | None
 		contact_email: DF.Data | None
-		create_purchase_orders_on_award: DF.Check
 		create_address_on_approval: DF.Check
 		create_bank_account_on_approval: DF.Check
 		create_contact_on_approval: DF.Check
+		create_purchase_orders_on_award: DF.Check
 		default_customer_group: DF.Link | None
 		default_supplier_group: DF.Link | None
 		default_territory: DF.Link | None
@@ -35,6 +36,7 @@ class SourcingSettings(Document):
 		link_portal_user_on_approval: DF.Check
 		max_file_size_mb: DF.Float
 		notify_applicant: DF.Check
+		notify_customer_of_credit_decisions: DF.Check
 		notify_reviewers: DF.Check
 		registration_mode: DF.Literal["Invitation Only", "Open to Public"]
 		reviewer_role: DF.Link | None

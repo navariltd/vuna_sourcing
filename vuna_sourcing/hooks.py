@@ -196,6 +196,11 @@ doc_events = {
 	"Purchase Order": {
 		"validate": "vuna_sourcing.api.transactions.award.validate_awarded_items",
 	},
+	"Sales Invoice": {
+		"before_submit": "vuna_sourcing.overrides.server.sales_invoice.validate_credit_note_request",
+		"on_submit": "vuna_sourcing.overrides.server.sales_invoice.mark_credit_note_issued",
+		"on_cancel": "vuna_sourcing.overrides.server.sales_invoice.reopen_credit_note_request",
+	},
 }
 
 override_whitelisted_methods = {
@@ -207,6 +212,7 @@ override_whitelisted_methods = {
 override_doctype_dashboards = {
 	"Request for Quotation": "vuna_sourcing.overrides.server.dashboards.request_for_quotation",
 	"Supplier Quotation": "vuna_sourcing.overrides.server.dashboards.supplier_quotation",
+	"Sales Invoice": "vuna_sourcing.overrides.server.dashboards.sales_invoice",
 }
 
 scheduler_events = {

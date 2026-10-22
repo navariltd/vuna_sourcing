@@ -124,6 +124,7 @@ const SELLING: NavLink[] = [
 		tab: "Invoices",
 	},
 	{ label: "Credit Note", look: LOOKS.creditNote, route: "CreditNoteList" },
+	{ label: "Credit Note Request", look: LOOKS.creditRequest, route: "CreditRequestList" },
 	{ label: "Pending Invoices", look: LOOKS.receivable, route: "CustomerStatement" },
 ];
 
