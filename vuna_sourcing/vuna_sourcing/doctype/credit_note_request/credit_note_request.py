@@ -475,7 +475,7 @@ def get_invoice_lines(sales_invoice: str) -> dict:
 
 
 @frappe.whitelist()
-def make_credit_note(source_name: str, target_doc=None):
+def make_credit_note(source_name: str, target_doc: Document | str | None = None) -> Document:
 	from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
 
 	request = frappe.get_doc(DOCTYPE, source_name)

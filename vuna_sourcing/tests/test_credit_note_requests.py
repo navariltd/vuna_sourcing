@@ -49,7 +49,6 @@ class TestCreditNoteRequests(SourcingFixtures, IntegrationTestCase):
 				}
 			).insert(ignore_permissions=True)
 		cls.approver = make_test_user(["Accounts Manager", "Accounts User"], first_name="Approver").name
-		frappe.db.commit()
 
 	def setUp(self):
 		for field, value in (
