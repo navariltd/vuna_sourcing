@@ -1,5 +1,5 @@
 <div align="center">
-	<img src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d" width="300" alt="Vuna Sourcing" />
+	<img src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d" width="200" alt="Vuna Sourcing" />
 	<p>Supplier and customer self-service portal for ERPNext</p>
 
 [![CI](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml/badge.svg)](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml)
