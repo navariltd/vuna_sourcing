@@ -1,239 +1,203 @@
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d" width="350" alt="Vuna Sourcing" />
-  <br />
-  <h1 align="center">Vuna Sourcing</h1>
-</p>
+<div align="center">
+	<img src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d" width="300" alt="Vuna Sourcing" />
+	<p>Supplier and customer self-service portal for ERPNext</p>
 
+[![CI](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml/badge.svg)](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml)
 
-One online portal where your **suppliers** and **customers** do business with you themselves, with fewer emails, phone calls and paper forms.
+</div>
 
-Open the portal at **`https://<your-site>/vuna-sourcing`**. It works on a computer or a phone.
+<div align="center">
+	<img width="1440" alt="Vuna Sourcing portal" src="https://github.com/user-attachments/assets/425dc320-7db7-4bad-827e-24b51876e95c" />
+</div>
 
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/425dc320-7db7-4bad-827e-24b51876e95c" />
+## Vuna Sourcing
 
----
+**Vuna Sourcing** is a self-service portal for **ERPNext**, built on the **Frappe Framework**.
 
-## Getting started
+Suppliers and customers sign in to one portal. There they apply to work with you, answer requests for quotation, bid in live auctions, place orders, follow their invoices and ask for credit notes, with no emails, phone calls or paper forms. Everything they do creates standard ERPNext documents, so your buying, selling and accounts keep running through the usual ERPNext workflow.
 
-1. **Sign up** with your email address.
-2. **Apply** as a supplier (*Sell to us*), a customer (*Buy from us*), or both. Fill in your business details and contacts, then upload the documents we ask for. You can save the application and finish it later.
-3. **Wait for approval.** Our team reviews your application. Once it is approved, your account opens and the menus for your role appear.
+The portal is at `https://<your-site>/vuna-sourcing` and works on both computers and phones.
 
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/cadf9f4b-1983-4509-9462-c58af33ee203" />
+### Key Features
 
-If you work with us as both a supplier and a customer, use the **Supplier / Customer** switch at the top of the menu.
+* **Self-Service Onboarding** - New suppliers and customers apply online, by invitation or open sign-up. They enter business details, contacts, addresses and bank details, and upload the documents you require. Staff approve applications in ERPNext, which creates the Supplier or Customer and links the portal user.
+* **Requests for Quotation** - Suppliers see the RFQs sent to them, enter a price and lead time for each item, save drafts, or decline to quote.
+* **Sealed Bids** - Quotations stay hidden from everyone, including staff, until bidding closes and the opening committee opens them together.
+* **Open Bids (Live Auctions)** - Suppliers bid against each other in real time and can lower their price until the deadline. See [How open bids work](#how-open-bids-work).
+* **Awards** - Award a whole RFQ or individual items to one or more suppliers. Purchase orders can be created automatically on award.
+* **Customer Ordering** - Customers order from your item catalogue at their own price list, choose a delivery date and address, and can save an order as a draft.
+* **Credit Note Requests** - Customers request credit on an invoice for damaged, short or wrong goods. Accounts approve, reject or return each request in ERPNext.
+* **Account Overview** - Suppliers and customers see their open documents, amounts outstanding and overdue, and their invoice history at a glance.
+* **Documents in One Place** - Quotations, orders, delivery notes, invoices, debit and credit notes, all ready to print.
+* **One Login, Both Roles** - A business that is both a supplier and a customer switches between the two from one account.
+* **Phone Friendly** - On a phone the portal has its own layout, with a bottom menu bar.
 
----
+## How Open Bids Work
 
-## For suppliers
+<div align="center">
+	<img width="1440" alt="Open bid room" src="https://github.com/user-attachments/assets/28068d98-2ab4-434a-8172-9b0415ead40e" />
+</div>
 
-| What you can do | Where |
-|---|---|
-| See requests for prices (RFQs) sent to you and reply with your prices | **Request for Quotation** |
-| Follow a live auction and bid again before it closes | **Live bid** panel, bottom right |
-| Follow your quotations and see which ones were awarded | **Supplier Quotation** |
-| See the purchase orders we have sent you | **Purchase Order** |
-| See your invoices, debit notes and what is still unpaid | **Purchase Invoice**, **Debit Note**, **Pending Invoices** |
+An open bid is a reverse auction. Every invited supplier competes on price until the closing time.
 
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/a3128e26-1a66-4255-9715-c34c2c694060" />
+1. **First bid.** A supplier must place a bid before they can see anyone else's prices.
+2. **Bid room.** After that first bid, they see a countdown, their rank, their own total and the lowest total so far.
+3. **Item by item.** Each line shows the lowest price offered for that item next to the supplier's own price. **Take Lead** fills in the lowest price on every line in one click.
+4. **Bid again.** Each new bid replaces the supplier's previous one, as many times as they like until bidding closes.
+5. **Leaderboard.** Bidders are ranked by total price and the board updates live. Other suppliers appear only as *Bidder A*, *Bidder B* and so on, never by name. When two totals are equal, the earlier bid ranks higher.
+6. **Live bid panel.** While an auction is running, a corner panel on every page shows the time left and the supplier's position.
 
-The tabs show where each request stands: **Invited** (waiting for your prices), **Bidding** (an open bid you have joined), **Submitted**, **Awarded**, **Not Selected**, **Declined** and **Closed**.
+Every bid is saved in an **RFQ Bid Log** that no one can edit or delete. The log gives you a full audit trail of each supplier's prices over time. Once bidding closes, staff review the latest bid from each supplier and make the award. The lowest price does not win automatically.
 
-### Replying to a request for quotation
+## Basic Usage
 
-Open the request and, for each item, enter your **price** and your **lead time** (the number of days you need to deliver). Choose how long your prices stay valid, then send.
+### Suppliers
 
-- **Save draft** keeps your prices without sending them.
-- **Not quoting** tells us you will not take part, so we stop waiting for you.
+1. Open **Request for Quotation** and pick a request from the **Invited** tab.
+2. Enter a price and lead time for each item and choose how long the prices are valid.
+3. Click **Place bid** for an open bid, or **Send quotation** for a sealed bid.
+4. Follow the outcome under **Supplier Quotation**, then follow orders and payments under **Purchase Order** and **Purchase Invoice**.
 
-Every request is either a **sealed bid** or an **open bid**. The page tells you which one it is before you start.
+### Customers
 
-### Sealed bids
+1. Open **Sales Order → New** and add items from the catalogue.
+2. Choose a delivery date and address, then click **Send order**.
+3. Follow deliveries and invoices under **Delivery Note**, **Sales Invoice** and **Pending Invoices**.
+4. To ask for a credit, open **Credit Note Request → New**, choose the invoice, the items and a reason.
 
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/232bd19c-7e85-45d3-ac7a-e28be9981b76" />
+<div align="center">
+	<img width="1440" alt="Customer ordering" src="https://github.com/user-attachments/assets/4dc9fb65-a7cb-40fa-a859-fe6a248dcb93" />
+</div>
 
-A sealed bid works like a tender box:
+### Staff (in ERPNext Desk)
 
-- You send **one quotation**. Once it is sent, you cannot change it.
-- **No one can see the prices**, including our own staff, until bidding closes.
-- After the closing time, our opening committee opens all the quotations together, so every supplier is compared on the same terms.
+* **Party Onboarding Request** - review applications, then approve or reject them.
+* **Request for Quotation** - choose *Sealed Bid* or *Open Bid*, set when bidding closes and, for sealed bids, set the opening committee. After bidding closes, open the quotations and award.
+* **Credit Note Request** - approve, reject or return each request, then create the credit note.
 
-### Open bids (live auctions)
+## Configuration
 
-An open bid is a live auction. Suppliers compete on price, and you can lower your price as many times as you like until bidding closes.
+Most of the configuration lives in **Sourcing Settings**.
 
-1. **Place your first bid** from the request page. You must bid before you can see anyone else's prices.
-2. **You enter the bid room.** It shows how much time is left, your rank, your current total and the lowest total so far.
-3. **Compare item by item.** Next to each item you can see the **lowest price** any bidder has offered and **your price now**. A price shown in green means you are the lowest on that item.
-4. **Bid again** to improve your rank. Change your prices and click **Place bid**. Your new bid replaces your previous one. **Take Lead** fills in the lowest price for every item, so you can match the leader in one step and then go lower.
-5. **Bidding closes** at the time shown. After that, prices are locked and the buyer reviews the latest bid from each supplier.
+* **Onboarding** - registration mode (*Invitation Only* or *Open to Public*), which application types you accept, fallback groups and territory, and what is created on approval (contacts, addresses, bank account, portal user).
+* **Uploads** - allowed file types and maximum file size for applicant documents.
+* **Bidding** - rules for opening sealed bids, and whether purchase orders are created on award.
+* **Portal Transactions** - turn on customer sales orders and credit note requests. Both are **off** by default.
+* **Notifications** - emails to applicants and reviewers, and the reviewer role.
 
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/28068d98-2ab4-434a-8172-9b0415ead40e" />
+Apart from these settings, the portal follows your ERPNext setup:
 
-**The leaderboard** ranks every bidder by total price, lowest first, and updates on its own as new bids come in. Bidders are shown as *Bidder A*, *Bidder B* and so on, so **no one sees who the other suppliers are**. Your own row is marked **you**, and each other row shows how far it is above the lowest bid. If two totals are the same, the bid placed first ranks higher.
+* **Party Onboarding Template** and **Party Document Type** define the application form and the documents each type of applicant must upload.
+* **RFQ Opening Committee** lists the people who can open sealed bids.
+* **Price Lists** and **Item Prices** set the catalogue prices customers see.
+* **Party Accounts** on a Customer set which companies that customer can order from.
 
-**Your bids** lists every bid you have placed in this auction. It marks which one is current and which ones were replaced.
+## Under the Hood
 
-**The Live bid panel** stays in the corner of every page while an auction you are invited to is running. It shows the time left and whether you are leading, so you can switch to other work and come back when you need to.
+* [**Frappe Framework**](https://github.com/frappe/frappe) - backend, database, authentication, permissions, realtime updates and API layer.
+* [**ERPNext**](https://github.com/frappe/erpnext) - suppliers, customers, items, RFQs, quotations, orders, invoices and accounting.
+* [**Frappe UI**](https://github.com/frappe/frappe-ui) and [**Vue 3**](https://vuejs.org/) - the portal interface.
+* [**Tailwind CSS**](https://tailwindcss.com/) - styling.
 
-Good to know:
+## Production Setup
 
-- The **lowest price does not automatically win**. Our team decides the award and can weigh things like lead time as well as price. We can also split the items between several suppliers.
-- **Each bid is recorded permanently** with its time and prices, and cannot be edited or deleted by anyone. This keeps the auction fair for every supplier.
-- When we award the request, its status changes to **Awarded** or **Not Selected**. Any purchase order for you appears under **Purchase Order**.
+### Managed Hosting
 
----
+Vuna Sourcing can be deployed on [Frappe Cloud](https://frappecloud.com/). In your bench group, click **Apps → Add App → Add from GitHub**, enter `https://github.com/navariltd/vuna_sourcing`, deploy, then install the app on your site.
 
-## For customers
+### Self Hosting
 
-| What you can do | Where |
-|---|---|
-| Place a new order from our item catalogue | **Sales Order → New** |
-| Review quotations we have sent you | **Quotation** |
-| Track deliveries | **Delivery Note** |
-| See invoices, amounts outstanding and credit notes | **Sales Invoice**, **Pending Invoices**, **Credit Note** |
-| Ask for a credit on an invoice (for example, for returned or damaged goods) | **Credit Note Request** |
+```bash
+bench get-app https://github.com/navariltd/vuna_sourcing --branch develop
+bench --site [your-site] install-app vuna_sourcing
+bench build --app vuna_sourcing
+bench restart
+```
 
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/38b116a0-17b9-4cff-9643-36a5f4ceb309" />
+## Development Setup
 
-The overview shows your open quotations and orders, how much you owe and how much is overdue, your monthly invoices, and the orders still waiting to be delivered.
+### Manual Installation
 
-### Placing an order
-
-1. Browse the catalogue, or tap a category such as *Fertilizer* or *Seeds*. You can also search by item name.
-2. Click **Add** on each item you want, then use **+** and **−** to set the quantity.
-3. Choose a **delivery date** and **where to deliver**, and add your own PO number if you have one.
-4. Click **Send order**. Click **Save for later** to keep it as a draft and finish it later.
-
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/4dc9fb65-a7cb-40fa-a859-fe6a248dcb93" />
-
-### Requesting a credit note
-
-If goods arrive damaged, short or wrong, open **Credit Note Request → New** and choose the invoice. Select the items and quantities, choose a reason, and describe what happened.
-
-Our Accounts team reviews every request. While it is under review you can still **withdraw** it. If they send it back to you for changes, edit it and send it again. When they approve it, the credit note appears under **Credit Note** and the amount you owe goes down.
-
-<img width="1440" height="900" alt="image" src="https://github.com/user-attachments/assets/38a27c73-76a6-4451-aa86-b7eb8247478f" />
-
----
-
-## On a phone
-
-On a phone, the main pages are in a menu bar at the bottom of the screen, and **More** opens everything else. Live bidding, ordering and invoices all work the same way as on a computer.
-
-
- |  | | |
-|---|---|---|
-| <img width="250" alt="image" src="https://github.com/user-attachments/assets/c53dd842-ab16-47f1-9328-c878a69dcfd6" />| <img width="250" src="https://github.com/user-attachments/assets/d18c6ba4-8fd9-4ca0-a108-0df8245ba733" /> | <img width="250" src="https://github.com/user-attachments/assets/ee640d24-d95a-403d-addb-7e78e44fe3d0" /> |
-| <img width="250" src="https://github.com/user-attachments/assets/fcfba5af-9ce5-43b5-9098-c163ee7b77f6" /> | <img width="250" src="https://github.com/user-attachments/assets/264d4894-8845-49f3-86ad-355c7e39cf24" /> | <img width="250" src="https://github.com/user-attachments/assets/c23b11c9-a402-4844-a17e-0684af9263f9" /> |
-
-
-
----
-
-## For our staff (inside ERPNext)
-
-- **Applications:** review new supplier and customer applications, then approve or reject them.
-- **RFQs:** choose **Sealed Bid** or **Open Bid**, set when bidding closes and, for sealed bids, pick the opening committee. After bidding closes, compare the quotations and award the items to one or more suppliers.
-- **Credit note requests:** Accounts approves, rejects or returns each request, then creates the credit note.
-
----
-
-## 🛠️ Installation (for administrators)
-
-### ✅ Dependencies
-
-- [Frappe Framework](https://frappe.io/framework) version 16
-- [ERPNext](https://frappe.io/erpnext) version 16
-- Python 3.14 and Node.js 24, the same versions Frappe 16 needs
-
-### ☁️ Managed Hosting ([Frappe Cloud](https://frappecloud.com/))
-
-1. Log in to your Frappe Cloud account.
-2. Open your **Bench Group**, go to the **Apps** tab and click **+ Add App**.
-3. Choose **Add from GitHub** and paste `https://github.com/navariltd/vuna_sourcing.git`, then pick the `develop` branch.
-4. Deploy the bench, then install **Vuna Sourcing** on your site from the site's **Apps** tab.
-
-### 🧑🏿‍💻 Self Hosting
-
-1. Make sure you have a working Frappe and ERPNext bench.
-2. Get the app:
+1. Set up a Frappe bench (version 16) by following the [Frappe installation guide](https://docs.frappe.io/framework/user/en/installation), then start it:
 
    ```bash
-   cd ~/frappe-bench
-   bench get-app https://github.com/navariltd/vuna_sourcing.git --branch develop
-   ```
-
-3. Install it on your site, then build the portal:
-
-   ```bash
-   bench --site [your-site-name] install-app vuna_sourcing
-   bench build --app vuna_sourcing
-   bench restart
-   ```
-
-The portal is then live at `https://[your-site-name]/vuna-sourcing`.
-
-### 💻 Running on localhost
-
-Use these steps to try the app on your own computer, or to work on it. They assume you already have a [Frappe bench](https://docs.frappe.io/framework/user/en/installation) with ERPNext version 16.
-
-1. Create a local site and install ERPNext and the app:
-
-   ```bash
-   cd ~/frappe-bench
-   bench get-app https://github.com/navariltd/vuna_sourcing.git --branch develop
-   bench new-site sourcing.localhost --admin-password admin
-   bench --site sourcing.localhost install-app erpnext vuna_sourcing
-   bench use sourcing.localhost
-   bench --site sourcing.localhost set-config developer_mode 1
-   ```
-
-2. Build the portal and start the bench:
-
-   ```bash
-   bench build --app vuna_sourcing
    bench start
    ```
 
-3. Open these in your browser:
-   - Desk: <http://sourcing.localhost:8000/app>. Log in as `Administrator` with password `admin`, then finish the ERPNext setup wizard.
-   - Portal: <http://sourcing.localhost:8000/vuna-sourcing>
-
-   Most browsers send any `*.localhost` address to your own computer. If yours doesn't, add `127.0.0.1 sourcing.localhost` to `/etc/hosts`.
-
-4. **Optional: live reload while you edit the portal.** With `bench start` still running, open a second terminal:
+2. In another terminal, create a site:
 
    ```bash
-   cd ~/frappe-bench/apps/vuna_sourcing
-   npm install
-   npm run dev
+   bench new-site sourcing.localhost
+   bench --site sourcing.localhost set-config developer_mode 1
    ```
 
-   Open the address it prints. Your changes show up as soon as you save a file. Run `bench build --app vuna_sourcing` again before you test on port 8000.
-
-5. **Run the tests:**
+3. Install ERPNext:
 
    ```bash
-   bench --site sourcing.localhost set-config allow_tests true
-   bench --site sourcing.localhost run-tests --app vuna_sourcing
+   bench get-app erpnext --branch version-16
+   bench --site sourcing.localhost install-app erpnext
    ```
 
-### ⚙️ First-time setup
+4. Get and install Vuna Sourcing:
 
-In Desk, open **Sourcing Settings** and choose what the portal allows:
+   ```bash
+   bench get-app https://github.com/navariltd/vuna_sourcing --branch develop
+   bench --site sourcing.localhost install-app vuna_sourcing
+   ```
 
-| Tab | Setting | Default |
-|---|---|---|
-| Onboarding | **Registration Mode**: *Invitation Only* or *Open to Public* | Invitation Only |
-| Onboarding | Accept supplier and/or customer applications | Both on |
-| Uploads | Allowed file types and maximum file size | pdf, jpg, jpeg, png · 5 MB |
-| Bidding | Rules for opening sealed bids, and creating purchase orders automatically on award | Strict · off |
-| Portal Transactions | **Allow Customers to Create Sales Orders** | **Off** |
-| Portal Transactions | **Allow Customers to Request Credit Notes** | **Off** |
-| Notifications | Email applicants and reviewers, and the reviewer role | On · Purchase Master Manager |
+5. Build the assets and migrate:
 
-Customer ordering and credit note requests are **off** until you turn them on here.
+   ```bash
+   bench build --app vuna_sourcing
+   bench --site sourcing.localhost migrate
+   ```
+
+6. Open the site, finish the ERPNext setup wizard in Desk, then open the portal:
+
+   ```text
+   http://sourcing.localhost:8000/app
+   http://sourcing.localhost:8000/vuna-sourcing
+   ```
+
+### Portal Development
+
+To work on the portal with live reload, run the Vite dev server while `bench start` is running:
+
+```bash
+cd apps/vuna_sourcing
+npm install
+npm run dev
+```
+
+### Running Tests
+
+```bash
+bench --site sourcing.localhost set-config allow_tests true
+bench --site sourcing.localhost run-tests --app vuna_sourcing
+```
+
+## Contributing
+
+This project uses `pre-commit` for formatting and linting. Install and enable it inside the repository:
+
+```bash
+cd apps/vuna_sourcing
+pre-commit install
+```
+
+The configured checks are:
+
+* ruff
+* eslint
+* prettier
+* pyupgrade
+
+## CI
+
+GitHub Actions runs these workflows:
+
+* **CI** - installs the app and runs the unit tests on every push to `develop`.
+* **Linters** - runs [Frappe Semgrep Rules](https://github.com/frappe/semgrep-rules) and [pip-audit](https://pypi.org/project/pip-audit/) on every pull request.
 
 ## License
 
