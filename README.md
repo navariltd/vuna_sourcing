@@ -1,4 +1,9 @@
-# Vuna Sourcing
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d" width="350" alt="Vuna Sourcing" />
+  <br />
+  <h1 align="center">Vuna Sourcing</h1>
+</p>
+
 
 One online portal where your **suppliers** and **customers** do business with you themselves, with fewer emails, phone calls and paper forms.
 
