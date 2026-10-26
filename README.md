@@ -1,11 +1,15 @@
 <div align="center">
-	<img src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d" width="200" alt="Vuna Sourcing" />
-	<p>Supplier and customer self-service portal for ERPNext</p>
+  <img
+    src="https://github.com/user-attachments/assets/d0c6cb92-7511-4238-9def-2690461d316d"
+    width="200"
+    alt="Vuna Sourcing"
+    style="border-radius: 20px;"
+  />
 
-[![CI](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml/badge.svg)](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml)
+  <p>Supplier and customer self-service portal for ERPNext</p>
 
+  [![CI](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml/badge.svg)](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml)
 </div>
-
 <div align="center">
 	<img width="1440" alt="Vuna Sourcing portal" src="https://github.com/user-attachments/assets/425dc320-7db7-4bad-827e-24b51876e95c" />
 </div>
