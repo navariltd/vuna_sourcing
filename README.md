@@ -73,28 +73,6 @@ Every bid is saved in an **RFQ Bid Log** that no one can edit or delete. The log
 	<img width="1440" alt="Customer ordering" src="https://github.com/user-attachments/assets/4dc9fb65-a7cb-40fa-a859-fe6a248dcb93" />
 </div>
 
-### Staff (in ERPNext Desk)
-
-* **Party Onboarding Request** - review applications, then approve or reject them.
-* **Request for Quotation** - choose *Sealed Bid* or *Open Bid*, set when bidding closes and, for sealed bids, set the opening committee. After bidding closes, open the quotations and award.
-* **Credit Note Request** - approve, reject or return each request, then create the credit note.
-
-## Configuration
-
-Most of the configuration lives in **Sourcing Settings**.
-
-* **Onboarding** - registration mode (*Invitation Only* or *Open to Public*), which application types you accept, fallback groups and territory, and what is created on approval (contacts, addresses, bank account, portal user).
-* **Uploads** - allowed file types and maximum file size for applicant documents.
-* **Bidding** - rules for opening sealed bids, and whether purchase orders are created on award.
-* **Portal Transactions** - turn on customer sales orders and credit note requests. Both are **off** by default.
-* **Notifications** - emails to applicants and reviewers, and the reviewer role.
-
-Apart from these settings, the portal follows your ERPNext setup:
-
-* **Party Onboarding Template** and **Party Document Type** define the application form and the documents each type of applicant must upload.
-* **RFQ Opening Committee** lists the people who can open sealed bids.
-* **Price Lists** and **Item Prices** set the catalogue prices customers see.
-* **Party Accounts** on a Customer set which companies that customer can order from.
 
 ## Under the Hood
 
