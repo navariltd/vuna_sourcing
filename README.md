@@ -8,11 +8,18 @@
 
   <p>Supplier and customer self-service portal for ERPNext</p>
 
+  <p> <a href="https://docs.navari.co.ke/vuna-sourcing">Documentation</a></p>
+
   [![CI](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml/badge.svg)](https://github.com/navariltd/vuna_sourcing/actions/workflows/ci.yml)
+
+
 </div>
 <div align="center">
 	<img width="1440" alt="Vuna Sourcing portal" src="https://github.com/user-attachments/assets/425dc320-7db7-4bad-827e-24b51876e95c" />
+
+	
 </div>
+
 
 ## Vuna Sourcing
 
