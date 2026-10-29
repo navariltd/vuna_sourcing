@@ -37,11 +37,6 @@ The portal is at `https://<your-site>/vuna-sourcing` and works on both computers
 * **Phone Friendly** - On a phone the portal has its own layout, with a bottom menu bar.
 
 ## How Open Bids Work
-
-<div align="center">
-	<img width="1440" alt="Open bid room" src="https://github.com/user-attachments/assets/28068d98-2ab4-434a-8172-9b0415ead40e" />
-</div>
-
 An open bid is a reverse auction. Every invited supplier competes on price until the closing time.
 
 1. **First bid.** A supplier must place a bid before they can see anyone else's prices.
@@ -68,10 +63,6 @@ Every bid is saved in an **RFQ Bid Log** that no one can edit or delete. The log
 2. Choose a delivery date and address, then click **Send order**.
 3. Follow deliveries and invoices under **Delivery Note**, **Sales Invoice** and **Pending Invoices**.
 4. To ask for a credit, open **Credit Note Request → New**, choose the invoice, the items and a reason.
-
-<div align="center">
-	<img width="1440" alt="Customer ordering" src="https://github.com/user-attachments/assets/4dc9fb65-a7cb-40fa-a859-fe6a248dcb93" />
-</div>
 
 
 ## Under the Hood
