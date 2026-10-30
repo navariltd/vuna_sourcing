@@ -1,17 +1,26 @@
 import { onBeforeUnmount, readonly, ref } from "vue";
 
 const MOBILE = "(max-width: 767px)";
+const WIDE = "(min-width: 1280px)";
 
-export function useIsMobile() {
-  const isMobile = ref(false);
+function useMediaQuery(media: string) {
+  const matches = ref(false);
 
-  const query = window.matchMedia?.(MOBILE);
+  const query = window.matchMedia?.(media);
   if (query) {
-    isMobile.value = query.matches;
-    const onChange = (event: MediaQueryListEvent) => (isMobile.value = event.matches);
+    matches.value = query.matches;
+    const onChange = (event: MediaQueryListEvent) => (matches.value = event.matches);
     query.addEventListener("change", onChange);
     onBeforeUnmount(() => query.removeEventListener("change", onChange));
   }
 
-  return readonly(isMobile);
+  return readonly(matches);
+}
+
+export function useIsMobile() {
+  return useMediaQuery(MOBILE);
+}
+
+export function useIsWide() {
+  return useMediaQuery(WIDE);
 }

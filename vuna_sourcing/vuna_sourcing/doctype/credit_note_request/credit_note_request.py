@@ -48,11 +48,10 @@ class CreditNoteRequest(Document):
 		naming_series: DF.Literal["CNR-.YYYY.-"]
 		reason: DF.Literal[
 			"",
-			"Damaged Goods",
-			"Wrong Item Supplied",
-			"Short Supplied",
-			"Quality Issue",
-			"Returned Goods",
+			"Charged More Than Agreed",
+			"Agreed Discount Not Applied",
+			"Quality Below What Was Ordered",
+			"Late Delivery",
 			"Other",
 		]
 		request_status: DF.Literal[
@@ -71,7 +70,6 @@ class CreditNoteRequest(Document):
 		reviewed_on: DF.Datetime | None
 		sales_invoice: DF.Link
 		total_amount: DF.Currency
-		total_qty: DF.Float
 		transaction_date: DF.Date | None
 	# end: auto-generated types
 
@@ -87,7 +85,7 @@ class CreditNoteRequest(Document):
 			self.request_status = None
 
 	def before_submit(self):
-		self.drop_empty_lines()
+		self.drop_unchanged_lines()
 		self.validate_no_open_request()
 		self.requested_by = self.requested_by or frappe.session.user
 		self.request_status = PENDING_REVIEW
@@ -99,7 +97,7 @@ class CreditNoteRequest(Document):
 		self.notify_customer(
 			_("Credit note request {0} received").format(self.name),
 			_(
-				"We have received your request {0} to credit invoice {1}. Our accounts team will review it."
+				"We have received your request {0} to lower prices on invoice {1}. Our accounts team will review it."
 			).format(self.name, self.sales_invoice),
 		)
 
@@ -112,7 +110,7 @@ class CreditNoteRequest(Document):
 
 		self.validate_reason()
 		self.refresh_lines()
-		self.drop_empty_lines()
+		self.drop_unchanged_lines()
 
 	def before_cancel(self):
 		credit_notes = frappe.get_all(
@@ -144,16 +142,26 @@ class CreditNoteRequest(Document):
 		self.notify_customer(
 			_("Credit note request {0} cancelled").format(self.name),
 			_(
-				"We have cancelled your request {0} to credit invoice {1}. Contact us if you have any questions."
+				"We have cancelled your request {0} to lower prices on invoice {1}. Contact us if you have any questions."
 			).format(self.name, self.sales_invoice),
 		)
 
 	def validate_reason(self):
 		if not self.reason:
-			frappe.throw(_("Choose the reason you want this invoice credited."), title=_("Reason Needed"))
+			frappe.throw(
+				_("Choose why the prices on this invoice should be lowered."), title=_("Reason Needed")
+			)
+
+		if self.reason not in reason_options():
+			frappe.throw(
+				_("{0} is not one of the reasons we accept.").format(self.reason), title=_("Reason Needed")
+			)
 
 		if self.reason == "Other" and not (self.description or "").strip():
-			frappe.throw(_("Describe what went wrong when the reason is Other."), title=_("Details Needed"))
+			frappe.throw(
+				_("Describe why the price should be lowered when the reason is Other."),
+				title=_("Details Needed"),
+			)
 
 	def refresh_lines(self):
 		invoice = creditable_invoice(self.sales_invoice, self.customer)
@@ -188,21 +196,24 @@ class CreditNoteRequest(Document):
 					"item_name": line["item_name"],
 					"uom": line["uom"],
 					"rate": line["rate"],
-					"invoiced_qty": line["invoiced_qty"],
-					"credited_qty": line["credited_qty"],
+					"qty": line["available_qty"],
 				}
 			)
-			validate_line_qty(row, line, invoice.name)
-			row.amount = flt(flt(row.qty) * flt(row.rate), row.precision("amount"))
+			validate_new_rate(row, line, invoice.name)
+			row.new_rate = flt(row.new_rate, row.precision("new_rate"))
+			reduction = flt(row.rate) - row.new_rate
+			row.discount_percentage = (
+				flt(reduction / flt(row.rate) * 100, row.precision("discount_percentage")) if row.rate else 0
+			)
+			row.amount = flt(flt(row.qty) * reduction, row.precision("amount"))
 
-		if not any(flt(row.qty) > 0 for row in self.items):
-			frappe.throw(_("Enter a quantity to credit for at least one item."), title=_("Nothing to Credit"))
+		if not any(is_lowered(row) for row in self.items):
+			frappe.throw(_("Lower the price of at least one item."), title=_("Nothing to Adjust"))
 
-		self.total_qty = sum(flt(row.qty) for row in self.items)
 		self.total_amount = sum(flt(row.amount) for row in self.items)
 
-	def drop_empty_lines(self):
-		kept = [row for row in self.items if flt(row.qty) > 0]
+	def drop_unchanged_lines(self):
+		kept = [row for row in self.items if is_lowered(row)]
 		for idx, row in enumerate(kept, start=1):
 			row.idx = idx
 		self.set("items", kept)
@@ -226,14 +237,23 @@ class CreditNoteRequest(Document):
 	def approve(self, remarks: str | None = None):
 		self.check_reviewer()
 		self.validate_review_state()
+
+		requested_amount = flt(self.total_amount, self.precision("total_amount"))
 		self.refresh_lines()
+		if flt(self.total_amount, self.precision("total_amount")) != requested_amount:
+			frappe.throw(
+				_(
+					"Credit notes raised against {0} since this request was made have changed the units it covers. Save the request to refresh its amounts, then approve."
+				).format(self.sales_invoice),
+				title=_("Invoice Has Changed"),
+			)
 
 		self.record_review(APPROVED, remarks)
 		self.add_review_comment(_("Approved"), remarks)
 		self.notify_customer(
 			_("Credit note request {0} approved").format(self.name),
 			_(
-				"Your request {0} to credit invoice {1} has been approved. We will send the credit note shortly."
+				"Your request {0} to lower prices on invoice {1} has been approved. We will send the credit note shortly."
 			).format(self.name, self.sales_invoice),
 		)
 
@@ -247,7 +267,7 @@ class CreditNoteRequest(Document):
 		self.add_review_comment(_("Rejected"), reason)
 		self.notify_customer(
 			_("Credit note request {0} declined").format(self.name),
-			_("Your request {0} to credit invoice {1} was not approved.<br><br>Reason: {2}").format(
+			_("Your request {0} to lower prices on invoice {1} was not approved.<br><br>Reason: {2}").format(
 				self.name, self.sales_invoice, escape_html(reason)
 			),
 		)
@@ -263,7 +283,7 @@ class CreditNoteRequest(Document):
 		self.notify_customer(
 			_("Credit note request {0} needs changes").format(self.name),
 			_(
-				"Your request {0} to credit invoice {1} needs changes before we can approve it.<br><br>What needs attention: {2}"
+				"Your request {0} to lower prices on invoice {1} needs changes before we can approve it.<br><br>What needs attention: {2}"
 			).format(self.name, self.sales_invoice, escape_html(reason)),
 		)
 
@@ -344,19 +364,27 @@ def require_reason(reason: str | None, action: str):
 		frappe.throw(_("A reason is required when {0} a request.").format(action))
 
 
+def reason_options() -> list[str]:
+	return [option for option in (frappe.get_meta(DOCTYPE).get_options("reason") or "").split("\n") if option]
+
+
+def is_lowered(row) -> bool:
+	return flt(row.amount) > 0
+
+
 def creditable_invoice(name: str | None, customer: str | None = None):
 	if not name:
-		frappe.throw(_("Choose the invoice you want credited."))
+		frappe.throw(_("Choose the invoice whose prices you want lowered."))
 
 	invoice = frappe.get_doc(SALES_INVOICE, name)
 	if customer and invoice.customer != customer:
 		frappe.throw(_("Invoice {0} was not issued to {1}.").format(name, customer))
 	if invoice.docstatus != 1:
-		frappe.throw(_("Invoice {0} is not submitted, so it cannot be credited.").format(name))
+		frappe.throw(_("Invoice {0} is not submitted, so it cannot be adjusted.").format(name))
 	if invoice.is_return:
 		frappe.throw(_("{0} is itself a credit note. Choose the original invoice.").format(name))
 	if invoice.is_pos and invoice.is_consolidated:
-		frappe.throw(_("Invoice {0} combines point-of-sale sales and cannot be credited here.").format(name))
+		frappe.throw(_("Invoice {0} combines point-of-sale sales and cannot be adjusted here.").format(name))
 
 	return invoice
 
@@ -406,32 +434,31 @@ def invoice_lines(invoice) -> list[dict]:
 	return lines
 
 
-def validate_line_qty(row, line: dict, invoice: str):
-	qty = flt(row.qty, row.precision("qty"))
-	if qty <= 0 or qty <= line["available_qty"]:
-		return
+def validate_new_rate(row, line: dict, invoice: str):
+	new_rate = flt(row.new_rate, row.precision("new_rate"))
+	rate = flt(line["rate"])
 
-	if line["available_qty"] <= 0:
+	if new_rate < 0:
 		frappe.throw(
-			_("Row {0}: {1} on invoice {2} has already been fully credited.").format(
+			_("Row {0}: the new price of {1} cannot be below zero.").format(row.idx, line["item_name"]),
+			title=_("Invalid Price"),
+		)
+
+	if new_rate > rate:
+		frappe.throw(
+			_("Row {0}: the new price of {1} must be lower than its invoiced price of {2}.").format(
+				row.idx, line["item_name"], frappe.format(rate)
+			),
+			title=_("Invalid Price"),
+		)
+
+	if new_rate < rate and line["available_qty"] <= 0:
+		frappe.throw(
+			_("Row {0}: {1} on invoice {2} is already fully covered by credit notes.").format(
 				row.idx, line["item_name"], invoice
 			),
 			title=_("Already Credited"),
 		)
-
-	frappe.throw(
-		_(
-			"Row {0}: you can credit at most {1} {2} of {3}. {4} were invoiced and {5} already credited."
-		).format(
-			row.idx,
-			frappe.format(line["available_qty"]),
-			line["uom"],
-			line["item_name"],
-			frappe.format(line["invoiced_qty"]),
-			frappe.format(line["credited_qty"]),
-		),
-		title=_("Too Much to Credit"),
-	)
 
 
 def throw_fully_credited(invoice: str):
@@ -495,16 +522,36 @@ def make_credit_note(source_name: str, target_doc: Document | str | None = None)
 		)
 
 	request.refresh_lines()
-	requested = {row.sales_invoice_item: flt(row.qty) for row in request.items}
+	adjusted = {row.sales_invoice_item: row for row in request.items}
 
 	credit_note = make_sales_return(request.sales_invoice, target_doc)
+	credit_note.update(
+		{
+			"update_stock": 0,
+			"update_outstanding_for_self": 0,
+			"ignore_pricing_rule": 1,
+			"additional_discount_percentage": 0,
+			"discount_amount": 0,
+		}
+	)
+
 	lines = []
 	for row in credit_note.items:
-		qty = requested.get(row.sales_invoice_item)
-		if not qty:
+		adjustment = adjusted.get(row.sales_invoice_item)
+		if not adjustment:
 			continue
-		row.qty = -qty
-		row.stock_qty = -qty * flt(row.conversion_factor or 1)
+		row.update(
+			{
+				"qty": -flt(adjustment.qty),
+				"stock_qty": -flt(adjustment.qty) * flt(row.conversion_factor or 1),
+				"rate": flt(flt(adjustment.rate) - flt(adjustment.new_rate), row.precision("rate")),
+				"price_list_rate": 0,
+				"discount_percentage": 0,
+				"discount_amount": 0,
+				"margin_rate_or_amount": 0,
+				"pricing_rules": None,
+			}
+		)
 		lines.append(row)
 
 	for idx, row in enumerate(lines, start=1):

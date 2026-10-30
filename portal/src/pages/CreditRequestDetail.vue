@@ -78,7 +78,7 @@ const step = computed<Step | null>(() => {
 		Withdrawn: {
 			accent: "gray",
 			title: "You withdrew this request",
-			text: "Raise a new request from the invoice if you still need a credit.",
+			text: "Raise a new request from the invoice if you still need a lower price.",
 		},
 		Cancelled: {
 			accent: "gray",
@@ -232,7 +232,7 @@ async function withdraw() {
 					<dd class="text-p-base text-ink-gray-8">{{ credit.reason }}</dd>
 				</div>
 				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">To credit</dt>
+					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Reduction</dt>
 					<dd class="text-p-base font-medium text-ink-gray-8">
 						{{ money(credit.total_amount, credit.currency) }}
 					</dd>
@@ -250,10 +250,11 @@ async function withdraw() {
 				<div
 					class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
 				>
-					<span class="sm:col-span-6">Item</span>
-					<span class="sm:col-span-2">Quantity</span>
-					<span class="sm:col-span-2">Rate</span>
-					<span class="sm:col-span-2 text-right">Amount</span>
+					<span class="sm:col-span-4">Item</span>
+					<span class="sm:col-span-2">Units</span>
+					<span class="sm:col-span-2">Invoiced price</span>
+					<span class="sm:col-span-2">New price</span>
+					<span class="sm:col-span-2 text-right">Reduction</span>
 				</div>
 
 				<div class="divide-y">
@@ -262,14 +263,22 @@ async function withdraw() {
 						:key="item.sales_invoice_item"
 						class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
 					>
-						<p class="text-base font-medium text-ink-gray-8 sm:col-span-6">
+						<p class="text-base font-medium text-ink-gray-8 sm:col-span-4">
 							{{ item.item_name }}
 						</p>
 						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
 							{{ item.qty }} {{ item.uom }}
 						</p>
 						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
-							{{ money(item.rate, credit.currency) }}
+							<span class="sm:hidden">Was </span
+							>{{ money(item.rate, credit.currency) }}
+						</p>
+						<p class="text-p-sm text-ink-gray-8 sm:col-span-2">
+							<span class="sm:hidden">Now </span
+							>{{ money(item.new_rate, credit.currency) }}
+							<span class="text-ink-gray-5"
+								>({{ item.discount_percentage }}% off)</span
+							>
 						</p>
 						<p
 							class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
