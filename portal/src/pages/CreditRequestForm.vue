@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+	Alert,
 	Badge,
 	Button,
 	ErrorMessage,
@@ -13,21 +14,26 @@ import {
 } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import QtyStepper from "@/components/QtyStepper.vue";
 import { money, shortDate } from "@/data/purchase";
 import {
-	fetchCreditForm,
+	CREDIT_REQUEST_EXPLAINER,
 	fetchCreditableInvoices,
+	fetchCreditForm,
+	percentOff,
+	priceAfter,
 	resubmitCreditRequest,
 	submitCreditRequest,
 } from "@/data/creditRequests";
-import type { CreditForm, CreditableInvoice } from "@/data/creditRequests";
+import type { CreditableInvoice, CreditForm, CreditFormLine } from "@/data/creditRequests";
 import { errorText } from "@/data/orders";
 import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
 import { ACCENTS, LOOKS } from "@/data/accents";
+import { useIsWide } from "@/composables/useViewport";
 
 const props = defineProps<{ name?: string }>();
+
+const isWide = useIsWide();
 
 const portal = usePortalStore();
 const route = useRoute();
@@ -83,7 +89,9 @@ const loadingForm = ref(false);
 const formError = ref<string | null>(null);
 const openRequest = ref<string | null>(null);
 
-const quantities = ref<Record<string, number>>({});
+const prices = ref<Record<string, number | null>>({});
+const percents = ref<Record<string, number | null>>({});
+const percentForAll = ref<number | null>(null);
 const reason = ref("");
 const details = ref("");
 
@@ -113,8 +121,14 @@ async function loadForm() {
 		}
 
 		form.value = response.data;
-		quantities.value = Object.fromEntries(
-			response.data.lines.map((line) => [line.sales_invoice_item, line.qty])
+		prices.value = Object.fromEntries(
+			response.data.lines.map((line) => [line.sales_invoice_item, line.new_rate])
+		);
+		percents.value = Object.fromEntries(
+			response.data.lines.map((line) => [
+				line.sales_invoice_item,
+				percentOff(line.rate, line.new_rate),
+			])
 		);
 		reason.value = response.data.request?.reason || "";
 		details.value = response.data.request?.description || "";
@@ -129,36 +143,83 @@ watch([customer, () => props.name, chosenInvoice], loadForm, { immediate: true }
 
 const currency = computed(() => form.value?.invoice.currency ?? null);
 
-const chosenLines = computed(() =>
-	(form.value?.lines ?? []).filter(
-		(line) => (quantities.value[line.sales_invoice_item] || 0) > 0
-	)
+const adjustable = (line: CreditFormLine) => line.available_qty > 0 && line.rate > 0;
+
+const adjustableLines = computed(() => (form.value?.lines ?? []).filter(adjustable));
+
+function asNumber(value: string | number) {
+	return value === "" || value === null ? null : Number(value);
+}
+
+function setPrice(line: CreditFormLine, value: string | number) {
+	const price = asNumber(value);
+	prices.value[line.sales_invoice_item] = price;
+	percents.value[line.sales_invoice_item] = price === null ? null : percentOff(line.rate, price);
+}
+
+function setPercent(line: CreditFormLine, value: string | number) {
+	const percent = asNumber(value);
+	percents.value[line.sales_invoice_item] = percent;
+	if (percent !== null && percent >= 0 && percent <= 100) {
+		prices.value[line.sales_invoice_item] = priceAfter(line.rate, percent);
+	}
+}
+
+function applyToAll() {
+	const percent = percentForAll.value;
+	if (percent === null || percent <= 0 || percent > 100) return;
+	for (const line of adjustableLines.value) setPercent(line, percent);
+}
+
+const pricesChanged = computed(() =>
+	adjustableLines.value.some((line) => prices.value[line.sales_invoice_item] !== line.rate)
 );
 
-const total = computed(() =>
-	chosenLines.value.reduce(
-		(sum, line) => sum + (quantities.value[line.sales_invoice_item] || 0) * line.rate,
-		0
-	)
+function resetPrices() {
+	for (const line of adjustableLines.value) setPrice(line, line.rate);
+	percentForAll.value = null;
+}
+
+function newTotal(line: CreditFormLine) {
+	return (prices.value[line.sales_invoice_item] ?? 0) * line.available_qty;
+}
+
+function lineProblem(line: CreditFormLine): string | null {
+	const price = prices.value[line.sales_invoice_item];
+	const percent = percents.value[line.sales_invoice_item];
+	if (price === null) return "Enter a new price, or reset the line.";
+	if (price < 0) return "The new price cannot be below zero.";
+	if (price > line.rate) return `Must be at most ${money(line.rate, currency.value)}.`;
+	if (percent !== null && (percent < 0 || percent > 100))
+		return "Use a percentage from 0 to 100.";
+	return null;
+}
+
+function reduction(line: CreditFormLine) {
+	const price = prices.value[line.sales_invoice_item];
+	if (price === null || lineProblem(line)) return 0;
+	return Math.max(line.rate - price, 0) * line.available_qty;
+}
+
+const loweredLines = computed(() =>
+	adjustableLines.value.filter((line) => !lineProblem(line) && reduction(line) > 0)
 );
+
+const total = computed(() => loweredLines.value.reduce((sum, line) => sum + reduction(line), 0));
 
 const detailsRequired = computed(() => reason.value === "Other");
 
 const missing = computed(() => {
-	if (!chosenLines.value.length) return "Set a quantity on at least one item.";
+	if (adjustableLines.value.some(lineProblem)) return "Fix the prices marked in red.";
+	if (!loweredLines.value.length) return "Lower the price of at least one item.";
 	if (!reason.value) return "Choose a reason.";
-	if (detailsRequired.value && !details.value.trim()) return "Tell us what went wrong.";
+	if (detailsRequired.value && !details.value.trim())
+		return "Tell us why the price should be lower.";
 	return null;
 });
 
 const sending = ref(false);
 const sendError = ref<string | null>(null);
-
-function creditAll() {
-	for (const line of form.value?.lines ?? []) {
-		quantities.value[line.sales_invoice_item] = line.available_qty;
-	}
-}
 
 async function send() {
 	if (!customer.value || !form.value || missing.value) return;
@@ -167,9 +228,9 @@ async function send() {
 	sendError.value = null;
 	const payload = {
 		customer: customer.value,
-		items: chosenLines.value.map((line) => ({
+		items: loweredLines.value.map((line) => ({
 			sales_invoice_item: line.sales_invoice_item,
-			qty: quantities.value[line.sales_invoice_item],
+			new_rate: prices.value[line.sales_invoice_item] as number,
 		})),
 		reason: reason.value,
 		description: details.value.trim() || null,
@@ -218,12 +279,19 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 		/>
 
 		<section v-else-if="picking" class="space-y-4" aria-label="Choose an invoice">
+			<Alert
+				theme="blue"
+				icon="lucide-info"
+				:title="CREDIT_REQUEST_EXPLAINER.title"
+				:description="CREDIT_REQUEST_EXPLAINER.description"
+			/>
+
 			<div>
 				<h2 class="text-lg font-semibold text-ink-gray-9">
 					Which invoice should we credit?
 				</h2>
 				<p class="mt-1 text-p-sm text-ink-gray-5">
-					Only invoices with something left to credit are listed.
+					Only invoices with items left to credit are listed.
 				</p>
 			</div>
 
@@ -315,10 +383,7 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 			/>
 		</EmptyState>
 
-		<div
-			v-else-if="form"
-			class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start"
-		>
+		<div v-else-if="form" class="space-y-6">
 			<div class="min-w-0 space-y-6">
 				<div
 					v-if="form.request?.review_remarks"
@@ -329,6 +394,14 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 						{{ form.request.review_remarks }}
 					</p>
 				</div>
+
+				<Alert
+					v-else
+					theme="blue"
+					icon="lucide-info"
+					:title="CREDIT_REQUEST_EXPLAINER.title"
+					:description="CREDIT_REQUEST_EXPLAINER.description"
+				/>
 
 				<div
 					:class="ACCENTS[LOOKS.salesInvoice.accent].panel"
@@ -383,7 +456,7 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 
 				<section aria-labelledby="credit-reason" class="space-y-4">
 					<h2 id="credit-reason" class="text-lg font-semibold text-ink-gray-9">
-						Why should we credit it?
+						Why should the price be lower?
 					</h2>
 					<FormControl
 						v-model="reason"
@@ -398,11 +471,9 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 						v-model="details"
 						type="textarea"
 						:label="
-							detailsRequired
-								? 'What went wrong'
-								: 'Anything we should know (optional)'
+							detailsRequired ? 'Tell us why' : 'Anything we should know (optional)'
 						"
-						placeholder="e.g. 2 cartons arrived crushed"
+						placeholder="e.g. We agreed 90 per carton on the phone with your sales team"
 						:rows="3"
 						maxlength="1000"
 						:required="detailsRequired"
@@ -410,116 +481,234 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 				</section>
 
 				<section aria-labelledby="credit-items">
-					<div class="mb-2 flex flex-wrap items-end justify-between gap-2">
+					<div class="mb-2 flex flex-wrap items-end justify-between gap-3">
 						<div>
 							<h2 id="credit-items" class="text-lg font-semibold text-ink-gray-9">
-								What should we credit?
+								New prices
 							</h2>
 							<p class="text-p-sm text-ink-gray-5">
-								Set how many of each item to credit. Leave the rest at 0.
+								Type a new price or a percentage off for each item, or apply one
+								percentage to all. Items marked Not changed are left out.
 							</p>
 						</div>
-						<Button
-							variant="outline"
-							icon-left="lucide-list-checks"
-							label="Credit all remaining"
-							@click="creditAll"
-						/>
+						<form class="flex items-end gap-2" @submit.prevent="applyToAll">
+							<FormControl
+								class="w-28"
+								type="number"
+								size="sm"
+								label="% off all"
+								placeholder="e.g. 10"
+								min="0"
+								max="100"
+								step="any"
+								:model-value="percentForAll ?? undefined"
+								@update:model-value="percentForAll = asNumber($event)"
+							/>
+							<Button
+								type="submit"
+								variant="solid"
+								icon-left="lucide-percent"
+								label="Apply"
+								:disabled="
+									percentForAll === null ||
+									percentForAll <= 0 ||
+									percentForAll > 100
+								"
+							/>
+							<Button
+								variant="outline"
+								icon-left="lucide-rotate-ccw"
+								label="Reset prices"
+								:disabled="!pricesChanged"
+								@click="resetPrices"
+							/>
+						</form>
 					</div>
 
-					<ul class="divide-y rounded-6 border">
-						<li
-							v-for="line in form.lines"
-							:key="line.sales_invoice_item"
-							class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-							:class="line.available_qty <= 0 ? 'bg-surface-gray-1' : ''"
+					<div class="overflow-hidden rounded-6 border">
+						<div
+							class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 xl:grid xl:grid-cols-[minmax(12rem,1fr)_10rem_12rem_6.5rem_11rem] xl:gap-4"
 						>
-							<div class="min-w-0">
-								<p class="text-base font-medium text-ink-gray-8">
-									{{ line.item_name }}
-								</p>
-								<p
-									v-if="line.description && line.description !== line.item_name"
-									class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
-								>
-									{{ line.description }}
-								</p>
-								<p class="mt-1 text-p-sm text-ink-gray-6">
-									{{ line.invoiced_qty }} {{ line.uom }} invoiced at
-									{{ money(line.rate, currency) }}
-									<template v-if="line.credited_qty">
-										· {{ line.credited_qty }} already credited
-									</template>
-								</p>
-							</div>
+							<span>Item</span>
+							<span class="text-right">Invoiced price</span>
+							<span>New price</span>
+							<span>% off</span>
+							<span class="text-right">Reduction</span>
+						</div>
 
-							<Badge
-								v-if="line.available_qty <= 0"
-								theme="gray"
-								variant="subtle"
-								label="Fully credited"
-							/>
-							<div
-								v-else
-								class="flex shrink-0 items-center justify-between gap-4 sm:justify-end"
+						<ul class="divide-y">
+							<li
+								v-for="line in form.lines"
+								:key="line.sales_invoice_item"
+								class="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 xl:grid-cols-[minmax(12rem,1fr)_10rem_12rem_6.5rem_11rem] xl:items-start xl:gap-x-4"
+								:class="adjustable(line) ? '' : 'bg-surface-gray-1'"
 							>
-								<div class="w-36">
-									<QtyStepper
-										v-model="quantities[line.sales_invoice_item]"
-										:label="line.item_name"
-										:max="line.available_qty"
-										:removable="false"
-										size="sm"
-									/>
-									<p class="mt-1 text-center text-xs text-ink-gray-5">
-										of {{ line.available_qty }} {{ line.uom }}
+								<div class="col-span-2 min-w-0 xl:col-span-1">
+									<p class="text-base font-medium text-ink-gray-8">
+										{{ line.item_name }}
+									</p>
+									<p class="mt-0.5 text-p-sm text-ink-gray-6">
+										{{ line.available_qty }} {{ line.uom }}
+										<template v-if="line.credited_qty">
+											· {{ line.credited_qty }} already credited
+										</template>
 									</p>
 								</div>
-								<p class="w-28 text-right text-p-base font-medium text-ink-gray-8">
-									{{
-										money(
-											(quantities[line.sales_invoice_item] || 0) * line.rate,
-											currency
-										)
-									}}
+
+								<p
+									class="col-span-2 whitespace-nowrap text-p-sm tabular-nums text-ink-gray-7 xl:col-span-1 xl:pt-1.5 xl:text-right"
+								>
+									<span class="text-ink-gray-5 xl:hidden">Invoiced at </span>
+									{{ money(line.rate, currency) }}
 								</p>
-							</div>
-						</li>
-					</ul>
+
+								<div
+									v-if="!adjustable(line)"
+									class="col-span-2 xl:col-span-3 xl:text-right"
+								>
+									<Badge
+										theme="gray"
+										variant="subtle"
+										:label="
+											line.available_qty > 0
+												? 'No price to lower'
+												: 'Fully credited'
+										"
+									/>
+								</div>
+
+								<template v-else>
+									<div class="min-w-0">
+										<FormControl
+											type="number"
+											size="sm"
+											min="0"
+											:max="line.rate"
+											step="any"
+											:label="isWide ? undefined : 'New price'"
+											:aria-label="`New price for ${line.item_name}`"
+											:model-value="
+												prices[line.sales_invoice_item] ?? undefined
+											"
+											@update:model-value="setPrice(line, $event)"
+										/>
+										<p
+											v-if="lineProblem(line)"
+											class="mt-1 flex items-start gap-1 text-p-xs text-ink-red-6"
+											role="alert"
+										>
+											<i
+												class="lucide-circle-alert mt-0.5 size-3.5 shrink-0"
+												aria-hidden="true"
+											/>
+											{{ lineProblem(line) }}
+										</p>
+										<p
+											v-else
+											class="mt-1 whitespace-nowrap text-p-xs tabular-nums text-ink-gray-6"
+										>
+											New total
+											<span class="font-medium text-ink-gray-8">
+												{{ money(newTotal(line), currency) }}
+											</span>
+										</p>
+									</div>
+
+									<FormControl
+										type="number"
+										size="sm"
+										min="0"
+										max="100"
+										step="any"
+										:label="isWide ? undefined : '% off'"
+										:aria-label="`Percentage off ${line.item_name}`"
+										:model-value="
+											percents[line.sales_invoice_item] ?? undefined
+										"
+										@update:model-value="setPercent(line, $event)"
+									/>
+
+									<div
+										class="col-span-2 flex items-end justify-end xl:col-span-1 xl:pt-1"
+									>
+										<span
+											v-if="reduction(line) > 0"
+											class="whitespace-nowrap text-base font-medium tabular-nums text-ink-green-7"
+										>
+											−{{ money(reduction(line), currency) }}
+										</span>
+										<span
+											v-else-if="!lineProblem(line)"
+											class="inline-flex items-center gap-1 rounded-full border border-outline-amber-2 bg-surface-amber-1 px-2 py-0.5 text-p-xs text-ink-amber-7"
+										>
+											<i
+												class="lucide-circle-alert size-3.5"
+												aria-hidden="true"
+											/>
+											Not changed
+										</span>
+										<span v-else class="text-p-sm text-ink-gray-4">—</span>
+									</div>
+								</template>
+							</li>
+						</ul>
+
+						<div
+							class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
+						>
+							<span>Total reduction before tax</span>
+							<span class="whitespace-nowrap tabular-nums">{{
+								money(total, currency)
+							}}</span>
+						</div>
+					</div>
 				</section>
 			</div>
 
 			<aside
-				class="sticky bottom-3 z-10 rounded-8 border bg-surface-base p-4 shadow-[0_8px_24px_rgba(0,0,0,0.12)] lg:top-6 lg:shadow-none"
+				class="sticky bottom-3 z-10 rounded-8 border bg-surface-base p-4 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
 			>
-				<div class="flex items-baseline justify-between gap-2">
-					<span class="text-p-sm text-ink-gray-6">
-						{{ chosenLines.length }}
-						{{ chosenLines.length === 1 ? "item" : "items" }} to credit
-					</span>
-					<span class="text-lg font-semibold text-ink-gray-9">
-						{{ money(total, currency) }}
-					</span>
+				<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+					<div class="min-w-0">
+						<div class="flex items-baseline justify-between gap-3 lg:justify-start">
+							<span class="text-p-sm text-ink-gray-6">
+								{{ loweredLines.length }}
+								{{ loweredLines.length === 1 ? "item" : "items" }} lowered
+							</span>
+							<span
+								class="whitespace-nowrap text-lg font-semibold tabular-nums text-ink-gray-9"
+							>
+								{{ money(total, currency) }}
+							</span>
+						</div>
+						<p class="mt-1 hidden text-p-xs text-ink-gray-5 lg:block">
+							Before tax. Our accounts team reviews every request, and the credit
+							note shows the final amount.
+						</p>
+					</div>
+
+					<div class="flex flex-col gap-2 lg:items-end">
+						<Button
+							class="w-full lg:w-48"
+							variant="solid"
+							size="md"
+							:label="name ? 'Resubmit request' : 'Send request'"
+							:loading="sending"
+							:disabled="!!missing"
+							@click="send"
+						/>
+						<p
+							v-if="missing"
+							class="flex items-center justify-center gap-1 text-p-sm text-ink-red-6"
+							role="alert"
+						>
+							<i class="lucide-circle-alert size-4 shrink-0" aria-hidden="true" />
+							{{ missing }}
+						</p>
+					</div>
 				</div>
-				<p class="mt-1 hidden text-p-xs text-ink-gray-5 lg:block">
-					Before tax. Our accounts team reviews every request, and the credit note shows
-					the final amount.
-				</p>
 
 				<ErrorMessage v-if="sendError" class="mt-3" :message="sendError" />
-
-				<Button
-					class="mt-3 w-full"
-					variant="solid"
-					size="md"
-					:label="name ? 'Resubmit request' : 'Send request'"
-					:loading="sending"
-					:disabled="!!missing"
-					@click="send"
-				/>
-				<p v-if="missing" class="mt-2 text-center text-p-xs text-ink-gray-5">
-					{{ missing }}
-				</p>
 			</aside>
 		</div>
 	</PageContainer>

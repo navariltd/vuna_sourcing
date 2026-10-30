@@ -14,10 +14,10 @@ class CreditNoteRequestItem(Document):
 		from frappe.types import DF
 
 		amount: DF.Currency
-		credited_qty: DF.Float
-		invoiced_qty: DF.Float
+		discount_percentage: DF.Percent
 		item_code: DF.Link | None
 		item_name: DF.Data | None
+		new_rate: DF.Currency
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data

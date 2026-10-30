@@ -91,17 +91,17 @@ frappe.ui.form.on("Credit Note Request", {
 						item_code: line.item_code,
 						item_name: line.item_name,
 						uom: line.uom,
+						qty: line.available_qty,
 						rate: line.rate,
-						invoiced_qty: line.invoiced_qty,
-						credited_qty: line.credited_qty,
-						qty: 0,
+						new_rate: line.rate,
+						discount_percentage: 0,
 						amount: 0,
 					});
 				});
 				frm.refresh_field("items");
 				frappe.show_alert({
 					message: __(
-						"Enter the quantity to credit on each line. Lines left at 0 are dropped."
+						"Enter the new price on each line to lower. Lines left at their invoiced price are dropped."
 					),
 					indicator: "blue",
 				});
@@ -137,7 +137,7 @@ frappe.ui.form.on("Credit Note Request", {
 			"Pending Review": frm.doc.__onload?.can_review
 				? [
 						__(
-							"Check the quantities, then approve, send back or reject. You can lower a quantity and save before approving."
+							"Check the new prices, then approve, send back or reject. You can raise a new price and save before approving."
 						),
 						"orange",
 				  ]
@@ -211,28 +211,27 @@ frappe.ui.form.on("Credit Note Request", {
 });
 
 frappe.ui.form.on("Credit Note Request Item", {
-	qty(frm, cdt, cdn) {
+	new_rate(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
-		frappe.model.set_value(cdt, cdn, "amount", flt(row.qty) * flt(row.rate));
+		const reduction = flt(row.rate) - flt(row.new_rate);
+		frappe.model.set_value(cdt, cdn, {
+			discount_percentage: row.rate ? (reduction / flt(row.rate)) * 100 : 0,
+			amount: flt(row.qty) * reduction,
+		});
 		update_totals(frm);
 	},
 });
 
 function update_totals(frm) {
-	const items = frm.doc.items || [];
-	frm.set_value(
-		"total_qty",
-		items.reduce((total, row) => total + flt(row.qty), 0)
-	);
 	frm.set_value(
 		"total_amount",
-		items.reduce((total, row) => total + flt(row.qty) * flt(row.rate), 0)
+		(frm.doc.items || []).reduce((total, row) => total + Math.max(flt(row.amount), 0), 0)
 	);
 }
 
 function confirm_approval(frm) {
 	if (frm.is_dirty()) {
-		frappe.msgprint(__("Save your changes to the quantities before approving."));
+		frappe.msgprint(__("Save your changes to the prices before approving."));
 		return;
 	}
 

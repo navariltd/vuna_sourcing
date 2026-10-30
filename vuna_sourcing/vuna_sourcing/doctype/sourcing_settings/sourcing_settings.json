@@ -259,7 +259,7 @@
   },
   {
    "default": "0",
-   "description": "Customers can pick an invoice on the portal and ask for a credit note. Accounts Managers approve each request before a credit note is made.",
+   "description": "Customers can pick an invoice on the portal and ask for a lower price on some of its items, with a reason. Accounts Managers approve each request before a credit note is made. Goods and stock are not affected.",
    "fieldname": "allow_customer_credit_requests",
    "fieldtype": "Check",
    "label": "Allow Customers to Request Credit Notes"
@@ -315,7 +315,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-22 13:00:07.344361",
+ "modified": "2026-10-30 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

@@ -156,11 +156,10 @@ watch([customer, () => props.name], load, { immediate: true });
 				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-dashed p-4"
 			>
 				<div class="min-w-0">
-					<p class="text-base font-medium text-ink-gray-8">
-						Something wrong with this invoice?
-					</p>
+					<p class="text-base font-medium text-ink-gray-8">Charged more than agreed?</p>
 					<p class="mt-0.5 text-p-sm text-ink-gray-5">
-						Ask us to credit damaged, wrong or missing items.
+						Ask us to lower the price of items on this invoice. Approved changes come
+						back as a credit note.
 					</p>
 				</div>
 				<Button

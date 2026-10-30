@@ -48,7 +48,7 @@ def mark_credit_note_issued(doc, method=None):
 	request.add_comment("Comment", _("<b>Credit note {0} issued</b>").format(doc.name))
 	request.notify_customer(
 		_("Credit note {0} issued").format(doc.name),
-		_("We have issued credit note {0} against invoice {1}, as you asked in request {2}.").format(
+		_("We have issued credit note {0} against invoice {1} for the price changes in request {2}.").format(
 			doc.name, request.sales_invoice, request.name
 		),
 	)

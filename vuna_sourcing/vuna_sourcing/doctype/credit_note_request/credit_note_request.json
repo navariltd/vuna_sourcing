@@ -26,8 +26,6 @@
   "section_items",
   "items",
   "section_totals",
-  "total_qty",
-  "column_break_totals",
   "total_amount",
   "section_review",
   "reviewed_by",
@@ -69,7 +67,7 @@
    "read_only": 1
   },
   {
-   "description": "The invoice the customer wants credited.",
+   "description": "The invoice whose prices the customer wants lowered.",
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -136,7 +134,7 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Reason",
-   "options": "\nDamaged Goods\nWrong Item Supplied\nShort Supplied\nQuality Issue\nReturned Goods\nOther",
+   "options": "\nCharged More Than Agreed\nAgreed Discount Not Applied\nQuality Below What Was Ordered\nLate Delivery\nOther",
    "reqd": 1
   },
   {
@@ -153,7 +151,7 @@
   {
    "fieldname": "section_items",
    "fieldtype": "Section Break",
-   "label": "Items to Credit"
+   "label": "Price Changes"
   },
   {
    "allow_on_submit": 1,
@@ -169,22 +167,11 @@
   },
   {
    "allow_on_submit": 1,
-   "fieldname": "total_qty",
-   "fieldtype": "Float",
-   "label": "Total Quantity",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_totals",
-   "fieldtype": "Column Break"
-  },
-  {
-   "allow_on_submit": 1,
    "description": "Before taxes. The credit note works out the final figure.",
    "fieldname": "total_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Amount to Credit",
+   "label": "Total Reduction",
    "options": "currency",
    "read_only": 1
   },
@@ -253,7 +240,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-22 14:00:00.000000",
+ "modified": "2026-10-30 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Credit Note Request",

@@ -20,6 +20,7 @@ from vuna_sourcing.vuna_sourcing.doctype.credit_note_request.credit_note_request
 	credited_quantities,
 	invoice_lines,
 	open_request_for,
+	reason_options,
 )
 
 MAX_LINES = 200
@@ -71,33 +72,36 @@ def own_request(name: str, customers: list[str]):
 	return frappe.get_doc(DOCTYPE, mine)
 
 
-def reason_options() -> list[str]:
-	return [option for option in (frappe.get_meta(DOCTYPE).get_options("reason") or "").split("\n") if option]
-
-
 def requested_lines(items) -> list[dict]:
 	lines = frappe.parse_json(items) if isinstance(items, str) else items
-	if not isinstance(lines, list):
-		frappe.throw(_("Choose at least one item to credit."))
+	if not isinstance(lines, list) or not lines:
+		frappe.throw(_("Lower the price of at least one item."))
 
-	merged = {}
+	if len(lines) > MAX_LINES:
+		frappe.throw(_("A request can have at most {0} lines.").format(MAX_LINES))
+
+	requested = {}
 	for line in lines:
 		if not isinstance(line, dict):
 			frappe.throw(_("Your request could not be read. Refresh the page and try again."))
 
 		row = cstr(line.get("sales_invoice_item")).strip()
-		qty = flt(line.get("qty"))
 		if not row:
 			continue
-		if not math.isfinite(qty) or qty < 0:
-			frappe.throw(_("Enter a quantity of zero or more on every line."))
+		if row in requested:
+			frappe.throw(_("An item is listed twice. Refresh the page and try again."))
 
-		merged[row] = merged.get(row, 0) + qty
+		new_rate = line.get("new_rate")
+		if new_rate is None or cstr(new_rate).strip() == "":
+			frappe.throw(_("Enter a new price on every item you want lowered."))
 
-	if len(merged) > MAX_LINES:
-		frappe.throw(_("A request can have at most {0} lines.").format(MAX_LINES))
+		new_rate = flt(new_rate)
+		if not math.isfinite(new_rate) or new_rate < 0:
+			frappe.throw(_("Enter a new price of zero or more on every item."))
 
-	return [{"sales_invoice_item": row, "qty": qty} for row, qty in merged.items() if qty > 0]
+		requested[row] = new_rate
+
+	return [{"sales_invoice_item": row, "new_rate": new_rate} for row, new_rate in requested.items()]
 
 
 def fill_request(doc, items, reason: str | None, description: str | None) -> None:
@@ -122,12 +126,16 @@ def invoice_header(invoice) -> dict:
 	}
 
 
-def form_line(line: dict, requested: float) -> dict:
+def form_line(line: dict, new_rate: float | None) -> dict:
 	return {
 		**line,
 		"description": strip_html(line.get("description") or "").strip() or None,
-		"qty": requested,
+		"new_rate": line["rate"] if new_rate is None else new_rate,
 	}
+
+
+def is_adjustable(line: dict) -> bool:
+	return line["available_qty"] > 0 and flt(line["rate"]) > 0
 
 
 def request_view(doc) -> dict:
@@ -149,7 +157,6 @@ def request_view(doc) -> dict:
 		"reason": doc.reason,
 		"description": doc.description,
 		"currency": doc.currency,
-		"total_qty": doc.total_qty,
 		"total_amount": doc.total_amount,
 		"review_remarks": doc.review_remarks,
 		"reviewed_on": doc.reviewed_on,
@@ -162,8 +169,10 @@ def request_view(doc) -> dict:
 				"item_code": row.item_code,
 				"item_name": row.item_name,
 				"uom": row.uom,
-				"rate": row.rate,
 				"qty": row.qty,
+				"rate": row.rate,
+				"new_rate": row.new_rate,
+				"discount_percentage": row.discount_percentage,
 				"amount": row.amount,
 			}
 			for row in doc.items
@@ -172,17 +181,16 @@ def request_view(doc) -> dict:
 
 
 def invoice_credit_state(invoice) -> dict:
-	enabled = credit_requests_enabled()
 	open_request = open_request_for(invoice.name)
-	creditable = (
-		enabled
+	adjustable = (
+		credit_requests_enabled()
 		and not invoice.is_return
 		and not open_request
-		and any(line["available_qty"] > 0 for line in invoice_lines(invoice))
+		and any(is_adjustable(line) for line in invoice_lines(invoice))
 	)
 
 	return {
-		"can_request": bool(creditable),
+		"can_request": bool(adjustable),
 		"open_request": open_request,
 	}
 
@@ -253,7 +261,7 @@ def get_creditable_invoices(customer: str, search: str | None = None) -> ApiResp
 	for row in frappe.get_all(
 		"Sales Invoice Item",
 		filters={"parenttype": SALES_INVOICE, "parent": ("in", names)},
-		fields=["name", "parent", "qty"],
+		fields=["name", "parent", "qty", "rate"],
 	):
 		invoiced.setdefault(row.parent, []).append(row)
 
@@ -273,10 +281,10 @@ def get_creditable_invoices(customer: str, search: str | None = None) -> ApiResp
 
 	rows = []
 	for invoice in invoices:
-		open_qty = sum(
-			max(flt(row.qty) - credited.get(row.name, 0), 0) for row in invoiced.get(invoice.name, [])
-		)
-		if open_qty <= 0:
+		if not any(
+			flt(row.rate) > 0 and flt(row.qty) - credited.get(row.name, 0) > 0
+			for row in invoiced.get(invoice.name, [])
+		):
 			continue
 
 		rows.append(
@@ -310,7 +318,7 @@ def get_credit_form(
 			return ApiResponse.error(_("This request is with our team, so it can no longer be changed."))
 		sales_invoice = request.sales_invoice
 	elif not sales_invoice:
-		return ApiResponse.error(_("Choose the invoice you want credited."))
+		return ApiResponse.error(_("Choose the invoice whose prices you want lowered."))
 
 	invoice = creditable_invoice(own_invoice(sales_invoice, customer), customer)
 
@@ -325,16 +333,18 @@ def get_credit_form(
 			)
 
 	lines = invoice_lines(invoice)
-	if not any(line["available_qty"] > 0 for line in lines):
-		return ApiResponse.error(_("Invoice {0} has already been fully credited.").format(invoice.name))
+	if not any(is_adjustable(line) for line in lines):
+		return ApiResponse.error(
+			_("Invoice {0} has no prices left to adjust. It is already fully credited.").format(invoice.name)
+		)
 
-	requested = {row.sales_invoice_item: flt(row.qty) for row in request.items} if request else {}
+	requested = {row.sales_invoice_item: flt(row.new_rate) for row in request.items} if request else {}
 
 	return ApiResponse.success(
 		data={
 			"invoice": invoice_header(invoice),
 			"reasons": reason_options(),
-			"lines": [form_line(line, requested.get(line["sales_invoice_item"], 0)) for line in lines],
+			"lines": [form_line(line, requested.get(line["sales_invoice_item"])) for line in lines],
 			"request": {
 				"name": request.name,
 				"reason": request.reason,

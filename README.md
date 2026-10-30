@@ -37,7 +37,7 @@ The portal is at `https://<your-site>/vuna-sourcing` and works on both computers
 * **Open Bids (Live Auctions)** - Suppliers bid against each other in real time and can lower their price until the deadline. See [How open bids work](#how-open-bids-work).
 * **Awards** - Award a whole RFQ or individual items to one or more suppliers. Purchase orders can be created automatically on award.
 * **Customer Ordering** - Customers order from your item catalogue at their own price list, choose a delivery date and address, and can save an order as a draft.
-* **Credit Note Requests** - Customers request credit on an invoice for damaged, short or wrong goods. Accounts approve, reject or return each request in ERPNext.
+* **Credit Note Requests** - Customers ask for a lower price on items of an invoice, by amount or percentage, and give a reason. Accounts approve, reject or return each request in ERPNext, and the approved reduction becomes a credit note. Goods and stock are not touched.
 * **Account Overview** - Suppliers and customers see their open documents, amounts outstanding and overdue, and their invoice history at a glance.
 * **Documents in One Place** - Quotations, orders, delivery notes, invoices, debit and credit notes, all ready to print.
 * **One Login, Both Roles** - A business that is both a supplier and a customer switches between the two from one account.
@@ -69,7 +69,7 @@ Every bid is saved in an **RFQ Bid Log** that no one can edit or delete. The log
 1. Open **Sales Order → New** and add items from the catalogue.
 2. Choose a delivery date and address, then click **Send order**.
 3. Follow deliveries and invoices under **Delivery Note**, **Sales Invoice** and **Pending Invoices**.
-4. To ask for a credit, open **Credit Note Request → New**, choose the invoice, the items and a reason.
+4. To ask for a lower price, open **Credit Note Request → New request**, choose the invoice, enter the new price or a percentage off for each item, and give a reason.
 
 
 ## Under the Hood

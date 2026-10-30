@@ -32,6 +32,12 @@ export const CREDIT_REQUEST_STATUS_LABEL: Record<string, string> = {
   Cancelled: "Cancelled",
 };
 
+export const CREDIT_REQUEST_EXPLAINER = {
+  title: "What is a credit note request?",
+  description:
+    "Ask us to lower the price of items on an invoice you already have, for example if you were charged more than agreed or a discount was left off. Give a new price or a percentage off and tell us why. Our accounts team reviews every request, and if we approve it we issue a credit note for the difference, which reduces what you owe. Quantities and goods do not change. To return goods, contact us.",
+};
+
 export function statusLabel(status: string | null) {
   return (status && CREDIT_REQUEST_STATUS_LABEL[status]) || status || "—";
 }
@@ -54,8 +60,10 @@ export interface CreditRequestItem {
   item_code: string;
   item_name: string;
   uom: string | null;
-  rate: number;
   qty: number;
+  rate: number;
+  new_rate: number;
+  discount_percentage: number;
   amount: number;
 }
 
@@ -68,7 +76,6 @@ export interface CreditRequest {
   reason: string;
   description: string | null;
   currency: string | null;
-  total_qty: number;
   total_amount: number;
   review_remarks: string | null;
   reviewed_on: string | null;
@@ -97,7 +104,7 @@ export interface CreditFormLine {
   invoiced_qty: number;
   credited_qty: number;
   available_qty: number;
-  qty: number;
+  new_rate: number;
 }
 
 export interface CreditForm {
@@ -122,7 +129,7 @@ export interface CreditForm {
 
 export interface CreditRequestPayload {
   customer: string;
-  items: { sales_invoice_item: string; qty: number }[];
+  items: { sales_invoice_item: string; new_rate: number }[];
   reason: string;
   description: string | null;
 }
@@ -130,6 +137,14 @@ export interface CreditRequestPayload {
 export interface InvoiceCreditState {
   can_request: boolean;
   open_request: { name: string; request_status: CreditRequestStatus } | null;
+}
+
+export function priceAfter(rate: number, percentOff: number) {
+  return Math.round(rate * (100 - percentOff)) / 100;
+}
+
+export function percentOff(rate: number, newRate: number) {
+  return rate ? Math.round(((rate - newRate) / rate) * 10000) / 100 : 0;
 }
 
 const CREDIT_REQUESTS = "vuna_sourcing.api.transactions.credit_requests";
@@ -147,9 +162,7 @@ export function createCreditRequestResource() {
 }
 
 function post<T>(method: string, payload: object): Promise<ApiResponse<T>> {
-  return createResource({ url: `${CREDIT_REQUESTS}.${method}`, method: "POST" }).submit(
-    payload,
-  );
+  return createResource({ url: `${CREDIT_REQUESTS}.${method}`, method: "POST" }).submit(payload);
 }
 
 export function fetchCreditableInvoices(

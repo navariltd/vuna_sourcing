@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Badge, Button, Spinner, TabButtons } from "frappe-ui";
+import { Alert, Badge, Button, Spinner, TabButtons } from "frappe-ui";
 import { ListView } from "frappe-ui/experimental";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
@@ -8,6 +8,7 @@ import ListFilters from "@/components/ListFilters.vue";
 import type { FilterField } from "@/components/ListFilters.vue";
 import { money, shortDate } from "@/data/purchase";
 import {
+	CREDIT_REQUEST_EXPLAINER,
 	CREDIT_REQUEST_STATUS_LABEL,
 	CREDIT_REQUEST_STATUS_THEME,
 	creditRequestList,
@@ -74,7 +75,7 @@ const columns = computed(() => {
 		{ label: "Invoice", key: "sales_invoice", width: "minmax(130px, 1.3fr)" },
 		{ label: "Requested", key: "transaction_date", width: "minmax(90px, 1fr)" },
 		{ label: "Reason", key: "reason", width: "minmax(120px, 1.3fr)" },
-		{ label: "To credit", key: "total_amount", width: "minmax(100px, 1fr)" },
+		{ label: "Reduction", key: "total_amount", width: "minmax(100px, 1fr)" },
 		{ label: "Status", key: "status", width: "130px" },
 	];
 });
@@ -122,6 +123,14 @@ function loadMore() {
 		/>
 
 		<template v-else>
+			<Alert
+				class="mb-4"
+				theme="blue"
+				icon="lucide-info"
+				:title="CREDIT_REQUEST_EXPLAINER.title"
+				:description="CREDIT_REQUEST_EXPLAINER.description"
+			/>
+
 			<ListFilters
 				v-model="filters"
 				class="mb-4"
@@ -148,7 +157,7 @@ function loadMore() {
 				title="No credit note requests yet"
 				:description="
 					canRequest
-						? 'Something wrong with an invoice? Ask us to credit it and follow the request here.'
+						? 'Charged more than agreed? Ask us to lower the price and follow the request here.'
 						: 'Credit note requests you raise with us appear here.'
 				"
 			>
