@@ -83,6 +83,24 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			.name
 		)
 
+	def make_orderable_item(self):
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Item",
+					"item_code": "_Test Portal Branch Item " + frappe.generate_hash(length=6),
+					"item_group": frappe.get_all(
+						"Item Group", filters={"is_group": 0}, limit=1, pluck="name"
+					)[0],
+					"stock_uom": "Nos",
+					"is_stock_item": 0,
+					"item_defaults": [{"company": self.company, "default_warehouse": self.warehouse}],
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+
 	def give_access(self, user, branches):
 		doc = frappe.get_doc("Customer", self.customer)
 		doc.append("portal_users", {"user": user, "branches": "\n".join(branches)})
@@ -319,10 +337,11 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 		doc.default_price_list = self.price_list
 		doc.append("accounts", {"company": self.company})
 		doc.save(ignore_permissions=True)
+		item = self.make_orderable_item()
 		frappe.get_doc(
 			{
 				"doctype": "Item Price",
-				"item_code": self.item,
+				"item_code": item,
 				"price_list": self.price_list,
 				"price_list_rate": 100,
 				"customer": self.customer,
@@ -332,7 +351,7 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 		payload = {
 			"customer": self.customer,
 			"company": self.company,
-			"items": [{"item_code": self.item, "qty": 1, "uom": "Nos"}],
+			"items": [{"item_code": item, "qty": 1, "uom": "Nos"}],
 			"delivery_date": add_days(nowdate(), 7),
 		}
 
