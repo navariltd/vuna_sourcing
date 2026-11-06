@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+import frappe.client
 from frappe.permissions import AUTOMATIC_ROLES
 from frappe.tests import IntegrationTestCase
 
@@ -156,6 +157,27 @@ class TestCustomerTeam(SourcingFixtures, IntegrationTestCase):
 			self.assertRaises(frappe.PermissionError, get_team, self.customer)
 			self.assertRaises(frappe.PermissionError, self.invite)
 			self.assertRaises(frappe.PermissionError, remove_team_member, self.customer, self.admin)
+
+	def test_the_team_cannot_be_read_through_the_generic_api(self):
+		"""A member cannot get around the Team endpoints by reading the customer or users directly."""
+		with self.set_user(self.member):
+			self.assertRaises(frappe.PermissionError, frappe.client.get, "Customer", self.customer)
+			self.assertRaises(frappe.PermissionError, frappe.client.get, "User", self.admin)
+			self.assertRaises(
+				frappe.PermissionError,
+				frappe.client.get_list,
+				"Portal User",
+				filters={"parent": self.customer},
+				parent="Customer",
+			)
+			self.assertRaises(
+				frappe.PermissionError,
+				frappe.client.set_value,
+				"Customer",
+				self.customer,
+				"customer_name",
+				"Changed",
+			)
 
 	def test_an_admin_of_another_customer_cannot_manage_this_team(self):
 		"""Admin rights are per customer account."""
