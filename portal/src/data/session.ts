@@ -1,6 +1,12 @@
 import { computed, reactive, ref } from "vue";
 import { createResource } from "frappe-ui";
 
+export const BASE_PATH = "/vuna-sourcing";
+
+export function loginUrl(fullPath = "/") {
+  return `/login?redirect-to=${encodeURIComponent(BASE_PATH + fullPath)}`;
+}
+
 export function sessionUser(): string | null {
   const cookies = new URLSearchParams(document.cookie.split("; ").join("&"));
   const user = cookies.get("user_id");
@@ -17,7 +23,7 @@ export const session = reactive({
     url: "logout",
     onSuccess() {
       currentUser.value = null;
-      window.location.href = "/login";
+      window.location.href = loginUrl();
     },
   }),
 });

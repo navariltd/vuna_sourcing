@@ -33,10 +33,10 @@ function load() {
 	if (!active) return;
 	party.fetch({ party_type: active.party_type, party: active.name });
 	if (active.party_type === "Supplier") supplierDashboard.fetch({ supplier: active.name });
-	else customerDashboard.fetch({ customer: active.name });
+	else customerDashboard.fetch({ customer: active.name, branches: portal.branchFilter });
 }
 
-watch(() => portal.activePartyKey, load, { immediate: true });
+watch([() => portal.activePartyKey, () => portal.branchFilter], load, { immediate: true });
 
 const compact = new Intl.NumberFormat(undefined, {
 	notation: "compact",
@@ -68,9 +68,13 @@ const cards = computed(() => {
 			},
 		];
 	}
-	return [
+	const counts = [
 		{ title: "Open Quotations", value: d.quotes_to_review, route: "QuotationList" },
 		{ title: "Open Orders", value: d.open_orders, route: "SalesOrderList" },
+	];
+	if (!d.balance) return counts;
+	return [
+		...counts,
 		{
 			title: "Outstanding",
 			value: d.balance.outstanding,
@@ -180,7 +184,10 @@ const details = computed(() => {
 		</template>
 
 		<div class="space-y-6">
-			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+			<div
+				class="grid grid-cols-2 gap-3"
+				:class="cards.length === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-4'"
+			>
 				<template v-if="cards.length">
 					<RouterLink
 						v-for="card in cards"

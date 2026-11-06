@@ -44,8 +44,17 @@ def page_of(rows: list[dict], start: int, limit: int, counts: dict | None = None
 	}
 
 
-def owned_document(doctype: str, name: str, filters: dict):
-	mine = frappe.db.get_value(doctype, {**filters, "name": name}, "name")
+def all_of(*filters: dict | list) -> list:
+	return [
+		part
+		for group in filters
+		for part in (group if isinstance(group, list) else [group])
+		if not (isinstance(part, dict) and not part)
+	]
+
+
+def owned_document(doctype: str, name: str, filters: dict | list):
+	mine = frappe.db.get_value(doctype, all_of(filters, {"name": name}), "name")
 	if not mine:
 		frappe.throw(_("This document does not belong to you."), frappe.PermissionError)
 
@@ -54,7 +63,7 @@ def owned_document(doctype: str, name: str, filters: dict):
 
 def find_documents(
 	doctype: str,
-	filters: dict,
+	filters: dict | list,
 	search: str | None,
 	fields: list[str],
 	search_fields: tuple[str, ...] = ("name",),
@@ -241,13 +250,13 @@ def month_starts(count: int = 12) -> list:
 	return [add_months(first, offset) for offset in range(-(count - 1), 1)]
 
 
-def monthly_totals(doctype: str, filters: dict, date_field: str, value_field: str) -> list[dict]:
+def monthly_totals(doctype: str, filters: dict | list, date_field: str, value_field: str) -> list[dict]:
 	months = month_starts()
 	totals = dict.fromkeys(months, 0.0)
 
 	for row in frappe.get_all(
 		doctype,
-		filters={**filters, date_field: (">=", months[0])},
+		filters=all_of(filters, {date_field: (">=", months[0])}),
 		fields=[date_field, value_field],
 	):
 		month = getdate(row[date_field]).replace(day=1)
@@ -257,7 +266,7 @@ def monthly_totals(doctype: str, filters: dict, date_field: str, value_field: st
 	return [{"month": month.isoformat(), "value": flt(total, 2)} for month, total in totals.items()]
 
 
-def status_counts(doctype: str, filters: dict) -> list[dict]:
+def status_counts(doctype: str, filters: dict | list) -> list[dict]:
 	counts = Counter(frappe.get_all(doctype, filters=filters, pluck="status"))
 	return [{"status": status, "count": count} for status, count in counts.most_common() if status]
 

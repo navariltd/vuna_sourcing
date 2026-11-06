@@ -512,6 +512,17 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 			self.assertIn(user, [row.user for row in frappe.get_doc(party_type, party).portal_users])
 			self.assertIn(party_type, frappe.get_roles(user), "ERPNext grants the role with the portal row")
 
+	def test_a_new_customers_applicant_becomes_its_account_admin(self):
+		"""The person who registered a customer can manage its team; a supplier applicant is not an admin."""
+		admins = {}
+		for party_type in ("Supplier", "Customer"):
+			user = self.make_user([])
+			party = self.submitted_request(party_type, applicant_user=user).approve()
+			row = next(row for row in frappe.get_doc(party_type, party).portal_users if row.user == user)
+			admins[party_type] = row.is_account_admin
+
+		self.assertEqual(admins, {"Supplier": 0, "Customer": 1})
+
 	def test_applicant_can_submit_but_not_approve(self):
 		"""Submitting is not deciding: the outcome is not the submitter's to set."""
 		applicant = self.make_user(["Purchase User"])

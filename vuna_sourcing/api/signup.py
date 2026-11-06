@@ -8,7 +8,6 @@ from frappe import _
 from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, escape_html, validate_email_address
 
-from vuna_sourcing import APP_NAME
 from vuna_sourcing.api.permission import PORTAL_USER_ROLE
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.utils import get_app_branding, get_open_party_types
@@ -119,7 +118,6 @@ def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupRe
 			"enabled": 1,
 			"user_type": "Website User",
 			"send_welcome_email": 1,
-			"default_app": APP_NAME,
 			"roles": [{"role": PORTAL_USER_ROLE}],
 		}
 	)

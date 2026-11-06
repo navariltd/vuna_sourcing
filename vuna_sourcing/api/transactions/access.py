@@ -55,9 +55,9 @@ def as_list(filters: dict) -> list[list]:
 	]
 
 
-def party_filters(doctype: str, user: str) -> list[list]:
+def party_filters(doctype: str, user: str) -> list:
 	if doctype in CUSTOMER_DOCTYPES:
-		return as_list(customer_filters(doctype, my_parties(CUSTOMER, user)))
+		return customer_filters(doctype, my_parties(CUSTOMER, user), user=user)
 
 	suppliers = my_parties(SUPPLIER, user)
 	if doctype == RFQ:

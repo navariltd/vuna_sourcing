@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
-import { session } from '@/data/session'
+import { BASE_PATH, loginUrl, session } from '@/data/session'
 import { usePortalStore } from '@/stores/portal'
 import type { PartyType } from '@/stores/portal'
 
@@ -11,7 +11,7 @@ declare module 'vue-router' {
   }
 }
 
-export const BASE_PATH = '/vuna-sourcing'
+export { BASE_PATH, loginUrl }
 
 const routes: RouteRecordRaw[] = [
   {
@@ -241,10 +241,6 @@ export const router = createRouter({
   history: createWebHistory(BASE_PATH),
   routes,
 })
-
-export function loginUrl(fullPath = '/') {
-  return `/login?redirect-to=${encodeURIComponent(BASE_PATH + fullPath)}`
-}
 
 function redirectToLogin(fullPath: string) {
   window.location.href = loginUrl(fullPath)
