@@ -9,7 +9,10 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, nowdate
 
+<<<<<<< HEAD
 from vuna_sourcing.api.response import ApiResponse
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 from vuna_sourcing.api.transactions.branches import (
 	BRANCH_FIELD,
 	branch_restrictions,
@@ -161,6 +164,7 @@ def customer_documents(
 	)
 
 
+<<<<<<< HEAD
 def branch_statement_rows(customers: list[str]) -> Callable[[list[dict]], list[dict]] | None:
 	limited = {customer for customer in branch_restrictions() if customer in customers}
 	if not limited:
@@ -185,6 +189,11 @@ def branch_statement_rows(customers: list[str]) -> Callable[[list[dict]], list[d
 		return [row for row in rows if row.get("party") not in limited or row["voucher_no"] in visible]
 
 	return keep
+=======
+def statement_customers(customers: list[str]) -> list[str]:
+	restricted = branch_restrictions()
+	return [customer for customer in customers if customer not in restricted]
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 
 
 @frappe.whitelist()
@@ -484,9 +493,12 @@ def get_sales_invoices(
 	search: str | None = None,
 	credit_notes: bool = False,
 	branches: list | str | None = None,
+<<<<<<< HEAD
 	status: str | None = None,
 	from_date: str | None = None,
 	to_date: str | None = None,
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -526,7 +538,28 @@ def get_sales_invoices(
 	counts = dict(Counter(row["status"] for row in rows))
 
 	return page_of(
+<<<<<<< HEAD
 		[row for row in rows if not status or row["status"] == status],
+=======
+		[
+			{
+				"name": invoice.name,
+				"customer": invoice.customer,
+				"po_no": invoice.po_no,
+				"posting_date": invoice.posting_date,
+				"due_date": invoice.due_date,
+				"branch": invoice.get(BRANCH_FIELD),
+				"currency": invoice.currency,
+				"grand_total": invoice.grand_total,
+				"outstanding_amount": invoice.outstanding_amount,
+				"is_return": bool(invoice.is_return),
+				"return_against": invoice.return_against,
+				"is_debit_note": bool(invoice.is_debit_note),
+				"status": invoice.status or "Unpaid",
+			}
+			for invoice in invoices
+		],
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		start,
 		limit,
 		counts,
@@ -568,6 +601,7 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 
 
 @frappe.whitelist()
+<<<<<<< HEAD
 def get_account_statement(customer: str | None = None, company: str | None = None) -> ApiResponse[dict]:
 	customers = customer_scope(customer)
 	return ApiResponse.success(
@@ -576,6 +610,14 @@ def get_account_statement(customer: str | None = None, company: str | None = Non
 			"branch_limited": any(customer in branch_restrictions() for customer in customers),
 		}
 	)
+=======
+def get_account_statement(customer: str | None = None) -> dict:
+	parties = statement_customers(customer_scope(customer))
+	if not parties:
+		return {"report_date": None, "companies": []}
+
+	return outstanding_statement("Receivable", CUSTOMER, parties)
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 
 
 OPEN_ORDER_STATUSES = ("To Deliver and Bill", "To Deliver", "To Bill")
@@ -590,6 +632,10 @@ def get_dashboard(customer: str | None = None, branches: list | str | None = Non
 		return {}
 
 	branches = requested_branches(customers, branches)
+<<<<<<< HEAD
+=======
+	statement_parties = [] if branches else statement_customers(customers)
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 	orders = customer_filters(SALES_ORDER, customers, branches)
 	invoices = all_of(customer_filters(SALES_INVOICE, customers, branches), {"is_return": 0})
 	quotes = frappe.get_all(
@@ -613,11 +659,17 @@ def get_dashboard(customer: str | None = None, branches: list | str | None = Non
 		"quotes_to_review": len(quotes),
 		"open_orders": len(open_orders),
 		"balance": (
+<<<<<<< HEAD
 			None
 			if branches
 			else balance(
 				outstanding_statement("Receivable", CUSTOMER, customers, branch_statement_rows(customers))
 			)
+=======
+			balance(outstanding_statement("Receivable", CUSTOMER, statement_parties))
+			if statement_parties
+			else None
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		),
 		"invoiced_by_month": monthly_totals(SALES_INVOICE, invoices, "posting_date", "base_grand_total"),
 		"invoices_by_status": status_counts(SALES_INVOICE, invoices),

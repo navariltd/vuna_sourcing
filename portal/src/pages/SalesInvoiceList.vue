@@ -201,10 +201,26 @@ function loadMore() {
 			</div>
 
 			<EmptyState
+<<<<<<< HEAD
 				v-else-if="!rows.length && branchFilter && !filtered"
 				icon="lucide-map-pin-off"
 				:title="`No ${copy.noun}s for the branches you picked`"
 				description="Pick other branches, or show every branch you have access to."
+=======
+				v-else-if="!rows.length && branchFilter && !filters.search"
+				icon="lucide-map-pin-off"
+				:title="`No ${copy.noun}s for the branches you picked`"
+				description="Pick other branches, or show every branch you have access to."
+			>
+				<Button variant="subtle" label="Show all branches" @click="clearBranches" />
+			</EmptyState>
+
+			<EmptyState
+				v-else-if="!rows.length && filters.search"
+				icon="lucide-search-x"
+				:title="`No ${copy.noun} matches that number`"
+				:description="`Check the number, or clear the search to see every ${copy.noun}.`"
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			>
 				<Button variant="subtle" label="Show all branches" @click="clearBranches" />
 			</EmptyState>

@@ -51,7 +51,10 @@ class SourcingSettings(Document):
 		portal_order_fields: DF.Table[SourcingOrderField]
 		registration_mode: DF.Literal["Invitation Only", "Open to Public"]
 		require_branch_for_branch_customers: DF.Check
+<<<<<<< HEAD
 		require_po_document: DF.Check
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		reviewer_role: DF.Link | None
 		show_customer_credit_limits: DF.Check
 	# end: auto-generated types

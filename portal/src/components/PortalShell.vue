@@ -184,7 +184,11 @@ const SELLING: NavLink[] = [
 ];
 
 const sellingLinks = computed(() =>
+<<<<<<< HEAD
 	SELLING.filter((link) => link.route !== "CreditRequestList" || portal.features.credit_requests)
+=======
+	SELLING.filter((link) => link.route !== "CustomerStatement" || portal.seesAnyStatement)
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 );
 
 const navSections = computed<NavSection[]>(() => {
@@ -263,6 +267,7 @@ function runAccountAction(action: () => void) {
 
 <template>
 	<MobileShell v-if="isMobile">
+<<<<<<< HEAD
 		<div class="sticky top-0 z-30 bg-surface-base shadow-sm">
 			<div class="flex items-center gap-2 border-b border-outline-gray-2 py-2 pl-4 pr-2">
 				<PartySwitcher v-if="portal.isMultiParty" class="min-w-0 flex-1" />
@@ -294,6 +299,10 @@ function runAccountAction(action: () => void) {
 					@click="searchOpen = true"
 				/>
 			</div>
+=======
+		<div class="sticky top-0 z-10 bg-surface-white">
+			<PartySwitcher class="border-b border-outline-gray-2 px-4 py-2" />
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			<BranchFilter class="border-b border-outline-gray-2 px-4 py-2" />
 		</div>
 
@@ -418,6 +427,7 @@ function runAccountAction(action: () => void) {
 
 				<PartySwitcher class="px-2 pb-1" />
 				<BranchFilter class="px-2 pb-1" />
+<<<<<<< HEAD
 
 				<div v-if="portal.hasParties" class="px-2 pb-1">
 					<button
@@ -436,6 +446,8 @@ function runAccountAction(action: () => void) {
 						</kbd>
 					</button>
 				</div>
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 
 				<div class="flex-1 overflow-y-auto px-2 py-1">
 					<SidebarItem

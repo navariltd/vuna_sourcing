@@ -8,8 +8,12 @@ from frappe.query_builder.functions import IfNull
 from frappe.utils import escape_html, get_link_to_form, getdate, now_datetime, today
 
 from vuna_sourcing.api.transactions.branches import ACCOUNT_ADMIN_FIELD
+<<<<<<< HEAD
 from vuna_sourcing.dynamic_fields import choices_of, clean_value, is_blank
 from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type, validate_tax_id
+=======
+from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 
 PENDING_REVIEW = "Pending Review"
 APPROVED = "Approved"

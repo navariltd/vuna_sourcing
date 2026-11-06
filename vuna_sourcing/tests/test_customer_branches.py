@@ -21,7 +21,10 @@ from vuna_sourcing.api.transactions.customer import (
 	get_sales_orders,
 )
 from vuna_sourcing.api.transactions.customer_orders import get_order_form, save_order
+<<<<<<< HEAD
 from vuna_sourcing.api.transactions.search import search_documents
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 from vuna_sourcing.overrides.server.customer import search_branches
 from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
@@ -84,6 +87,7 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			.name
 		)
 
+<<<<<<< HEAD
 	def make_orderable_item(self):
 		return (
 			frappe.get_doc(
@@ -100,6 +104,8 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			.name
 		)
 
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 	def give_access(self, user, branches):
 		doc = frappe.get_doc("Customer", self.customer)
 		doc.append("portal_users", {"user": user, "branches": "\n".join(branches)})
@@ -130,7 +136,10 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			}
 		)
 		doc.flags.ignore_permissions = True
+<<<<<<< HEAD
 		doc.flags.ignore_mandatory = True
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		doc.insert()
 		if submit:
 			doc.submit()
@@ -240,6 +249,7 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(staff):
 			self.assertTrue(frappe.has_permission("Sales Order", doc=self.industrial_order.name))
 
+<<<<<<< HEAD
 	def test_pending_invoices_follow_the_branch(self):
 		"""A branch user's pending invoices and balance come from their branch invoices only."""
 		mine = self.invoice(self.westlands_order)
@@ -296,6 +306,16 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			self.assertRaises(
 				frappe.ValidationError, get_account_statement, self.customer, "_Test Not Their Company"
 			)
+=======
+	def test_the_statement_and_balance_are_only_for_customer_wide_users(self):
+		"""Payments carry no branch, so branch users get no statement or balance."""
+		with self.set_user(self.branch_user):
+			self.assertEqual(get_account_statement(self.customer)["companies"], [])
+			self.assertIsNone(get_dashboard(self.customer)["balance"])
+
+		with self.set_user(self.owner_user):
+			self.assertIsNotNone(get_dashboard(self.customer)["balance"])
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 
 	def test_the_session_says_whether_a_user_has_every_branch(self):
 		"""The session only flags branch-limited users; the branch list comes from its own endpoint."""
@@ -381,6 +401,7 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 	def test_a_branch_user_orders_only_for_their_branches(self):
 		"""The order form offers the user's branches only, and another branch is refused."""
 		self.use_setting("allow_customer_sales_orders", 1)
+<<<<<<< HEAD
 		selling_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
 		self.addCleanup(frappe.db.set_single_value, "Selling Settings", "selling_price_list", selling_list)
 		frappe.db.set_single_value("Selling Settings", "selling_price_list", self.price_list)
@@ -393,6 +414,16 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			{
 				"doctype": "Item Price",
 				"item_code": item,
+=======
+		doc = frappe.get_doc("Customer", self.customer)
+		doc.default_price_list = self.price_list
+		doc.append("accounts", {"company": self.company})
+		doc.save(ignore_permissions=True)
+		frappe.get_doc(
+			{
+				"doctype": "Item Price",
+				"item_code": self.item,
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 				"price_list": self.price_list,
 				"price_list_rate": 100,
 				"customer": self.customer,
@@ -402,7 +433,11 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 		payload = {
 			"customer": self.customer,
 			"company": self.company,
+<<<<<<< HEAD
 			"items": [{"item_code": item, "qty": 1, "uom": "Nos"}],
+=======
+			"items": [{"item_code": self.item, "qty": 1, "uom": "Nos"}],
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			"delivery_date": add_days(nowdate(), 7),
 		}
 
@@ -454,6 +489,7 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			self.assertIn(order.name, self.names(get_sales_orders()))
 		with self.set_user(self.branch_user):
 			self.assertNotIn(order.name, self.names(get_sales_orders()))
+<<<<<<< HEAD
 
 	def test_search_follows_the_branch(self):
 		"""A branch user's search only finds documents for their branches."""
@@ -463,3 +499,5 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 
 		self.assertEqual(groups, [])
 		self.assertEqual(own[0]["results"][0]["name"], self.westlands_order.name)
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)

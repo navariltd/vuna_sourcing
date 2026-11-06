@@ -191,12 +191,17 @@ export const usePortalStore = defineStore('portal', () => {
     () => activeParty.value?.party_type === 'Customer' && !!activeParty.value.can_manage_team,
   )
 
+<<<<<<< HEAD
   const features = computed<PortalFeatures>(
     () => session.data?.features ?? { customer_orders: false, credit_requests: false, credit_limits: false },
   )
 
   const branding = computed<PortalBranding>(
     () => session.data?.branding ?? { title: null, logo: null, is_custom: false },
+=======
+  const seesAnyStatement = computed(() =>
+    customers.value.some((customer) => customer.all_branches !== false),
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
   )
 
   const isApplicant = computed(() => !!session.data?.is_applicant)
@@ -275,7 +280,11 @@ export const usePortalStore = defineStore('portal', () => {
     setSelectedBranches,
     isBranchLimited,
     canManageTeam,
+<<<<<<< HEAD
     features,
     branding,
+=======
+    seesAnyStatement,
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
   }
 })
