@@ -5,7 +5,14 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, nowdate
 
+from vuna_sourcing.api.transactions.branches import (
+	BRANCH_FIELD,
+	branch_restrictions,
+	customer_scope_filters,
+	requested_branches,
+)
 from vuna_sourcing.api.transactions.common import (
+	all_of,
 	balance,
 	company_currency,
 	distinct,
@@ -43,6 +50,7 @@ QUOTATION_FIELDS = [
 	"party_name",
 	"transaction_date",
 	"valid_till",
+	BRANCH_FIELD,
 	"currency",
 	"grand_total",
 	"status",
@@ -54,6 +62,7 @@ ORDER_FIELDS = [
 	"po_no",
 	"transaction_date",
 	"delivery_date",
+	BRANCH_FIELD,
 	"currency",
 	"grand_total",
 	"status",
@@ -74,6 +83,7 @@ DELIVERY_FIELDS = [
 	"posting_date",
 	"lr_no",
 	"transporter_name",
+	BRANCH_FIELD,
 	"currency",
 	"grand_total",
 	"is_return",
@@ -86,6 +96,7 @@ INVOICE_FIELDS = [
 	"po_no",
 	"posting_date",
 	"due_date",
+	BRANCH_FIELD,
 	"currency",
 	"grand_total",
 	"outstanding_amount",
@@ -100,11 +111,19 @@ def customer_scope(customer: str | None = None) -> list[str]:
 	return party_scope(CUSTOMER, customer)
 
 
-def customer_filters(doctype: str, customers: list[str]) -> dict:
+def customer_filters(
+	doctype: str,
+	customers: list[str],
+	branches: list[str] | None = None,
+	user: str | None = None,
+) -> list:
 	if doctype == QUOTATION:
-		return {"quotation_to": CUSTOMER, "party_name": ("in", customers or [""]), "docstatus": 1}
+		return all_of(
+			customer_scope_filters(QUOTATION, customers, "party_name", branches, user),
+			{"quotation_to": CUSTOMER, "docstatus": 1},
+		)
 
-	return {"customer": ("in", customers or [""]), "docstatus": 1}
+	return all_of(customer_scope_filters(doctype, customers, branches=branches, user=user), {"docstatus": 1})
 
 
 def customer_document(doctype: str, name: str, customer: str | None = None):
@@ -117,17 +136,28 @@ def customer_documents(
 	search: str | None,
 	fields: list[str],
 	search_fields: tuple[str, ...] = ("name",),
+	branches: list[str] | None = None,
 	**filters,
 ) -> list:
 	return find_documents(
-		doctype, {**customer_filters(doctype, customers), **filters}, search, fields, search_fields
+		doctype,
+		all_of(customer_filters(doctype, customers, branches), filters),
+		search,
+		fields,
+		search_fields,
 	)
+
+
+def statement_customers(customers: list[str]) -> list[str]:
+	restricted = branch_restrictions()
+	return [customer for customer in customers if customer not in restricted]
 
 
 @frappe.whitelist()
 def get_quotations(
 	customer: str | None = None,
 	search: str | None = None,
+	branches: list | str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -135,7 +165,9 @@ def get_quotations(
 	if not customers:
 		return empty_page(start, limit)
 
-	quotations = customer_documents(QUOTATION, customers, search, QUOTATION_FIELDS)
+	quotations = customer_documents(
+		QUOTATION, customers, search, QUOTATION_FIELDS, branches=requested_branches(customers, branches)
+	)
 
 	return page_of(
 		[
@@ -144,6 +176,7 @@ def get_quotations(
 				"customer": quotation.party_name,
 				"transaction_date": quotation.transaction_date,
 				"valid_till": quotation.valid_till,
+				"branch": quotation.get(BRANCH_FIELD),
 				"currency": quotation.currency,
 				"grand_total": quotation.grand_total,
 				"status": quotation.status or "Open",
@@ -179,6 +212,7 @@ def get_quotation(name: str, customer: str | None = None) -> dict:
 def get_sales_orders(
 	customer: str | None = None,
 	search: str | None = None,
+	branches: list | str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -187,7 +221,11 @@ def get_sales_orders(
 		return empty_page(start, limit)
 
 	orders = find_documents(
-		SALES_ORDER, order_filters(customers), search, ORDER_FIELDS, search_fields=("name", "po_no")
+		SALES_ORDER,
+		order_filters(customers, requested_branches(customers, branches)),
+		search,
+		ORDER_FIELDS,
+		search_fields=("name", "po_no"),
 	)
 
 	return {
@@ -199,6 +237,7 @@ def get_sales_orders(
 					"po_no": order.po_no,
 					"transaction_date": order.transaction_date,
 					"delivery_date": order.delivery_date,
+					"branch": order.get(BRANCH_FIELD),
 					"currency": order.currency,
 					"grand_total": order.grand_total,
 					"delivered": flt(order.per_delivered, 1),
@@ -216,8 +255,8 @@ def get_sales_orders(
 	}
 
 
-def order_filters(customers: list[str]) -> dict:
-	return {"customer": ("in", customers or [""]), "docstatus": ("<", 2)}
+def order_filters(customers: list[str], branches: list[str] | None = None) -> list:
+	return all_of(customer_scope_filters(SALES_ORDER, customers, branches=branches), {"docstatus": ("<", 2)})
 
 
 def is_visible_order(order) -> bool:
@@ -296,6 +335,7 @@ def deliveries_against(order: str) -> list[dict]:
 def get_delivery_notes(
 	customer: str | None = None,
 	search: str | None = None,
+	branches: list | str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -304,7 +344,12 @@ def get_delivery_notes(
 		return empty_page(start, limit)
 
 	deliveries = customer_documents(
-		DELIVERY_NOTE, customers, search, DELIVERY_FIELDS, search_fields=("name", "po_no", "lr_no")
+		DELIVERY_NOTE,
+		customers,
+		search,
+		DELIVERY_FIELDS,
+		search_fields=("name", "po_no", "lr_no"),
+		branches=requested_branches(customers, branches),
 	)
 
 	return page_of(
@@ -316,6 +361,7 @@ def get_delivery_notes(
 				"posting_date": delivery.posting_date,
 				"lr_no": delivery.lr_no,
 				"transporter_name": delivery.transporter_name,
+				"branch": delivery.get(BRANCH_FIELD),
 				"currency": delivery.currency,
 				"grand_total": delivery.grand_total,
 				"is_return": bool(delivery.is_return),
@@ -367,6 +413,7 @@ def get_sales_invoices(
 	customer: str | None = None,
 	search: str | None = None,
 	credit_notes: bool = False,
+	branches: list | str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -380,6 +427,7 @@ def get_sales_invoices(
 		search,
 		INVOICE_FIELDS,
 		search_fields=("name", "po_no"),
+		branches=requested_branches(customers, branches),
 		is_return=cint(credit_notes),
 	)
 
@@ -391,6 +439,7 @@ def get_sales_invoices(
 				"po_no": invoice.po_no,
 				"posting_date": invoice.posting_date,
 				"due_date": invoice.due_date,
+				"branch": invoice.get(BRANCH_FIELD),
 				"currency": invoice.currency,
 				"grand_total": invoice.grand_total,
 				"outstanding_amount": invoice.outstanding_amount,
@@ -441,7 +490,7 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 
 @frappe.whitelist()
 def get_account_statement(customer: str | None = None) -> dict:
-	parties = customer_scope(customer)
+	parties = statement_customers(customer_scope(customer))
 	if not parties:
 		return {"report_date": None, "companies": []}
 
@@ -454,22 +503,27 @@ QUOTES_TO_REVIEW = ("Open", "Replied")
 
 
 @frappe.whitelist()
-def get_dashboard(customer: str | None = None) -> dict:
+def get_dashboard(customer: str | None = None, branches: list | str | None = None) -> dict:
 	customers = customer_scope(customer)
 	if not customers:
 		return {}
 
-	orders = customer_filters(SALES_ORDER, customers)
+	branches = requested_branches(customers, branches)
+	statement_parties = [] if branches else statement_customers(customers)
+	orders = customer_filters(SALES_ORDER, customers, branches)
+	invoices = all_of(customer_filters(SALES_INVOICE, customers, branches), {"is_return": 0})
 	quotes = frappe.get_all(
 		QUOTATION,
-		filters={**customer_filters(QUOTATION, customers), "status": ("in", QUOTES_TO_REVIEW)},
+		filters=all_of(
+			customer_filters(QUOTATION, customers, branches), {"status": ("in", QUOTES_TO_REVIEW)}
+		),
 		or_filters=[["valid_till", ">=", nowdate()], ["valid_till", "is", "not set"]],
 		fields=["name", "transaction_date", "valid_till", "grand_total", "currency"],
 		order_by="valid_till asc",
 	)
 	open_orders = frappe.get_all(
 		SALES_ORDER,
-		filters={**orders, "status": ("in", OPEN_ORDER_STATUSES)},
+		filters=all_of(orders, {"status": ("in", OPEN_ORDER_STATUSES)}),
 		fields=["name", "status", "delivery_date", "grand_total", "currency", "per_delivered"],
 		order_by="delivery_date asc",
 	)
@@ -478,16 +532,13 @@ def get_dashboard(customer: str | None = None) -> dict:
 		"currency": company_currency(),
 		"quotes_to_review": len(quotes),
 		"open_orders": len(open_orders),
-		"balance": balance(outstanding_statement("Receivable", CUSTOMER, customers)),
-		"invoiced_by_month": monthly_totals(
-			SALES_INVOICE,
-			{**customer_filters(SALES_INVOICE, customers), "is_return": 0},
-			"posting_date",
-			"base_grand_total",
+		"balance": (
+			balance(outstanding_statement("Receivable", CUSTOMER, statement_parties))
+			if statement_parties
+			else None
 		),
-		"invoices_by_status": status_counts(
-			SALES_INVOICE, {**customer_filters(SALES_INVOICE, customers), "is_return": 0}
-		),
+		"invoiced_by_month": monthly_totals(SALES_INVOICE, invoices, "posting_date", "base_grand_total"),
+		"invoices_by_status": status_counts(SALES_INVOICE, invoices),
 		"quotes": quotes[:5],
 		"to_deliver": [
 			{**order, "delivered": flt(order.per_delivered, 1)}

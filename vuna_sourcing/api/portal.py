@@ -73,12 +73,21 @@ def check_party_access(party_type: str, party: str, user: str | None = None):
 
 @frappe.whitelist()
 def get_session() -> dict:
+	from vuna_sourcing.api.transactions.branches import branch_restrictions
+	from vuna_sourcing.api.transactions.team import admin_customers, team_management_enabled
+
 	user = get_current_user()
 
 	profile = frappe.db.get_value(
 		"User", user, ["full_name", "user_image", "email", "user_type"], as_dict=True
 	)
 	parties = get_linked_parties(user)
+	restricted = branch_restrictions(user)
+	managed = admin_customers(user) if team_management_enabled() else set()
+	for party in parties:
+		if party["party_type"] == CUSTOMER:
+			party["all_branches"] = party["name"] not in restricted
+			party["can_manage_team"] = party["name"] in managed and not party["disabled"]
 	roles = frappe.get_roles(user)
 	open_party_types = get_open_party_types()
 

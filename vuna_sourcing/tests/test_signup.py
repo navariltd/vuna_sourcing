@@ -3,9 +3,15 @@
 
 import frappe
 from frappe.tests import IntegrationTestCase
+from frappe.website.utils import get_home_page
 
 from vuna_sourcing import APP_NAME
-from vuna_sourcing.api.permission import PORTAL_USER_ROLE, has_app_permission
+from vuna_sourcing.api.permission import (
+	PORTAL_USER_ROLE,
+	clear_portal_default_app,
+	has_app_permission,
+	portal_home_page,
+)
 from vuna_sourcing.api.response import ApiResponse, ResponseStatus
 from vuna_sourcing.api.signup import get_signup_context, sign_up
 from vuna_sourcing.tests import make_test_user
@@ -168,7 +174,7 @@ class TestSignup(IntegrationTestCase):
 		self.assertEqual(user.last_name, "Otieno")
 		self.assertTrue(user.enabled)
 		self.assertTrue(user.send_welcome_email)
-		self.assertEqual(user.default_app, APP_NAME, "marks them as having come via the portal")
+		self.assertFalse(user.default_app, "their role home page sends them to the portal, not the desk")
 
 	def test_a_new_signup_holds_the_portal_role(self):
 		"""The key to the portal, granted at signup — approval is what adds Supplier or Customer."""
@@ -177,7 +183,72 @@ class TestSignup(IntegrationTestCase):
 
 		self.assertIn(PORTAL_USER_ROLE, frappe.get_roles(email))
 		with self.set_user(email):
-			self.assertTrue(has_app_permission(), "and with it, the app on the apps screen")
+			self.assertFalse(has_app_permission(), "the desk app icon is for staff, not portal users")
+
+	def test_the_desk_app_icon_opens_the_sourcing_workspace_for_staff(self):
+		"""Staff see the app on the apps screen and it opens the desk; portal users land on the portal."""
+		entry = frappe.get_hooks("add_to_apps_screen", app_name=APP_NAME)[0]
+		staff = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": self.new_email(),
+				"first_name": "Staff",
+				"send_welcome_email": 0,
+				"roles": [{"role": "Purchase User"}],
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertEqual(entry["route"], "/desk/sourcing")
+		with self.set_user(staff.name):
+			self.assertTrue(has_app_permission())
+
+	def test_portal_users_land_on_the_portal_and_staff_on_the_desk(self):
+		"""Only website users are sent to the portal; staff holding the portal role still land on the desk."""
+		portal_user = self.new_email()
+		sign_up("Amina", "Otieno", portal_user)
+		staff = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": self.new_email(),
+				"first_name": "Staff",
+				"send_welcome_email": 0,
+				"roles": [{"role": "Purchase User"}, {"role": PORTAL_USER_ROLE}, {"role": "Customer"}],
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertFalse(frappe.db.get_value("Role", PORTAL_USER_ROLE, "home_page"))
+		self.assertEqual(portal_home_page(portal_user), "vuna-sourcing")
+		self.assertIsNone(portal_home_page(staff.name))
+		self.assertIsNone(portal_home_page("Administrator"))
+		for user in (portal_user, staff.name):
+			frappe.cache.hdel("home_page", user)
+		with self.set_user(portal_user):
+			self.assertEqual(get_home_page(), "vuna-sourcing")
+		with self.set_user(staff.name):
+			self.assertNotEqual(get_home_page(), "vuna-sourcing")
+
+	def test_signing_in_clears_an_old_portal_default_app(self):
+		"""Accounts made before the desk route existed still had the app as default; signing in clears it."""
+		portal_user = self.new_email()
+		sign_up("Amina", "Otieno", portal_user)
+		frappe.db.set_value("User", portal_user, "default_app", APP_NAME)
+		staff = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": self.new_email(),
+				"first_name": "Staff",
+				"send_welcome_email": 0,
+				"default_app": APP_NAME,
+				"roles": [{"role": "Purchase User"}],
+			}
+		).insert(ignore_permissions=True)
+
+		for user in (portal_user, staff.name):
+			with self.set_user(user):
+				clear_portal_default_app()
+
+		self.assertFalse(frappe.db.get_value("User", portal_user, "default_app"))
+		self.assertEqual(frappe.db.get_value("User", staff.name, "default_app"), APP_NAME)
 
 	def test_a_new_signup_holds_no_party_role(self):
 		email = self.new_email()

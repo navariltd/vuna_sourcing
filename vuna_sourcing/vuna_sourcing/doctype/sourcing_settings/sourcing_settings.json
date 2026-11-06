@@ -13,6 +13,10 @@
   "allow_customer_credit_requests",
   "column_break_credit_requests",
   "notify_customer_of_credit_decisions",
+  "section_customer_branches",
+  "require_branch_for_branch_customers",
+  "column_break_customer_branches",
+  "allow_customer_team_management",
   "onboarding_tab",
   "section_registration",
   "registration_mode",
@@ -53,6 +57,19 @@
  ],
  "fields": [
   {
+   "description": "A customer's branches are its shipping addresses. On the customer's Portal Users table, pick the branches each user can see. Users with no branches picked see every branch.",
+   "fieldname": "section_customer_branches",
+   "fieldtype": "Section Break",
+   "label": "Customer Branches"
+  },
+  {
+   "default": "1",
+   "description": "Quotations, sales orders, delivery notes and sales invoices for a customer whose portal users are limited to some branches cannot be submitted without a shipping address, so the right branch can see them.",
+   "fieldname": "require_branch_for_branch_customers",
+   "fieldtype": "Check",
+   "label": "Require a Shipping Address for Customers with Branch Users"
+  },
+  {
    "fieldname": "onboarding_tab",
    "fieldtype": "Tab Break",
    "label": "Onboarding"
@@ -90,14 +107,14 @@
   },
   {
    "default": "1",
-   "description": "Offer \u201cBecome a supplier\u201d on the portal.",
+   "description": "Offer “Become a supplier” on the portal.",
    "fieldname": "accept_supplier_applications",
    "fieldtype": "Check",
    "label": "Accept Supplier Applications"
   },
   {
    "default": "1",
-   "description": "Offer \u201cBecome a customer\u201d on the portal.",
+   "description": "Offer “Become a customer” on the portal.",
    "fieldname": "accept_customer_applications",
    "fieldtype": "Check",
    "label": "Accept Customer Applications"
@@ -310,12 +327,23 @@
    "fieldtype": "Link",
    "label": "Reviewer Role",
    "options": "Role"
+  },
+  {
+   "fieldname": "column_break_customer_branches",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Account admins of a customer can invite people from the portal settings, choose which branches they see, and remove them. Account admins are set on the customer's Portal Users table.",
+   "fieldname": "allow_customer_team_management",
+   "fieldtype": "Check",
+   "label": "Let Account Admins Manage Their Team"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-30 14:00:00.000000",
+ "modified": "2026-11-06 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

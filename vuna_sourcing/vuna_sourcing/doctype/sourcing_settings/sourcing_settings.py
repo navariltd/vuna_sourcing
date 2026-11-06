@@ -21,6 +21,7 @@ class SourcingSettings(Document):
 		allow_any_member_to_open: DF.Check
 		allow_customer_credit_requests: DF.Check
 		allow_customer_sales_orders: DF.Check
+		allow_customer_team_management: DF.Check
 		allow_opening_before_bids_close: DF.Check
 		allow_opening_below_minimum: DF.Check
 		allowed_file_types: DF.Data | None
@@ -39,6 +40,7 @@ class SourcingSettings(Document):
 		notify_customer_of_credit_decisions: DF.Check
 		notify_reviewers: DF.Check
 		registration_mode: DF.Literal["Invitation Only", "Open to Public"]
+		require_branch_for_branch_customers: DF.Check
 		reviewer_role: DF.Link | None
 	# end: auto-generated types
 

@@ -7,12 +7,45 @@ import type { PartyType } from '@/data/parties'
 
 export type { PartyType }
 
+export interface Branch {
+  name: string
+  title: string
+}
+
+export interface BranchScope {
+  all_branches: boolean
+  branches: Branch[]
+}
+
 export interface Party {
   party_type: PartyType
   name: string
   title: string
   image: string | null
   disabled: boolean
+  all_branches?: boolean
+  can_manage_team?: boolean
+}
+
+function createBranchesResource(user: string, customer: string) {
+  return createResource({
+    url: 'vuna_sourcing.api.transactions.branches.get_branches',
+    params: { customer },
+    cache: ['vuna-sourcing:branches', user, customer],
+    auto: true,
+  })
+}
+
+const branchResources = new Map<string, ReturnType<typeof createBranchesResource>>()
+
+function branchesResource(user: string, customer: string) {
+  const key = `${user}::${customer}`
+  let resource = branchResources.get(key)
+  if (!resource) {
+    resource = createBranchesResource(user, customer)
+    branchResources.set(key, resource)
+  }
+  return resource
 }
 
 export interface PortalUser {
@@ -70,6 +103,8 @@ export const usePortalStore = defineStore('portal', () => {
 
   const lastKeyByType = ref<Partial<Record<PartyType, string>>>({})
 
+  const branchesByParty = ref<Record<string, string[]>>({})
+
   const session = createResource({
     url: 'vuna_sourcing.api.portal.get_session',
     auto: false,
@@ -104,6 +139,45 @@ export const usePortalStore = defineStore('portal', () => {
     if (!list.length) return null
     return list.find((p) => partyKey(p) === activePartyKey.value) ?? list[0]!
   })
+
+  const branchList = computed(() => {
+    const party = activeParty.value
+    const email = user.value?.name
+    return party?.party_type === 'Customer' && email ? branchesResource(email, party.name) : null
+  })
+
+  const activeBranches = computed<Branch[]>(
+    () => (branchList.value?.data?.data as BranchScope | undefined)?.branches ?? [],
+  )
+
+  const branchesLoading = computed(
+    () => !!branchList.value?.loading && !branchList.value?.data,
+  )
+
+  const selectedBranches = computed<string[]>(() =>
+    activeParty.value ? (branchesByParty.value[partyKey(activeParty.value)] ?? []) : [],
+  )
+
+  const branchFilter = computed<string[] | null>(() =>
+    selectedBranches.value.length ? selectedBranches.value : null,
+  )
+
+  function setSelectedBranches(names: string[]) {
+    if (!activeParty.value) return
+    branchesByParty.value = { ...branchesByParty.value, [partyKey(activeParty.value)]: names }
+  }
+
+  const isBranchLimited = computed(
+    () => activeParty.value?.party_type === 'Customer' && activeParty.value.all_branches === false,
+  )
+
+  const canManageTeam = computed(
+    () => activeParty.value?.party_type === 'Customer' && !!activeParty.value.can_manage_team,
+  )
+
+  const seesAnyStatement = computed(() =>
+    customers.value.some((customer) => customer.all_branches !== false),
+  )
 
   const isApplicant = computed(() => !!session.data?.is_applicant)
   const canApply = computed(() => !!session.data?.can_apply)
@@ -143,6 +217,7 @@ export const usePortalStore = defineStore('portal', () => {
 
   function reset() {
     activePartyKey.value = null
+    branchesByParty.value = {}
     session.reset()
   }
 
@@ -173,5 +248,13 @@ export const usePortalStore = defineStore('portal', () => {
     partyTypesToJoin,
     hasParties,
     isMultiParty,
+    activeBranches,
+    branchesLoading,
+    selectedBranches,
+    branchFilter,
+    setSelectedBranches,
+    isBranchLimited,
+    canManageTeam,
+    seesAnyStatement,
   }
 })

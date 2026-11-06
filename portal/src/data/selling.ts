@@ -10,6 +10,7 @@ export interface QuotationRow {
   valid_till: string | null;
   currency: string | null;
   grand_total: number | null;
+  branch?: string | null;
   status: string;
 }
 
@@ -23,6 +24,7 @@ export interface SalesOrderRow {
   grand_total: number | null;
   delivered: number;
   billed: number;
+  branch?: string | null;
   status: string;
   is_draft: boolean;
 }
@@ -37,6 +39,7 @@ export interface DeliveryNoteRow {
   currency: string | null;
   grand_total: number | null;
   is_return: boolean;
+  branch?: string | null;
   status: string;
 }
 
@@ -52,6 +55,7 @@ export interface SalesInvoiceRow {
   is_return: boolean;
   return_against: string | null;
   is_debit_note: boolean;
+  branch?: string | null;
   status: string;
 }
 
@@ -142,6 +146,7 @@ interface LineItem {
 export interface Quotation {
   name: string;
   customer: string;
+  branch?: string | null;
   status: string;
   transaction_date: string;
   valid_till: string | null;
@@ -164,6 +169,7 @@ export interface SalesOrderItem extends LineItem {
 export interface SalesOrder {
   name: string;
   customer: string;
+  branch?: string | null;
   status: string;
   is_draft: boolean;
   editable: boolean;
@@ -198,6 +204,7 @@ export interface DeliveryNoteItem extends LineItem {
 export interface DeliveryNote {
   name: string;
   customer: string;
+  branch?: string | null;
   status: string;
   is_return: boolean;
   return_against: string | null;
@@ -227,6 +234,7 @@ export interface SalesInvoiceItem extends LineItem {
 export interface SalesInvoice {
   name: string;
   customer: string;
+  branch?: string | null;
   status: string;
   is_return: boolean;
   is_debit_note: boolean;
