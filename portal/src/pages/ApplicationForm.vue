@@ -27,12 +27,14 @@ import {
 	createApplicationResource,
 	documentProblems,
 	fetchProgress,
-	fullName,
 	localToday,
+	normaliseTaxId,
 	onboardingTypes,
 	resubmitApplication,
 	saveApplication,
 	submitApplication,
+	taxIdFormats,
+	taxIdProblem,
 	uploadEndpoint,
 	uploadedAttachment,
 } from "@/data/application";
@@ -43,6 +45,7 @@ import type {
 	ApplicationProgress,
 	OnboardingType,
 	RequiredDocument,
+	TaxIdFormat,
 } from "@/data/application";
 import { PARTY_COPY, PARTY_TYPES, partyCopy } from "@/data/parties";
 import type { PartyType } from "@/data/parties";
@@ -97,19 +100,28 @@ function choosePartyType(partyType: PartyType) {
 	shapeForParty();
 }
 
-const asksForBank = computed(
-	() =>
-		form.party_type === "Supplier" || !!selectedType.value?.require_bank_details || !!form.bank
-);
-
 const steps = computed(() => [
 	{ key: "type", label: "Applying as" },
 	{ key: "business", label: isIndividual.value ? "About you" : "Business" },
 	{ key: "people", label: "Contacts & addresses" },
-	...(asksForBank.value ? [{ key: "bank", label: "Bank details" }] : []),
 	{ key: "documents", label: "Documents" },
 	{ key: "review", label: "Review" },
 ]);
+
+const taxFormat = computed<TaxIdFormat | null>(
+	() =>
+		((taxIdFormats.data?.data ?? {}) as Record<string, TaxIdFormat>)[form.country ?? ""] ??
+		null
+);
+
+const taxError = computed(() => taxIdProblem(form.tax_id, taxFormat.value));
+
+const taxTouched = ref(false);
+
+function tidyTaxId() {
+	taxTouched.value = true;
+	form.tax_id = normaliseTaxId(form.tax_id, taxFormat.value);
+}
 
 const stepIndex = ref(0);
 const currentStep = computed(
@@ -122,12 +134,9 @@ const billingContact = computed(
 	() => contacts.value.find((c) => !c.is_primary_contact && c.is_billing_contact) ?? null
 );
 
-const registeredAddress = computed(
-	() => addresses.value.find((a) => a.is_primary_address) ?? null
-);
-const extraAddresses = computed(() => addresses.value.filter((a) => !a.is_primary_address));
-
-const EXTRA_ADDRESS_TYPES = ["Warehouse", "Office", "Plant", "Shop"];
+const billingAddress = computed(() => addresses.value.find((a) => a.is_primary_address) ?? null);
+const deliveryAddresses = computed(() => addresses.value.filter((a) => !a.is_primary_address));
+const deliveryAddress = computed(() => deliveryAddresses.value[0] ?? null);
 
 function ensureShape() {
 	if (!primaryContact.value) {
@@ -143,7 +152,7 @@ function ensureShape() {
 		);
 	}
 
-	if (!registeredAddress.value) {
+	if (!billingAddress.value) {
 		addresses.value.unshift(
 			blankAddress({
 				is_primary_address: 1,
@@ -151,23 +160,33 @@ function ensureShape() {
 			})
 		);
 	}
+	billingAddress.value!.address_type = "Billing";
+
+	const primaries = contacts.value.filter((c) => c.is_primary_contact);
+	const billing = contacts.value.filter((c) => !c.is_primary_contact && c.is_billing_contact);
+	contacts.value = [...primaries.slice(0, 1), ...billing.slice(0, 1)];
 }
 
 function shapeForParty() {
 	ensureShape();
-	const delivers = !!copy.value?.asksForDelivery;
-
-	for (const address of extraAddresses.value) {
-		address.is_shipping_address = delivers ? 1 : 0;
-		address.address_type = delivers
-			? "Shipping"
-			: EXTRA_ADDRESS_TYPES.includes(address.address_type)
-			? address.address_type
-			: "Warehouse";
+	if (billingAddress.value) billingAddress.value.is_shipping_address = 0;
+	if (!copy.value?.asksForDelivery) {
+		addresses.value = addresses.value.filter((a) => a.is_primary_address);
+		return;
 	}
-	if (!delivers && registeredAddress.value) registeredAddress.value.is_shipping_address = 0;
-	if (delivers && registeredAddress.value && !extraAddresses.value.length)
-		registeredAddress.value.is_shipping_address = 1;
+	const kept = deliveryAddresses.value[0];
+	addresses.value = addresses.value.filter((a) => a.is_primary_address || a === kept);
+	if (!kept) {
+		addresses.value.push(
+			blankAddress({
+				address_type: "Shipping",
+				is_shipping_address: 1,
+				country: billingAddress.value?.country ?? null,
+			})
+		);
+	}
+	deliveryAddress.value!.is_shipping_address = 1;
+	deliveryAddress.value!.address_type = "Shipping";
 }
 
 function setSeparateBilling(on: boolean) {
@@ -183,34 +202,26 @@ function setSeparateBilling(on: boolean) {
 	}
 }
 
-function addExtraAddress() {
-	const delivers = !!copy.value?.asksForDelivery;
-	addresses.value.push(
-		blankAddress({
-			address_type: copy.value?.extraAddressType ?? "Other",
-			is_shipping_address: delivers ? 1 : 0,
-			country: registeredAddress.value?.country ?? null,
-		})
-	);
-}
-
-function removeAddress(address: ApplicationAddress) {
-	addresses.value = addresses.value.filter((a) => a !== address);
-	if (
-		copy.value?.asksForDelivery &&
-		!addresses.value.some((a) => a.is_shipping_address) &&
-		registeredAddress.value
-	)
-		registeredAddress.value.is_shipping_address = 1;
-}
-
-const deliversToRegistered = computed({
-	get: () => !!registeredAddress.value?.is_shipping_address,
-	set: (value: boolean) => {
-		if (registeredAddress.value) registeredAddress.value.is_shipping_address = value ? 1 : 0;
-		if (!value && !extraAddresses.value.length) addExtraAddress();
-	},
+const billingIsPrimary = computed({
+	get: () => !billingContact.value,
+	set: (same: boolean) => setSeparateBilling(!same),
 });
+
+const ADDRESS_LINES = [
+	"address_line1",
+	"address_line2",
+	"city",
+	"state",
+	"pincode",
+	"country",
+] as const;
+
+function copyBillingToDelivery() {
+	const from = billingAddress.value;
+	const to = deliveryAddress.value;
+	if (!from || !to) return;
+	for (const field of ADDRESS_LINES) to[field] = from[field];
+}
 
 function hydrate(data: Application | null) {
 	if (!data) return;
@@ -218,7 +229,8 @@ function hydrate(data: Application | null) {
 	contacts.value = (data.contacts ?? []).map((c) => ({ ...c }));
 	addresses.value = (data.addresses ?? []).map((a) => ({ ...a }));
 	documents.value = (data.documents ?? []).map((d) => ({ ...d }));
-	ensureShape();
+	if (data.party_type) shapeForParty();
+	else ensureShape();
 }
 
 function partyTypeFromRoute(): PartyType | null {
@@ -230,6 +242,7 @@ function partyTypeFromRoute(): PartyType | null {
 }
 
 onMounted(async () => {
+	taxIdFormats.fetch();
 	try {
 		await onboardingTypes.fetch();
 		const name = (route.query.name as string) || null;
@@ -309,7 +322,8 @@ const stepIssues = computed<string[]>(() => {
 			if (blank(form.party_name))
 				missing.push(isIndividual.value ? "Your full name" : "Registered business name");
 			if (type?.require_tax_id && blank(form.tax_id))
-				missing.push("Tax registration number");
+				missing.push(taxFormat.value?.label ?? "Tax registration number");
+			if (taxError.value) missing.push(taxError.value);
 			if (type?.require_registration_number && blank(form.registration_number))
 				missing.push("Company registration number");
 			break;
@@ -327,28 +341,15 @@ const stepIssues = computed<string[]>(() => {
 					missing.push("Billing contact email address");
 			}
 			addresses.value.forEach((address) => {
-				const where = address.is_primary_address
-					? "Registered address"
-					: `${address.address_type} address`;
+				const where = address.is_primary_address ? "Billing address" : "Delivery address";
 				if (blank(address.address_line1)) missing.push(`${where}: address line 1`);
 				if (blank(address.city)) missing.push(`${where}: city / town`);
 				if (blank(address.country)) missing.push(`${where}: country`);
 			});
-			if (
-				form.party_type === "Customer" &&
-				type?.require_shipping_address &&
-				!addresses.value.some((a) => a.is_shipping_address)
-			)
-				missing.push("Somewhere we deliver to");
+			if (copy.value?.asksForDelivery && !deliveryAddress.value)
+				missing.push("A delivery address");
 			break;
 		}
-
-		case "bank":
-			if (type?.require_bank_details) {
-				if (blank(form.bank)) missing.push("Bank");
-				if (blank(form.bank_account_no)) missing.push("Account number");
-			}
-			break;
 
 		case "documents": {
 			const today = localToday();
@@ -758,176 +759,138 @@ const title = computed(() => {
 						label="Website"
 						placeholder="https://"
 					/>
-					<FormControl
-						v-model="form.tax_id"
-						:label="isIndividual ? 'Personal tax number' : 'Tax registration number'"
-						:required="!!selectedType?.require_tax_id"
+					<LinkSelect
+						v-model="form.country"
+						doctype="Country"
+						:label="isIndividual ? 'Country of residence' : 'Country of registration'"
 					/>
+					<div>
+						<FormControl
+							v-model="form.tax_id"
+							:label="
+								taxFormat?.label ??
+								(isIndividual ? 'Personal tax number' : 'Tax registration number')
+							"
+							:placeholder="taxFormat ? `e.g. ${taxFormat.example}` : undefined"
+							:required="!!selectedType?.require_tax_id"
+							@blur="tidyTaxId"
+						/>
+						<p
+							v-if="taxError && (taxTouched || stepIssues.length)"
+							class="mt-1.5 flex items-start gap-1.5 text-p-xs text-ink-red-4"
+							role="alert"
+						>
+							<i
+								class="lucide-circle-alert mt-0.5 size-3.5 shrink-0"
+								aria-hidden="true"
+							/>
+							{{ taxError }}
+						</p>
+						<p v-else-if="taxFormat" class="mt-1.5 text-p-xs text-ink-gray-5">
+							{{ taxFormat.hint }}
+						</p>
+					</div>
 					<FormControl
 						v-if="!isIndividual || selectedType?.require_registration_number"
 						v-model="form.registration_number"
 						label="Company registration number"
 						:required="!!selectedType?.require_registration_number"
 					/>
-					<LinkSelect
-						v-model="form.country"
-						doctype="Country"
-						:label="isIndividual ? 'Country of residence' : 'Country of registration'"
-					/>
 				</div>
 			</section>
 
 			<section v-else-if="currentStep.key === 'people'" class="space-y-8">
-				<div class="space-y-4">
-					<div v-if="primaryContact">
-						<h3 class="mb-1 text-base font-semibold text-ink-gray-8">
-							Primary contact
-						</h3>
-						<p class="mb-3 text-p-sm text-ink-gray-5">
+				<div
+					class="flex items-start gap-3 rounded-6 border border-outline-gray-2 bg-surface-gray-1 p-3"
+					role="note"
+				>
+					<i
+						class="lucide-info mt-0.5 size-4 shrink-0 text-ink-gray-6"
+						aria-hidden="true"
+					/>
+					<p class="text-p-sm text-ink-gray-7">
+						We only need the essentials to get you started:
+						<b>one primary contact</b>, <b>one billing contact</b>,
+						<b>one billing address</b
+						><template v-if="copy?.asksForDelivery">
+							and <b>one delivery address</b></template
+						>. Once you are approved you can add more people and addresses any time
+						from <b>Settings → Profile</b>.
+					</p>
+				</div>
+
+				<div v-if="primaryContact" class="space-y-3">
+					<div>
+						<h3 class="text-base font-semibold text-ink-gray-8">Primary contact</h3>
+						<p class="mt-0.5 text-p-sm text-ink-gray-5">
 							{{ copy?.primaryContactHint }}
 						</p>
-						<ContactFields :model-value="primaryContact" full />
 					</div>
-
-					<div class="rounded-6 border bg-surface-gray-1 p-4">
-						<label class="flex cursor-pointer items-start gap-3">
-							<Checkbox
-								:model-value="!!billingContact"
-								@update:model-value="setSeparateBilling(!!$event)"
-							/>
-							<span>
-								<span class="block text-base font-medium text-ink-gray-8"
-									>Add a billing contact</span
-								>
-								<span class="mt-0.5 block text-p-sm text-ink-gray-6">{{
-									copy?.billingContactHint
-								}}</span>
-							</span>
-						</label>
-
-						<div v-if="billingContact" class="mt-4">
-							<ContactFields :model-value="billingContact" />
-						</div>
-
-						<p v-else class="mt-3 flex items-start gap-2 text-p-sm text-ink-gray-5">
-							<i class="lucide-info mt-0.5 size-4 shrink-0" />
-							<span>
-								Without one, billing goes to
-								<span class="font-medium text-ink-gray-7">{{
-									fullName(primaryContact) || "your primary contact"
-								}}</span
-								>, your primary contact.
-							</span>
-						</p>
-					</div>
+					<ContactFields :model-value="primaryContact" full />
 				</div>
 
-				<div class="space-y-4">
-					<div v-if="registeredAddress">
-						<h3 class="mb-1 text-base font-semibold text-ink-gray-8">
-							{{ isIndividual ? "Your address" : "Registered address" }}
-						</h3>
-						<p class="mb-3 text-p-sm text-ink-gray-5">
-							{{ copy?.registeredAddressHint }}
+				<div class="space-y-3">
+					<div>
+						<h3 class="text-base font-semibold text-ink-gray-8">Billing contact</h3>
+						<p class="mt-0.5 text-p-sm text-ink-gray-5">
+							{{ copy?.billingContactHint }}
 						</p>
-						<AddressFields :model-value="registeredAddress" />
-
-						<label
-							v-if="copy?.asksForDelivery"
-							class="mt-4 flex cursor-pointer items-start gap-3 rounded-6 border bg-surface-gray-1 p-3"
-						>
-							<Checkbox v-model="deliversToRegistered" />
-							<span>
-								<span class="block text-base font-medium text-ink-gray-8"
-									>We take deliveries here too</span
-								>
-								<span class="mt-0.5 block text-p-sm text-ink-gray-6">
-									Untick if goods should always go somewhere else.
-								</span>
-							</span>
-						</label>
 					</div>
-
-					<div
-						v-for="(address, index) in extraAddresses"
-						:key="index"
-						class="rounded-6 border p-4"
+					<label
+						class="flex cursor-pointer items-start gap-3 rounded-6 border border-outline-gray-2 p-3"
 					>
-						<div class="mb-3 flex items-center justify-between gap-2">
-							<p
-								class="flex items-center gap-2 text-base font-medium text-ink-gray-8"
-							>
-								<i
-									:class="[
-										address.is_shipping_address
-											? 'lucide-package-check'
-											: 'lucide-warehouse',
-										'size-4 text-ink-gray-5',
-									]"
-								/>
-								{{
-									address.is_shipping_address
-										? "Delivery address"
-										: `${address.address_type} address`
-								}}
-								{{ extraAddresses.length > 1 ? index + 1 : "" }}
+						<Checkbox v-model="billingIsPrimary" />
+						<span>
+							<span class="block text-base font-medium text-ink-gray-8">
+								Same person as the primary contact
+							</span>
+							<span class="mt-0.5 block text-p-sm text-ink-gray-6">
+								Untick if invoices and statements should go to someone else, such
+								as your accounts team.
+							</span>
+						</span>
+					</label>
+					<ContactFields v-if="billingContact" :model-value="billingContact" />
+				</div>
+
+				<div v-if="billingAddress" class="space-y-3">
+					<div>
+						<h3 class="text-base font-semibold text-ink-gray-8">
+							{{ isIndividual ? "Your billing address" : "Billing address" }}
+						</h3>
+						<p class="mt-0.5 text-p-sm text-ink-gray-5">
+							{{ copy?.billingAddressHint }}
+						</p>
+					</div>
+					<AddressFields :model-value="billingAddress" />
+				</div>
+
+				<div v-if="copy?.asksForDelivery && deliveryAddress" class="space-y-3">
+					<div class="flex flex-wrap items-end justify-between gap-2">
+						<div>
+							<h3 class="text-base font-semibold text-ink-gray-8">
+								Delivery address
+								<span class="text-ink-red-4" aria-hidden="true">*</span>
+							</h3>
+							<p class="mt-0.5 text-p-sm text-ink-gray-5">
+								{{ copy.deliveryAddressHint }}
 							</p>
-							<Button
-								variant="ghost"
-								icon-left="lucide-trash-2"
-								label="Remove"
-								@click="removeAddress(address)"
-							/>
 						</div>
-						<AddressFields
-							:model-value="address"
-							:type-options="
-								address.is_shipping_address ? undefined : EXTRA_ADDRESS_TYPES
-							"
+						<Button
+							variant="subtle"
+							icon-left="lucide-copy"
+							label="Same as billing address"
+							@click="copyBillingToDelivery"
 						/>
 					</div>
-
-					<button
-						type="button"
-						class="flex w-full items-center gap-3 rounded-6 border border-dashed p-4 text-left transition hover:border-outline-gray-3 hover:bg-surface-gray-1"
-						@click="addExtraAddress"
-					>
-						<i class="lucide-plus size-4 text-ink-gray-6" />
-						<span>
-							<span class="block text-base font-medium text-ink-gray-8">{{
-								copy?.extraAddressLabel
-							}}</span>
-							<span class="block text-p-sm text-ink-gray-5">{{
-								copy?.extraAddressHint
-							}}</span>
-						</span>
-					</button>
-				</div>
-			</section>
-
-			<section v-else-if="currentStep.key === 'bank'" class="space-y-3">
-				<p class="text-p-sm text-ink-gray-5">
-					{{ copy?.bankHint }}
-					<template v-if="!selectedType?.require_bank_details">
-						Optional for {{ form.onboarding_template }}, but it saves time later.
-					</template>
-				</p>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<LinkSelect
-						v-model="form.bank"
-						doctype="Bank"
-						label="Bank"
-						:required="!!selectedType?.require_bank_details"
-					/>
-					<FormControl
-						v-model="form.bank_account_no"
-						label="Account number"
-						:required="!!selectedType?.require_bank_details"
-					/>
-					<FormControl v-model="form.account_holder_name" label="Account holder name" />
-					<FormControl v-model="form.branch_code" label="Branch code" />
-					<FormControl v-model="form.iban" label="IBAN" />
-					<FormControl v-model="form.swift_number" label="SWIFT / BIC" />
+					<div class="rounded-6 border border-outline-gray-2 p-4">
+						<AddressFields :model-value="deliveryAddress" />
+					</div>
+					<p class="flex items-start gap-1.5 text-p-sm text-ink-gray-6">
+						<i class="lucide-info mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+						Deliver to more than one place? Add your other branches or sites after you
+						are approved, from Settings → Profile.
+					</p>
 				</div>
 			</section>
 
@@ -998,7 +961,6 @@ const title = computed(() => {
 				<ApplicationSummary
 					:application="payload()"
 					:individual="isIndividual"
-					:show-bank="asksForBank"
 					:lock-type="isCorrection"
 					editable
 					@edit="goToStep"

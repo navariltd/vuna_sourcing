@@ -34,7 +34,6 @@
   "create_contact_on_approval",
   "create_address_on_approval",
   "column_break_approval",
-  "create_bank_account_on_approval",
   "link_portal_user_on_approval",
   "uploads_tab",
   "section_uploads",
@@ -53,7 +52,12 @@
   "notify_applicant",
   "column_break_notifications",
   "notify_reviewers",
-  "reviewer_role"
+  "reviewer_role",
+  "branding_tab",
+  "section_branding",
+  "brand_name",
+  "column_break_branding",
+  "brand_logo"
  ],
  "fields": [
   {
@@ -168,12 +172,6 @@
   {
    "fieldname": "column_break_approval",
    "fieldtype": "Column Break"
-  },
-  {
-   "default": "1",
-   "fieldname": "create_bank_account_on_approval",
-   "fieldtype": "Check",
-   "label": "Create Bank Account"
   },
   {
    "default": "1",
@@ -338,12 +336,40 @@
    "fieldname": "allow_customer_team_management",
    "fieldtype": "Check",
    "label": "Let Account Admins Manage Their Team"
+  },
+  {
+   "fieldname": "branding_tab",
+   "fieldtype": "Tab Break",
+   "label": "Branding"
+  },
+  {
+   "description": "Shown on the sign-up page and the portal header. Leave empty to use the app's own name and logo.",
+   "fieldname": "section_branding",
+   "fieldtype": "Section Break",
+   "label": "Portal Branding"
+  },
+  {
+   "description": "Your business name as customers and suppliers should see it, for example Greenfield Traders Ltd.",
+   "fieldname": "brand_name",
+   "fieldtype": "Data",
+   "label": "Brand Name",
+   "length": 140
+  },
+  {
+   "fieldname": "column_break_branding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "A square PNG or JPG works best. It sits on a white background.",
+   "fieldname": "brand_logo",
+   "fieldtype": "Attach Image",
+   "label": "Brand Logo"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-06 09:00:00.000000",
+ "modified": "2026-11-07 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 from collections import Counter
+from collections.abc import Callable
 from contextlib import contextmanager
 
 import frappe
@@ -202,7 +203,13 @@ def statement_companies(party_type: str, parties: list[str]) -> list[str]:
 	)
 
 
-def outstanding_statement(account_type: str, party_type: str, parties: list[str]) -> dict:
+def statement_section(
+	account_type: str,
+	party_type: str,
+	parties: list[str],
+	company: str,
+	keep: Callable[[list[dict]], list[dict]] | None = None,
+) -> dict:
 	from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 
 	naming_by = (
@@ -210,39 +217,72 @@ def outstanding_statement(account_type: str, party_type: str, parties: list[str]
 		if account_type == "Receivable"
 		else ["Buying Settings", "supp_master_name"]
 	)
-	report_date = nowdate()
-	companies = []
+	report = ReceivablePayableReport(
+		{
+			"company": company,
+			"report_date": nowdate(),
+			"ageing_based_on": "Due Date",
+			"party_type": party_type,
+			"party": parties,
+			"in_party_currency": 1,
+		}
+	)
+	with as_administrator():
+		_columns, data, *_rest = report.run({"account_type": account_type, "naming_by": naming_by})
 
-	for company in statement_companies(party_type, parties):
-		report = ReceivablePayableReport(
-			{
-				"company": company,
-				"report_date": report_date,
-				"ageing_based_on": "Due Date",
-				"party_type": party_type,
-				"party": parties,
-				"in_party_currency": 1,
-			}
-		)
-		with as_administrator():
-			_columns, data, *_rest = report.run({"account_type": account_type, "naming_by": naming_by})
+	rows = [
+		row for row in data if isinstance(row, dict) and row.get("voucher_no") and row.get("party") in parties
+	]
+	if keep:
+		rows = keep(rows)
 
-		rows = [row for row in data if isinstance(row, dict) and row.get("voucher_no")]
+	return {
+		"company": company,
+		"currency": next((row.get("currency") for row in rows if row.get("currency")), None)
+		or frappe.get_cached_value("Company", company, "default_currency"),
+		"rows": [{field: row.get(field) for field in STATEMENT_FIELDS} for row in rows],
+		"totals": {
+			field: flt(sum(flt(row.get(field)) for row in rows), 2)
+			for field in ("invoiced", "paid", "credit_note", "outstanding")
+		},
+	}
 
-		companies.append(
-			{
-				"company": company,
-				"currency": next((row.get("currency") for row in rows if row.get("currency")), None)
-				or frappe.get_cached_value("Company", company, "default_currency"),
-				"rows": [{field: row.get(field) for field in STATEMENT_FIELDS} for row in rows],
-				"totals": {
-					field: flt(sum(flt(row.get(field)) for row in rows), 2)
-					for field in ("invoiced", "paid", "credit_note", "outstanding")
-				},
-			}
-		)
 
-	return {"report_date": report_date, "companies": companies}
+def outstanding_statement(
+	account_type: str,
+	party_type: str,
+	parties: list[str],
+	keep: Callable[[list[dict]], list[dict]] | None = None,
+) -> dict:
+	return {
+		"report_date": nowdate(),
+		"companies": [
+			statement_section(account_type, party_type, parties, company, keep)
+			for company in statement_companies(party_type, parties)
+		],
+	}
+
+
+def statement_page(
+	account_type: str,
+	party_type: str,
+	parties: list[str],
+	company: str | None,
+	keep: Callable[[list[dict]], list[dict]] | None = None,
+) -> dict:
+	companies = statement_companies(party_type, parties) if parties else []
+	if not company and len(companies) == 1:
+		company = companies[0]
+
+	if company and company not in companies:
+		frappe.throw(_("Choose one of the companies listed."))
+
+	return {
+		"report_date": nowdate(),
+		"companies": companies,
+		"company": company or None,
+		"section": statement_section(account_type, party_type, parties, company, keep) if company else None,
+	}
 
 
 def month_starts(count: int = 12) -> list:

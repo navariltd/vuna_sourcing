@@ -1,4 +1,5 @@
 import { createResource } from "frappe-ui";
+import type { ApiResponse } from "@/types/api";
 
 export interface StatementRow {
   voucher_type: string;
@@ -24,16 +25,19 @@ export interface StatementSection {
 
 export interface Statement {
   report_date: string | null;
-  companies: StatementSection[];
+  companies: string[];
+  company: string | null;
+  section: StatementSection | null;
+  branch_limited: boolean;
 }
 
-export const customerStatement = createResource({
-  url: "vuna_sourcing.api.transactions.customer.get_account_statement",
-  auto: false,
-});
-
-export const supplierStatement = createResource({
-  url: "vuna_sourcing.api.transactions.supplier.get_account_statement",
-  auto: false,
-});
-
+export function fetchStatement(
+  side: "Customer" | "Supplier",
+  party: string,
+  company: string | null,
+): Promise<ApiResponse<Statement>> {
+  const module = side === "Customer" ? "customer" : "supplier";
+  return createResource({
+    url: `vuna_sourcing.api.transactions.${module}.get_account_statement`,
+  }).fetch(side === "Customer" ? { customer: party, company } : { supplier: party, company });
+}

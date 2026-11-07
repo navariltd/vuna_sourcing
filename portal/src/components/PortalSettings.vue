@@ -25,58 +25,100 @@ const portal = usePortalStore();
 const tab = ref("profile");
 
 const tabs = computed(() => [
-	{ value: "profile", label: "Profile", icon: "lucide-user" },
-	...(portal.canManageTeam ? [{ value: "team", label: "Team", icon: "lucide-users" }] : []),
-	{ value: "preferences", label: "Preferences", icon: "lucide-settings-2" },
+	{ value: "profile", label: "Profile", icon: "lucide-user", hint: "Your details and accounts" },
+	...(portal.canManageTeam
+		? [
+				{
+					value: "team",
+					label: "Team",
+					icon: "lucide-users",
+					hint: "Invite people and choose their branches",
+				},
+		  ]
+		: []),
+	{
+		value: "preferences",
+		label: "Preferences",
+		icon: "lucide-settings-2",
+		hint: "Light or dark theme",
+	},
 ]);
+
+const mobileSection = ref<string | null>(null);
+
+const mobileTitle = computed(
+	() => tabs.value.find((option) => option.value === mobileSection.value)?.label ?? "Settings"
+);
+
+watch(open, (isOpen) => {
+	if (!isOpen) mobileSection.value = null;
+});
 
 watch(
 	() => portal.canManageTeam,
 	(canManage) => {
 		if (!canManage && tab.value === "team") tab.value = "profile";
+		if (!canManage && mobileSection.value === "team") mobileSection.value = null;
 	}
 );
 </script>
 
 <template>
-	<BottomSheet v-if="isMobile" v-model:open="open" title="Settings">
+	<BottomSheet v-if="isMobile" v-model:open="open" :title="mobileTitle">
 		<div class="flex flex-col gap-4 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-			<div
-				class="grid rounded-8 bg-surface-gray-2 p-1"
-				:class="tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'"
-				role="tablist"
-			>
-				<button
-					v-for="option in tabs"
-					:key="option.value"
-					type="button"
-					role="tab"
-					class="flex h-9 items-center justify-center gap-1.5 rounded-6 text-base font-medium transition-colors"
-					:class="
-						tab === option.value
-							? 'bg-surface-base text-ink-gray-9 shadow-sm'
-							: 'text-ink-gray-6'
-					"
-					:aria-selected="tab === option.value"
-					@click="tab = option.value"
-				>
-					<i :class="option.icon" class="size-4" aria-hidden="true" />
-					{{ option.label }}
-				</button>
-			</div>
+			<nav v-if="!mobileSection" aria-label="Settings sections">
+				<ul class="divide-y divide-outline-gray-1 overflow-hidden rounded-8 border">
+					<li v-for="option in tabs" :key="option.value">
+						<button
+							type="button"
+							class="flex min-h-14 w-full items-center gap-3 px-3 py-2.5 text-left active:bg-surface-gray-2"
+							@click="mobileSection = option.value"
+						>
+							<span
+								class="grid size-8 shrink-0 place-items-center rounded-6 bg-surface-gray-2"
+								aria-hidden="true"
+							>
+								<i :class="option.icon" class="size-4 text-ink-gray-7" />
+							</span>
+							<span class="min-w-0 flex-1">
+								<span class="block text-base font-medium text-ink-gray-9">
+									{{ option.label }}
+								</span>
+								<span class="block truncate text-p-sm text-ink-gray-5">
+									{{ option.hint }}
+								</span>
+							</span>
+							<i
+								class="lucide-chevron-right size-4 text-ink-gray-4"
+								aria-hidden="true"
+							/>
+						</button>
+					</li>
+				</ul>
+			</nav>
 
-			<ProfileSettings v-if="tab === 'profile'" />
-			<TeamSettings v-else-if="tab === 'team'" />
-			<div v-else class="flex flex-col gap-2">
-				<p class="text-p-sm text-ink-gray-6">
-					Choose how the portal looks on this device.
-				</p>
-				<ThemeSwitcher />
-			</div>
+			<template v-else>
+				<button
+					type="button"
+					class="-ml-1 flex w-fit items-center gap-1 rounded-6 px-1 py-1 text-base font-medium text-ink-gray-7 active:bg-surface-gray-2"
+					@click="mobileSection = null"
+				>
+					<i class="lucide-chevron-left size-4" aria-hidden="true" />
+					All settings
+				</button>
+				<ProfileSettings v-if="mobileSection === 'profile'" />
+				<TeamSettings v-else-if="mobileSection === 'team'" />
+				<div v-else class="flex flex-col gap-2">
+					<p class="text-p-sm text-ink-gray-6">
+						Choose how the portal looks on this device.
+					</p>
+					<ThemeSwitcher />
+				</div>
+			</template>
 		</div>
 	</BottomSheet>
 
-	<SettingsDialog v-else v-model:open="open" v-model:tab="tab">
+	<SettingsDialog v-else v-model:open="open" v-model:tab="tab" size="5xl">
 		<SettingsSidebar>
 			<SettingsNavGroup label="Account">
 				<SettingsNavItem :value="'profile'" icon="lucide-user">Profile</SettingsNavItem>

@@ -223,7 +223,6 @@ const steps = computed(() => {
 			<ApplicationSummary
 				:application="doc"
 				:individual="doc.entity_type === 'Individual'"
-				:show-bank="doc.party_type === 'Supplier' || !!doc.bank"
 			/>
 
 			<Button

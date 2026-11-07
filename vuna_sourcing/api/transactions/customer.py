@@ -1,10 +1,13 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+from collections.abc import Callable
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, nowdate
 
+from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.api.transactions.branches import (
 	BRANCH_FIELD,
 	branch_restrictions,
@@ -27,6 +30,7 @@ from vuna_sourcing.api.transactions.common import (
 	payments_against,
 	returns_against,
 	safe_html,
+	statement_page,
 	status_counts,
 	submitted_parents,
 )
@@ -148,9 +152,30 @@ def customer_documents(
 	)
 
 
-def statement_customers(customers: list[str]) -> list[str]:
-	restricted = branch_restrictions()
-	return [customer for customer in customers if customer not in restricted]
+def branch_statement_rows(customers: list[str]) -> Callable[[list[dict]], list[dict]] | None:
+	limited = {customer for customer in branch_restrictions() if customer in customers}
+	if not limited:
+		return None
+
+	def keep(rows: list[dict]) -> list[dict]:
+		invoices = [
+			row["voucher_no"]
+			for row in rows
+			if row.get("party") in limited and row.get("voucher_type") == SALES_INVOICE
+		]
+		visible = set(
+			frappe.get_all(
+				SALES_INVOICE,
+				filters=all_of(
+					customer_scope_filters(SALES_INVOICE, sorted(limited)),
+					{"name": ("in", invoices or [""]), "docstatus": 1},
+				),
+				pluck="name",
+			)
+		)
+		return [row for row in rows if row.get("party") not in limited or row["voucher_no"] in visible]
+
+	return keep
 
 
 @frappe.whitelist()
@@ -489,12 +514,14 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 
 
 @frappe.whitelist()
-def get_account_statement(customer: str | None = None) -> dict:
-	parties = statement_customers(customer_scope(customer))
-	if not parties:
-		return {"report_date": None, "companies": []}
-
-	return outstanding_statement("Receivable", CUSTOMER, parties)
+def get_account_statement(customer: str | None = None, company: str | None = None) -> ApiResponse[dict]:
+	customers = customer_scope(customer)
+	return ApiResponse.success(
+		data={
+			**statement_page("Receivable", CUSTOMER, customers, company, branch_statement_rows(customers)),
+			"branch_limited": any(customer in branch_restrictions() for customer in customers),
+		}
+	)
 
 
 OPEN_ORDER_STATUSES = ("To Deliver and Bill", "To Deliver", "To Bill")
@@ -509,7 +536,6 @@ def get_dashboard(customer: str | None = None, branches: list | str | None = Non
 		return {}
 
 	branches = requested_branches(customers, branches)
-	statement_parties = [] if branches else statement_customers(customers)
 	orders = customer_filters(SALES_ORDER, customers, branches)
 	invoices = all_of(customer_filters(SALES_INVOICE, customers, branches), {"is_return": 0})
 	quotes = frappe.get_all(
@@ -533,9 +559,11 @@ def get_dashboard(customer: str | None = None, branches: list | str | None = Non
 		"quotes_to_review": len(quotes),
 		"open_orders": len(open_orders),
 		"balance": (
-			balance(outstanding_statement("Receivable", CUSTOMER, statement_parties))
-			if statement_parties
-			else None
+			None
+			if branches
+			else balance(
+				outstanding_statement("Receivable", CUSTOMER, customers, branch_statement_rows(customers))
+			)
 		),
 		"invoiced_by_month": monthly_totals(SALES_INVOICE, invoices, "posting_date", "base_grand_total"),
 		"invoices_by_status": status_counts(SALES_INVOICE, invoices),

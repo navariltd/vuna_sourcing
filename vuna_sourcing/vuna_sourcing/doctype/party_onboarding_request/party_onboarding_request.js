@@ -171,7 +171,7 @@ function confirm_approval(frm) {
 			{
 				fieldtype: "HTML",
 				options: `<p class="text-muted">${__(
-					"Approving creates the {0}, its contacts, addresses, bank details and document copies.",
+					"Approving creates the {0}, its contacts, addresses and document copies.",
 					[party]
 				)}</p>`,
 			},

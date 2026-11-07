@@ -104,7 +104,7 @@ function optionsFor(field: FilterField) {
 			<div
 				v-for="field in applied"
 				:key="field.field"
-				class="flex items-center gap-1 rounded-4 border border-outline-gray-2 bg-surface-white px-1.5 py-0.5"
+				class="flex items-center gap-1 rounded-4 border border-outline-gray-2 bg-surface-base px-1.5 py-0.5"
 			>
 				<span class="text-xs text-ink-gray-5">{{ field.label }}</span>
 

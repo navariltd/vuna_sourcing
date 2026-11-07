@@ -479,7 +479,7 @@ function formatDateTime(value: string | null | undefined) {
 									class="flex size-7 shrink-0 items-center justify-center rounded-full text-p-sm font-semibold"
 									:class="
 										bid.rank === 1
-											? 'bg-surface-green-3 text-ink-white'
+											? 'bg-surface-green-3 text-ink-base'
 											: 'bg-surface-gray-2 text-ink-gray-7'
 									"
 								>

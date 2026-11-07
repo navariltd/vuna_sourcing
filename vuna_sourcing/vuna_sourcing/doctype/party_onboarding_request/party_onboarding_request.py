@@ -8,7 +8,7 @@ from frappe.query_builder.functions import IfNull
 from frappe.utils import get_link_to_form, getdate, now_datetime, today
 
 from vuna_sourcing.api.transactions.branches import ACCOUNT_ADMIN_FIELD
-from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type
+from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type, validate_tax_id
 
 PENDING_REVIEW = "Pending Review"
 APPROVED = "Approved"
@@ -39,14 +39,9 @@ class PartyOnboardingRequest(Document):
 			PartyOnboardingRequestDocument,
 		)
 
-		account_holder_name: DF.Data | None
 		addresses: DF.Table[PartyOnboardingAddress]
 		amended_from: DF.Link | None
 		applicant_user: DF.Link | None
-		bank: DF.Link | None
-		bank_account: DF.Link | None
-		bank_account_no: DF.Data | None
-		branch_code: DF.Data | None
 		company: DF.Link
 		company_logo: DF.AttachImage | None
 		contacts: DF.Table[PartyOnboardingContact]
@@ -54,7 +49,6 @@ class PartyOnboardingRequest(Document):
 		customer_group: DF.Link | None
 		default_currency: DF.Link | None
 		entity_type: DF.Literal[None]
-		iban: DF.Data | None
 		naming_series: DF.Literal["POR-.YYYY.-", "SOR-.YYYY.-"]
 		onboarding_status: DF.Literal["", "Pending Review", "Approved", "Rejected", "Returned for Correction"]
 		onboarding_template: DF.Link
@@ -68,7 +62,6 @@ class PartyOnboardingRequest(Document):
 		reviewed_by: DF.Link | None
 		reviewed_on: DF.Datetime | None
 		supplier_group: DF.Link | None
-		swift_number: DF.Data | None
 		tax_id: DF.Data | None
 		territory: DF.Link | None
 		website: DF.Data | None
@@ -92,6 +85,7 @@ class PartyOnboardingRequest(Document):
 		self.sync_documents_from_template()
 		self.apply_template_defaults()
 		self.normalise_contacts_and_addresses()
+		self.validate_tax_id()
 		self.validate_required_details()
 		self.validate_duplicate_registration()
 		self.validate_document_dates()
@@ -110,6 +104,7 @@ class PartyOnboardingRequest(Document):
 	def before_update_after_submit(self):
 		self.validate_locked_after_submit()
 		self.normalise_contacts_and_addresses()
+		self.validate_tax_id()
 		self.validate_document_dates()
 		self.stamp_verifications()
 
@@ -264,6 +259,9 @@ class PartyOnboardingRequest(Document):
 					title=_("More Than One Primary"),
 				)
 
+	def validate_tax_id(self):
+		self.tax_id = validate_tax_id(self.country, self.tax_id)
+
 	def get_primary_contact(self):
 		return next((row for row in self.contacts if row.is_primary_contact), None)
 
@@ -310,11 +308,11 @@ class PartyOnboardingRequest(Document):
 
 		primary_address = self.get_primary_address()
 		if not primary_address:
-			always.append(_("A registered address"))
+			always.append(_("A billing address"))
 
 		for row in self.addresses:
 			where = (
-				_("Registered address")
+				_("Billing address")
 				if row is primary_address
 				else _("{0} address #{1}").format(_(row.address_type), row.idx)
 			)
@@ -331,14 +329,9 @@ class PartyOnboardingRequest(Document):
 				by_type.append(_("Tax registration number"))
 			if template.require_registration_number and not self.registration_number:
 				by_type.append(_("Company registration number"))
-			if template.require_bank_details and not (self.bank and self.bank_account_no):
-				by_type.append(_("Bank details (bank and account number)"))
-			if (
-				self.party_type == CUSTOMER
-				and template.require_shipping_address
-				and not any(row.is_shipping_address for row in self.addresses)
-			):
-				by_type.append(_("A delivery address"))
+
+		if self.party_type == CUSTOMER and not any(row.is_shipping_address for row in self.addresses):
+			always.append(_("A delivery address"))
 
 		return always, by_type
 
@@ -517,8 +510,6 @@ class PartyOnboardingRequest(Document):
 			self.create_contacts(party)
 		if settings.create_address_on_approval:
 			self.create_addresses(party)
-		bank_account = self.create_bank_account(party) if settings.create_bank_account_on_approval else None
-
 		self.attach_documents_to_party(party)
 
 		if settings.link_portal_user_on_approval:
@@ -527,7 +518,6 @@ class PartyOnboardingRequest(Document):
 		self.db_set(
 			{
 				"party": party.name,
-				"bank_account": bank_account.name if bank_account else None,
 				"onboarding_status": APPROVED,
 				"reviewed_by": frappe.session.user,
 				"reviewed_on": now_datetime(),
@@ -708,27 +698,6 @@ class PartyOnboardingRequest(Document):
 
 			if row.is_primary_address:
 				party.db_set(spec.primary_address_field, address.name)
-
-	def create_bank_account(self, party):
-		if not (self.bank and self.bank_account_no):
-			return None
-
-		bank_account = frappe.new_doc("Bank Account")
-		bank_account.update(
-			{
-				"account_name": self.account_holder_name or self.party_name,
-				"bank": self.bank,
-				"bank_account_no": self.bank_account_no,
-				"iban": self.iban,
-				"branch_code": self.branch_code,
-				"party_type": self.party_type,
-				"party": party.name,
-				"is_default": 1,
-			}
-		)
-		bank_account.insert(ignore_permissions=True)
-		party.db_set("default_bank_account", bank_account.name)
-		return bank_account
 
 	def attach_documents_to_party(self, party):
 		for row in self.required_documents:

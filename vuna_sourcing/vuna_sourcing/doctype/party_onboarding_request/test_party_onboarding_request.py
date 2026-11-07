@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import base64
+import random
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -10,8 +11,6 @@ from vuna_sourcing.tests import make_test_user
 
 IGNORE_TEST_RECORD_DEPENDENCIES = [
 	"Address",
-	"Bank",
-	"Bank Account",
 	"Company",
 	"Contact",
 	"Country",
@@ -49,6 +48,10 @@ def create_document_type(name, **kwargs):
 	return frappe.get_doc({"doctype": DOCUMENT_TYPE, "document_name": name, **kwargs}).insert()
 
 
+def kra_pin():
+	return "P" + "".join(random.choices("0123456789", k=9)) + "X"
+
+
 def create_template(name, party_type, documents, **kwargs):
 	if frappe.db.exists(TEMPLATE_DOCTYPE, name):
 		return frappe.get_doc(TEMPLATE_DOCTYPE, name)
@@ -59,7 +62,6 @@ def create_template(name, party_type, documents, **kwargs):
 			"template_name": name,
 			"party_type": party_type,
 			"entity_type": "Company",
-			"require_bank_details": 0,
 			"required_documents": documents,
 			**kwargs,
 		}
@@ -99,7 +101,6 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 			],
 			customer_group=leaf("Customer Group"),
 			territory=leaf("Territory"),
-			require_shipping_address=1,
 		)
 
 		cls.company = frappe.get_all("Company", limit=1, pluck="name")[0]
@@ -130,6 +131,15 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 			**overrides,
 		}
 
+	def shipping(self, **overrides):
+		return self.address(
+			address_type="Shipping",
+			address_line1="9 Depot Lane",
+			is_primary_address=0,
+			is_shipping_address=1,
+			**overrides,
+		)
+
 	def make_request(self, party_type="Supplier", **overrides):
 		values = {
 			"doctype": REQUEST,
@@ -138,10 +148,10 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 			"onboarding_template": SUPPLIER_TEMPLATE if party_type == "Supplier" else CUSTOMER_TEMPLATE,
 			"party_name": frappe.generate_hash(length=8) + " Traders Ltd",
 			"country": self.country,
-			"tax_id": "TAX-" + frappe.generate_hash(length=8),
+			"tax_id": kra_pin(),
 			"registration_number": "REG-" + frappe.generate_hash(length=8),
 			"contacts": self.contacts(),
-			"addresses": [self.address(is_shipping_address=1 if party_type == "Customer" else 0)],
+			"addresses": [self.address(), *([self.shipping()] if party_type == "Customer" else [])],
 		}
 		values.update(overrides)
 		return frappe.get_doc(values).insert()
@@ -320,7 +330,8 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		request.save()
 		self.assertRaises(frappe.ValidationError, request.submit)
 
-	def test_submit_needs_a_registered_address(self):
+	def test_submit_needs_a_billing_address(self):
+		"""An application cannot be submitted without a billing address."""
 		request = self.make_request(addresses=[])
 		self.attach(request)
 		request.save()
@@ -334,8 +345,32 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		self.assertRaises(frappe.ValidationError, request.submit)
 
 	def test_a_supplier_is_not_asked_for_a_delivery_address(self):
+		"""A supplier request needs only its billing address."""
 		request = self.submitted_request(addresses=[self.address(is_shipping_address=0)])
 		self.assertEqual(request.onboarding_status, "Pending Review")
+
+	def test_approval_creates_the_customers_delivery_address_with_every_field(self):
+		"""Each address field on the request is copied onto the customer's delivery address."""
+		delivery = self.shipping(address_line2="Gate B", city="Thika", state="Kiambu", pincode="01000")
+		request = self.submitted_request("Customer", addresses=[self.address(), delivery])
+		customer = request.approve()
+		request.reload()
+
+		address = frappe.get_doc("Address", request.addresses[1].address)
+		self.assertEqual(
+			(
+				address.address_type,
+				address.address_line1,
+				address.address_line2,
+				address.city,
+				address.state,
+				address.pincode,
+				address.country,
+				address.is_shipping_address,
+			),
+			("Shipping", "9 Depot Lane", "Gate B", "Thika", "Kiambu", "01000", self.country, 1),
+		)
+		self.assertIn(customer, [link.link_name for link in address.links if link.link_doctype == "Customer"])
 
 	def test_submit_blocked_without_mandatory_document(self):
 		request = self.make_request()
@@ -373,7 +408,7 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 				"doctype": "Supplier",
 				"supplier_name": "_Test Existing Supplier " + frappe.generate_hash(length=6),
 				"supplier_group": leaf("Supplier Group"),
-				"tax_id": "TAX-EXISTING-" + frappe.generate_hash(length=6),
+				"tax_id": kra_pin(),
 			}
 		).insert()
 
@@ -386,7 +421,7 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 				"doctype": "Customer",
 				"customer_name": "_Test Existing Customer " + frappe.generate_hash(length=6),
 				"customer_type": "Company",
-				"tax_id": "TAX-EXISTING-" + frappe.generate_hash(length=6),
+				"tax_id": kra_pin(),
 			}
 		).insert()
 
@@ -620,3 +655,32 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		row = request.required_documents[0]
 		self.assertEqual(row.verified_by, frappe.session.user)
 		self.assertIsNotNone(row.verified_on)
+
+	def test_a_kenyan_tax_number_must_look_like_a_kra_pin(self):
+		"""A Kenyan application with a malformed KRA PIN is refused with the expected format."""
+		with self.assertRaises(frappe.ValidationError) as caught:
+			self.make_request(country="Kenya", tax_id="12345")
+
+		self.assertIn("P051234567X", str(caught.exception))
+
+	def test_a_kra_pin_is_tidied_before_it_is_saved(self):
+		"""Spaces and lower case in a KRA PIN are cleaned up rather than rejected."""
+		pin = kra_pin()
+		request = self.make_request(country="Kenya", tax_id=f" {pin[:4].lower()} {pin[4:]} ")
+
+		self.assertEqual(request.tax_id, pin)
+
+	def test_other_countries_keep_their_tax_number_as_typed(self):
+		"""Countries without a known format accept the tax number as given."""
+		other = frappe.get_all("Country", filters={"name": ("!=", "Kenya")}, limit=1, pluck="name")[0]
+		request = self.make_request(country=other, tax_id="eu-123 456")
+
+		self.assertEqual(request.tax_id, "eu-123 456")
+
+	def test_approval_creates_no_bank_account(self):
+		"""Bank details are no longer collected, so approval leaves bank accounts alone."""
+		request = self.submitted_request()
+		supplier = request.approve()
+
+		self.assertFalse(frappe.db.exists("Bank Account", {"party_type": "Supplier", "party": supplier}))
+		self.assertFalse(frappe.get_meta(REQUEST).has_field("bank_account_no"))

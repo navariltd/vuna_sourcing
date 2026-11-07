@@ -32,9 +32,7 @@ class PartyOnboardingTemplate(Document):
 		is_default: DF.Check
 		party_type: DF.Literal["", "Supplier", "Customer"]
 		payment_terms: DF.Link | None
-		require_bank_details: DF.Check
 		require_registration_number: DF.Check
-		require_shipping_address: DF.Check
 		require_tax_id: DF.Check
 		required_documents: DF.Table[PartyOnboardingDocumentRequirement]
 		supplier_group: DF.Link | None
@@ -53,7 +51,6 @@ class PartyOnboardingTemplate(Document):
 		if self.party_type == SUPPLIER:
 			self.customer_group = None
 			self.territory = None
-			self.require_shipping_address = 0
 		elif self.party_type == CUSTOMER:
 			self.supplier_group = None
 

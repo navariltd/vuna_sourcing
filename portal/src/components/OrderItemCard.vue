@@ -37,17 +37,20 @@ const initials = computed(() =>
 				: 'border-outline-gray-2 hover:border-outline-gray-4'
 		"
 	>
-		<div class="relative aspect-[3/2] bg-surface-gray-1">
+		<div
+			class="relative aspect-square w-full overflow-hidden border-b border-outline-gray-1 bg-surface-gray-1"
+		>
 			<img
 				v-if="item.image"
 				:src="item.image"
 				:alt="item.item_name"
 				loading="lazy"
-				class="size-full object-cover"
+				decoding="async"
+				class="absolute inset-0 size-full object-contain"
 			/>
 			<div
 				v-else
-				class="grid size-full place-items-center text-xl font-semibold text-ink-gray-4"
+				class="absolute inset-0 grid place-items-center text-2xl font-semibold text-ink-gray-4"
 				aria-hidden="true"
 			>
 				{{ initials }}
@@ -62,13 +65,16 @@ const initials = computed(() =>
 		</div>
 
 		<div class="flex flex-1 flex-col gap-1 p-3">
-			<h3 class="line-clamp-2 text-base font-medium leading-snug text-ink-gray-9">
+			<h3
+				class="line-clamp-2 min-h-[2.75em] text-base font-medium leading-snug text-ink-gray-9"
+				:title="item.item_name"
+			>
 				{{ item.item_name }}
 			</h3>
-			<p class="text-p-sm tabular-nums">
-				<span class="font-semibold text-ink-gray-9">{{ money(item.rate, currency) }}</span>
-				<span class="text-ink-gray-6"> / {{ item.uom }}</span>
+			<p class="truncate text-base font-semibold tabular-nums text-ink-gray-9">
+				{{ money(item.rate, currency) }}
 			</p>
+			<p class="truncate text-p-xs text-ink-gray-5">per {{ item.uom }}</p>
 
 			<div class="mt-auto pt-2">
 				<QtyStepper
