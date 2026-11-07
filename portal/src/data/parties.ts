@@ -10,12 +10,9 @@ export interface PartyCopy {
   outcome: string;
   primaryContactHint: string;
   billingContactHint: string;
-  registeredAddressHint: string;
+  billingAddressHint: string;
   asksForDelivery: boolean;
-  extraAddressLabel: string;
-  extraAddressHint: string;
-  extraAddressType: string;
-  bankHint: string;
+  deliveryAddressHint: string;
 }
 
 export const PARTY_COPY: Record<PartyType, PartyCopy> = {
@@ -37,18 +34,11 @@ export const PARTY_COPY: Record<PartyType, PartyCopy> = {
     billingContactHint:
       "The person in your accounts team who should receive purchase orders, statements, and payment information.",
 
-    registeredAddressHint: "Your company's official registered address.",
+    billingAddressHint: "The address your invoices to us come from.",
 
     asksForDelivery: false,
 
-    extraAddressLabel: "Add a dispatch or warehouse address",
-
-    extraAddressHint:
-      "Add a location where we collect goods from or where you dispatch orders.",
-
-    extraAddressType: "Warehouse",
-
-    bankHint: "The bank account where we should send your payments.",
+    deliveryAddressHint: "",
   },
 
   Customer: {
@@ -69,19 +59,12 @@ export const PARTY_COPY: Record<PartyType, PartyCopy> = {
     billingContactHint:
       "The person in your accounts team who should receive invoices, statements, and payment information.",
 
-    registeredAddressHint: "Your company's official registered address.",
+    billingAddressHint: "The address we put on your invoices.",
 
     asksForDelivery: true,
 
-    extraAddressLabel: "Add a delivery address",
-
-    extraAddressHint:
-      "Add a site, branch, office, or warehouse where we should deliver your orders.",
-
-    extraAddressType: "Shipping",
-
-    bankHint:
-      "Used when we need to process a refund or another payment to your business.",
+    deliveryAddressHint:
+      "Where we should deliver your orders, such as your shop, branch or warehouse.",
   },
 };
 

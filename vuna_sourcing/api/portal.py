@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 
-from vuna_sourcing.utils import CUSTOMER, PARTY_TYPES, SUPPLIER, get_open_party_types
+from vuna_sourcing.utils import CUSTOMER, PARTY_TYPES, SUPPLIER, get_open_party_types, get_portal_branding
 
 PARTY_ROLE = {SUPPLIER: "Supplier", CUSTOMER: "Customer"}
 
@@ -74,6 +74,8 @@ def check_party_access(party_type: str, party: str, user: str | None = None):
 @frappe.whitelist()
 def get_session() -> dict:
 	from vuna_sourcing.api.transactions.branches import branch_restrictions
+	from vuna_sourcing.api.transactions.credit_requests import credit_requests_enabled
+	from vuna_sourcing.api.transactions.customer_orders import orders_enabled
 	from vuna_sourcing.api.transactions.team import admin_customers, team_management_enabled
 
 	user = get_current_user()
@@ -104,6 +106,11 @@ def get_session() -> dict:
 		"open_party_types": open_party_types,
 		"can_apply": bool(open_party_types),
 		"is_applicant": not parties,
+		"features": {
+			"customer_orders": orders_enabled(),
+			"credit_requests": credit_requests_enabled(),
+		},
+		"branding": get_portal_branding(),
 	}
 
 

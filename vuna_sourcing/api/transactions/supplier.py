@@ -36,6 +36,7 @@ from vuna_sourcing.api.transactions.common import (
 	payments_against,
 	returns_against,
 	safe_html,
+	statement_page,
 	status_counts,
 )
 from vuna_sourcing.utils import SUPPLIER
@@ -813,12 +814,13 @@ def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 
 
 @frappe.whitelist()
-def get_account_statement(supplier: str | None = None) -> dict:
-	parties = supplier_scope(supplier)
-	if not parties:
-		return {"report_date": None, "companies": []}
-
-	return outstanding_statement("Payable", SUPPLIER, parties)
+def get_account_statement(supplier: str | None = None, company: str | None = None) -> ApiResponse[dict]:
+	return ApiResponse.success(
+		data={
+			**statement_page("Payable", SUPPLIER, supplier_scope(supplier), company),
+			"branch_limited": False,
+		}
+	)
 
 
 OPEN_ORDER_STATUSES = ("To Receive and Bill", "To Receive", "To Bill")

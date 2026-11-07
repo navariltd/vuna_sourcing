@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, h, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
 	Avatar,
@@ -16,6 +16,7 @@ import {
 	SidebarRail,
 	SidebarRailItem,
 	SidebarSection,
+	useKeyboardShortcut,
 } from "frappe-ui";
 import { useIsMobile } from "@/composables/useViewport";
 import { usePartySwitch } from "@/composables/usePartySwitch";
@@ -28,6 +29,10 @@ import PartySwitcher from "@/components/PartySwitcher.vue";
 import BranchFilter from "@/components/BranchFilter.vue";
 import PortalSettings from "@/components/PortalSettings.vue";
 import LiveBidDock from "@/components/LiveBidDock.vue";
+import PortalSearch from "@/components/PortalSearch.vue";
+import { appsFor, installedApps } from "@/data/apps";
+import type { InstalledApp } from "@/data/apps";
+import type { SearchPageLink } from "@/components/PortalSearch.vue";
 
 const portal = usePortalStore();
 const route = useRoute();
@@ -38,8 +43,10 @@ const showRail = computed(() => portal.parties.length > 1);
 
 const activeKey = computed(() => (portal.activeParty ? partyKey(portal.activeParty) : null));
 
+const portalTitle = computed(() => portal.branding.title || "Sourcing Portal");
+
 const headerTitle = computed(() =>
-	portal.isMultiParty ? "Sourcing Portal" : portal.activeParty?.title ?? "Sourcing Portal"
+	portal.isMultiParty ? portalTitle.value : portal.activeParty?.title ?? portalTitle.value
 );
 
 const headerSubtitle = computed(() => {
@@ -55,12 +62,46 @@ const userMenu = computed(() => [
 		onClick: () => (settingsOpen.value = true),
 	},
 	{
-		label: "Frappe Desk",
-		icon: "lucide-layout-grid",
-		onClick: () => {
-			window.location.href = "/app";
-		},
-		condition: () => !portal.user?.is_website_user,
+		label: "Sign out",
+		icon: "lucide-log-out",
+		onClick: () => session.logout.submit(),
+	},
+]);
+
+onMounted(() => {
+	if (!installedApps.data) installedApps.fetch();
+});
+
+const apps = computed(() => appsFor(portal.user?.is_website_user !== false));
+
+function openApp(app: InstalledApp) {
+	window.location.href = app.route;
+}
+
+function appIcon(app: InstalledApp) {
+	if (!app.logo) return "lucide-app-window";
+	const logo = app.logo;
+	return () => h("img", { src: logo, alt: "", class: "size-4 rounded-[3px] object-contain" });
+}
+
+const headerMenu = computed(() => [
+	...(apps.value.length
+		? [
+				{
+					label: "Apps",
+					icon: "lucide-layout-grid",
+					submenu: apps.value.map((app) => ({
+						label: app.title,
+						icon: appIcon(app),
+						onClick: () => openApp(app),
+					})),
+				},
+		  ]
+		: []),
+	{
+		label: "Settings",
+		icon: "lucide-settings",
+		onClick: () => (settingsOpen.value = true),
 	},
 	{
 		label: "Sign out",
@@ -130,7 +171,7 @@ const SELLING: NavLink[] = [
 ];
 
 const sellingLinks = computed(() =>
-	SELLING.filter((link) => link.route !== "CustomerStatement" || portal.seesAnyStatement)
+	SELLING.filter((link) => link.route !== "CreditRequestList" || portal.features.credit_requests)
 );
 
 const navSections = computed<NavSection[]>(() => {
@@ -159,6 +200,31 @@ const tabs = computed(() => {
 
 const moreSheet = ref(false);
 
+const searchOpen = ref(false);
+
+function openSearch() {
+	searchOpen.value = true;
+}
+
+useKeyboardShortcut([
+	{ combo: "Mod+K", description: "Search the portal", allowInInput: true, handler: openSearch },
+	{ combo: "Ctrl+K", description: "Search the portal", allowInInput: true, handler: openSearch },
+]);
+
+const searchPages = computed<SearchPageLink[]>(() => {
+	const side = isSupplier.value ? BUYING : isCustomer.value ? sellingLinks.value : [];
+	return [
+		...(portal.hasParties
+			? [{ label: "Overview", route: "PortalOverview", look: LOOKS.application }]
+			: []),
+		...(isCustomer.value && portal.features.customer_orders
+			? [{ label: "New order", route: "SalesOrderNew", look: LOOKS.salesOrder }]
+			: []),
+		...side.map((link) => ({ label: link.label, route: link.route, look: link.look })),
+		{ label: "My applications", route: "ApplicationList", look: LOOKS.application },
+	];
+});
+
 const moreActive = computed(
 	() =>
 		moreSheet.value ||
@@ -174,9 +240,7 @@ function goTo(link: NavLink) {
 	router.push({ name: link.route });
 }
 
-const accountActions = computed(() =>
-	userMenu.value.filter((item) => !item.condition || item.condition())
-);
+const accountActions = userMenu;
 
 function runAccountAction(action: () => void) {
 	accountSheet.value = false;
@@ -186,8 +250,37 @@ function runAccountAction(action: () => void) {
 
 <template>
 	<MobileShell v-if="isMobile">
-		<div class="sticky top-0 z-10 bg-surface-white">
-			<PartySwitcher class="border-b border-outline-gray-2 px-4 py-2" />
+		<div class="sticky top-0 z-30 bg-surface-base shadow-sm">
+			<div class="flex items-center gap-2 border-b border-outline-gray-2 py-2 pl-4 pr-2">
+				<PartySwitcher v-if="portal.isMultiParty" class="min-w-0 flex-1" />
+				<div v-else class="flex min-w-0 flex-1 items-center gap-2">
+					<Avatar
+						:image="portal.activeParty?.image || undefined"
+						:label="headerTitle"
+						size="md"
+						shape="square"
+					/>
+					<span class="min-w-0">
+						<span class="block truncate text-base font-semibold text-ink-gray-9">
+							{{ headerTitle }}
+						</span>
+						<span
+							v-if="headerSubtitle"
+							class="block truncate text-p-xs text-ink-gray-5"
+						>
+							{{ headerSubtitle }}
+						</span>
+					</span>
+				</div>
+				<Button
+					v-if="portal.hasParties"
+					variant="ghost"
+					size="md"
+					icon="lucide-search"
+					aria-label="Search"
+					@click="searchOpen = true"
+				/>
+			</div>
 			<BranchFilter class="border-b border-outline-gray-2 px-4 py-2" />
 		</div>
 
@@ -283,13 +376,7 @@ function runAccountAction(action: () => void) {
 					:title="headerTitle"
 					:subtitle="headerSubtitle || undefined"
 					:show-logo="!showRail"
-					:menu-items="[
-						{
-							label: 'Settings',
-							icon: 'lucide-settings',
-							onClick: () => (settingsOpen = true),
-						},
-					]"
+					:menu-items="headerMenu"
 				>
 					<template v-if="!showRail" #prefix>
 						<Avatar
@@ -303,6 +390,24 @@ function runAccountAction(action: () => void) {
 
 				<PartySwitcher class="px-2 pb-1" />
 				<BranchFilter class="px-2 pb-1" />
+
+				<div v-if="portal.hasParties" class="px-2 pb-1">
+					<button
+						type="button"
+						class="flex h-8 w-full items-center gap-2 rounded-6 border border-outline-gray-2 bg-surface-base px-2 text-left text-base text-ink-gray-5 transition-colors hover:border-outline-gray-3 hover:text-ink-gray-7 focus-visible:outline focus-visible:outline-2 focus-visible:outline-outline-gray-4"
+						aria-label="Search the portal"
+						@click="searchOpen = true"
+					>
+						<i class="lucide-search size-4 shrink-0" aria-hidden="true" />
+						<span class="flex-1 truncate">Search</span>
+						<kbd
+							class="shrink-0 rounded-4 border border-outline-gray-2 bg-surface-gray-1 px-1 py-px font-sans text-[11px] leading-4 text-ink-gray-5"
+							aria-label="Command or Control plus K"
+						>
+							⌘/Ctrl K
+						</kbd>
+					</button>
+				</div>
 
 				<div class="flex-1 overflow-y-auto px-2 py-1">
 					<SidebarItem
@@ -382,6 +487,33 @@ function runAccountAction(action: () => void) {
 				</div>
 			</div>
 
+			<section v-if="apps.length" class="mt-4" aria-label="Apps">
+				<p class="px-1 pb-1 text-xs uppercase tracking-wide text-ink-gray-5">Apps</p>
+				<div class="grid grid-cols-3 gap-2">
+					<a
+						v-for="app in apps"
+						:key="app.name + app.route"
+						:href="app.route"
+						class="flex flex-col items-center gap-1.5 rounded-8 border border-outline-gray-2 p-3 text-center active:bg-surface-gray-2"
+					>
+						<img
+							v-if="app.logo"
+							:src="app.logo"
+							alt=""
+							class="size-8 rounded-6 object-contain"
+						/>
+						<i
+							v-else
+							class="lucide-app-window size-8 text-ink-gray-6"
+							aria-hidden="true"
+						/>
+						<span class="w-full truncate text-p-sm text-ink-gray-8">{{
+							app.title
+						}}</span>
+					</a>
+				</div>
+			</section>
+
 			<div class="mt-4 flex flex-col gap-2">
 				<Button
 					v-for="action in accountActions"
@@ -429,5 +561,6 @@ function runAccountAction(action: () => void) {
 	</BottomSheet>
 
 	<PortalSettings v-model:open="settingsOpen" />
+	<PortalSearch v-if="portal.hasParties" v-model:open="searchOpen" :pages="searchPages" />
 	<LiveBidDock />
 </template>

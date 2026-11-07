@@ -92,22 +92,6 @@
 		{% endfor %}
 	</table>
 
-	{% if bank %}
-	<h2>{{ _("Bank details") }}</h2>
-	<table class="fields">
-		{% for pair in bank | batch(2) %}
-		<tr>
-			{% for label, value in pair %}
-			<td>
-				<div class="label">{{ _(label) }}</div>
-				<div class="value">{{ value or "—" }}</div>
-			</td>
-			{% endfor %}
-		</tr>
-		{% endfor %}
-	</table>
-	{% endif %}
-
 	<h2>{{ _("Supporting documents") }}</h2>
 	<table class="grid">
 		<tr>

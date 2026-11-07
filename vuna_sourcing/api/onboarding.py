@@ -10,7 +10,7 @@ from frappe.utils.pdf import get_pdf
 
 from vuna_sourcing.api.portal import get_current_user
 from vuna_sourcing.api.response import ApiResponse
-from vuna_sourcing.utils import PARTY_TYPES, get_open_party_types
+from vuna_sourcing.utils import CUSTOMER, PARTY_TYPES, get_open_party_types, tax_id_formats
 from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
 	DOCTYPE,
 	PENDING_REVIEW,
@@ -28,12 +28,6 @@ APPLICANT_FIELDS = (
 	"tax_id",
 	"registration_number",
 	"website",
-	"bank",
-	"bank_account_no",
-	"account_holder_name",
-	"iban",
-	"branch_code",
-	"swift_number",
 )
 
 CONTACT_FIELDS = (
@@ -58,7 +52,10 @@ ADDRESS_FIELDS = (
 	"is_shipping_address",
 )
 
-PORTAL_ADDRESS_TYPES = ("Billing", "Shipping", "Office", "Warehouse", "Plant", "Shop")
+BILLING = "Billing"
+SHIPPING = "Shipping"
+MAX_CONTACTS = 2
+MAX_DELIVERY_ADDRESSES = 20
 
 DOCUMENT_FIELDS = (
 	"document_type",
@@ -68,7 +65,7 @@ DOCUMENT_FIELDS = (
 	"expiry_date",
 )
 
-LINK_OPTION_DOCTYPES = ("Country", "Bank")
+LINK_OPTION_DOCTYPES = ("Country",)
 
 
 def get_own_application(name: str, *, for_write: bool = False):
@@ -114,9 +111,8 @@ def apply_applicant_values(doc, values: dict):
 		_replace_rows(doc, "contacts", values.get("contacts"), CONTACT_FIELDS)
 	if "addresses" in values:
 		_replace_rows(doc, "addresses", values.get("addresses"), ADDRESS_FIELDS)
-		for row in doc.addresses:
-			if row.address_type not in PORTAL_ADDRESS_TYPES:
-				row.address_type = "Billing"
+
+	shape_contacts_and_addresses(doc)
 
 	_apply_documents(doc, values.get("documents"))
 
@@ -132,12 +128,53 @@ def check_party_type_is_open(doc, party_type: str | None):
 		)
 
 
+def shape_contacts_and_addresses(doc):
+	if len(doc.contacts) > MAX_CONTACTS:
+		frappe.throw(
+			_(
+				"Give us a primary contact and a billing contact. You can add more people after you are approved."
+			),
+			title=_("Too Many Contacts"),
+		)
+
+	billing = [row for row in doc.addresses if row.is_primary_address]
+	delivery = [row for row in doc.addresses if not row.is_primary_address]
+	if len(billing) > 1:
+		frappe.throw(_("Give us one billing address."), title=_("More Than One Billing Address"))
+
+	for row in billing:
+		row.address_type = BILLING
+		row.is_shipping_address = 0
+
+	if delivery and doc.party_type != CUSTOMER:
+		frappe.throw(
+			_("Suppliers only give a billing address."),
+			title=_("Too Many Addresses"),
+		)
+
+	if len(delivery) > MAX_DELIVERY_ADDRESSES:
+		frappe.throw(
+			_("Add up to {0} delivery addresses now. You can add more after you are approved.").format(
+				MAX_DELIVERY_ADDRESSES
+			),
+			title=_("Too Many Addresses"),
+		)
+
+	for row in delivery:
+		row.address_type = SHIPPING
+		row.is_shipping_address = 1
+
+
 def _replace_rows(doc, table: str, rows, allowed: tuple[str, ...]):
 	if isinstance(rows, str):
 		rows = frappe.parse_json(rows)
 
+	rows = rows or []
+	if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+		frappe.throw(_("Your details could not be read. Refresh the page and try again."))
+
 	doc.set(table, [])
-	for incoming in rows or []:
+	for incoming in rows:
 		doc.append(table, {field: incoming.get(field) for field in allowed if field in incoming})
 
 
@@ -166,8 +203,6 @@ def get_onboarding_types() -> list[dict]:
 			"is_default",
 			"require_tax_id",
 			"require_registration_number",
-			"require_bank_details",
-			"require_shipping_address",
 		],
 		order_by="is_default desc, name asc",
 	)
@@ -199,6 +234,12 @@ def get_link_options(doctype: str, search: str | None = None) -> list[dict]:
 
 	names = frappe.get_all(doctype, filters=filters, pluck="name", order_by="name asc", limit=50)
 	return [{"label": name, "value": name} for name in names]
+
+
+@frappe.whitelist()
+def get_tax_id_formats() -> ApiResponse[dict]:
+	get_current_user()
+	return ApiResponse.success(data=tax_id_formats())
 
 
 @frappe.whitelist()
@@ -546,7 +587,7 @@ def contact_roles(row) -> str:
 
 def address_use(row) -> str:
 	if row.is_primary_address:
-		return _("Registered") + (" · " + _("deliveries") if row.is_shipping_address else "")
+		return _("Billing") + (" · " + _("deliveries") if row.is_shipping_address else "")
 	return _("Delivery") if row.is_shipping_address else _(row.address_type or "")
 
 
@@ -563,25 +604,12 @@ def application_html(doc) -> str:
 		("Country", doc.country),
 		("Website", doc.website),
 	]
-	bank = [
-		(label, doc.get(field))
-		for label, field in (
-			("Bank", "bank"),
-			("Account number", "bank_account_no"),
-			("Account holder", "account_holder_name"),
-			("Branch code", "branch_code"),
-			("IBAN", "iban"),
-			("SWIFT / BIC", "swift_number"),
-		)
-	]
-
 	return frappe.get_template(APPLICATION_TEMPLATE).render(
 		{
 			"doc": doc,
 			"status": application_status(doc),
 			"company": doc.company,
 			"applicant": applicant,
-			"bank": bank if any(value for _label, value in bank) else [],
 			"roles": contact_roles,
 			"address_use": address_use,
 		}

@@ -81,9 +81,8 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 				{
 					"doctype": "Item",
 					"item_code": "_Test Portal Order Item " + frappe.generate_hash(length=6),
-					"item_group": frappe.get_all(
-						"Item Group", filters={"is_group": 0}, limit=1, pluck="name"
-					)[0],
+					"item_group": self.item_group,
+					"publish_on_portal": 1,
 					"stock_uom": "Nos",
 					"is_stock_item": 0,
 					"item_defaults": [
@@ -589,12 +588,21 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 		self.assertIsNone(priced["name"])
 		self.assertEqual(frappe.db.count("Sales Order", {"customer": self.customer}), before)
 
-	def make_item_group(self):
+	def make_item_group(self, published=True):
 		name = "_Test Portal Order Group " + frappe.generate_hash(length=6)
 		frappe.get_doc(
-			{"doctype": "Item Group", "item_group_name": name, "parent_item_group": "All Item Groups"}
+			{
+				"doctype": "Item Group",
+				"item_group_name": name,
+				"parent_item_group": "All Item Groups",
+				"publish_on_portal": int(published),
+			}
 		).insert(ignore_permissions=True)
 		return name
+
+	def categories(self, **params):
+		with self.set_user(self.user):
+			return get_order_categories(self.customer, **params).data
 
 	def test_categories_list_only_groups_with_priced_items(self):
 		group = self.make_item_group()
@@ -603,11 +611,57 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 			self.add_price(self.make_item(item_group=group), 10)
 		self.make_item(item_group=empty_group)
 
-		with self.set_user(self.user):
-			categories = {row["name"]: row["count"] for row in get_order_categories(self.customer).data}
-
+		categories = {row["name"]: row["count"] for row in self.categories(search=group)["rows"]}
 		self.assertEqual(categories[group], 2)
-		self.assertNotIn(empty_group, categories)
+		self.assertNotIn(empty_group, {row["name"] for row in self.categories(search=empty_group)["rows"]})
+
+	def test_items_not_published_on_the_portal_cannot_be_browsed_or_ordered(self):
+		"""An item without Sell on Sourcing Portal is hidden and rejected when ordered."""
+		hidden = self.make_item(publish_on_portal=0)
+		self.add_price(hidden, 50)
+
+		with self.set_user(self.user):
+			listed = get_orderable_items(self.customer, self.company, search=hidden).data["rows"]
+		self.assertEqual(listed, [])
+		with self.assertRaises(frappe.ValidationError):
+			self.order(items=[{"item_code": hidden, "qty": 1, "uom": "Nos"}])
+
+	def test_groups_not_shown_on_the_portal_hide_their_items(self):
+		"""A published item in an unpublished item group stays off the portal."""
+		group = self.make_item_group(published=False)
+		item = self.make_item(item_group=group)
+		self.add_price(item, 10)
+
+		self.assertEqual(self.categories(search=group)["rows"], [])
+		with self.set_user(self.user):
+			self.assertEqual(
+				get_orderable_items(self.customer, self.company, item_group=group).data["rows"], []
+			)
+
+	def test_categories_are_paged_and_searchable(self):
+		"""Categories come back a page at a time, with a total for All on the first page."""
+		prefix = "_Test Portal Paging " + frappe.generate_hash(length=4)
+		for index in range(3):
+			name = f"{prefix} {index}"
+			frappe.get_doc(
+				{
+					"doctype": "Item Group",
+					"item_group_name": name,
+					"parent_item_group": "All Item Groups",
+					"publish_on_portal": 1,
+				}
+			).insert(ignore_permissions=True)
+			self.add_price(self.make_item(item_group=name), 10)
+
+		first = self.categories(search=prefix, limit=2)
+		second = self.categories(search=prefix, start=2, limit=2)
+
+		self.assertEqual([row["name"] for row in first["rows"]], [f"{prefix} 0", f"{prefix} 1"])
+		self.assertTrue(first["has_more"])
+		self.assertEqual([row["name"] for row in second["rows"]], [f"{prefix} 2"])
+		self.assertFalse(second["has_more"])
+		self.assertIsNone(first["all_items"])
+		self.assertGreaterEqual(self.categories()["all_items"], 4)
 
 	def test_items_can_be_browsed_by_category(self):
 		group = self.make_item_group()

@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+import re
 from dataclasses import dataclass
 
 import frappe
@@ -11,6 +12,24 @@ from vuna_sourcing import APP_NAME
 SUPPLIER = "Supplier"
 CUSTOMER = "Customer"
 PARTY_TYPES = (SUPPLIER, CUSTOMER)
+
+
+@dataclass(frozen=True)
+class TaxIdFormat:
+	label: str
+	pattern: str
+	example: str
+	hint: str
+
+
+TAX_ID_FORMATS = {
+	"Kenya": TaxIdFormat(
+		label="KRA PIN",
+		pattern=r"^[AP][0-9]{9}[A-Z]$",
+		example="P051234567X",
+		hint="11 characters: A for a person or P for a business, nine digits, then a letter.",
+	),
+}
 
 
 @dataclass(frozen=True)
@@ -83,6 +102,19 @@ def get_app_branding() -> dict:
 	}
 
 
+def get_portal_branding() -> dict:
+	settings = frappe.get_cached_doc("Sourcing Settings")
+	app = get_app_branding()
+	name = (settings.get("brand_name") or "").strip()
+	logo = settings.get("brand_logo")
+
+	return {
+		"title": name or app["title"],
+		"logo": logo or (None if name else app["logo"]),
+		"is_custom": bool(name or logo),
+	}
+
+
 @frappe.whitelist()
 def get_entity_type_options(party_type: str = SUPPLIER) -> list[str]:
 	spec = get_party_spec(party_type)
@@ -109,3 +141,31 @@ def validate_entity_type(party_type: str | None, value: str | None, label: str |
 		),
 		title=_("Invalid Entity Type"),
 	)
+
+
+def normalise_tax_id(value: str | None) -> str | None:
+	return re.sub(r"\s+", "", value or "").upper() or None
+
+
+def validate_tax_id(country: str | None, value: str | None) -> str | None:
+	rule = TAX_ID_FORMATS.get(country or "")
+	if not rule:
+		return (value or "").strip() or None
+
+	tax_id = normalise_tax_id(value)
+	if not tax_id or re.fullmatch(rule.pattern, tax_id):
+		return tax_id
+
+	frappe.throw(
+		_("{0} does not look like a valid {1}. It should be {2} For example {3}.").format(
+			frappe.bold(tax_id), rule.label, _(rule.hint), rule.example
+		),
+		title=_("Check the {0}").format(rule.label),
+	)
+
+
+def tax_id_formats() -> dict[str, dict]:
+	return {
+		country: {"label": rule.label, "pattern": rule.pattern, "example": rule.example, "hint": rule.hint}
+		for country, rule in TAX_ID_FORMATS.items()
+	}

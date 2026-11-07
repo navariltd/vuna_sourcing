@@ -7,6 +7,7 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, nowdate
 from frappe.www.printview import validate_print_permission
 
+from vuna_sourcing.api.transactions.search import search_documents
 from vuna_sourcing.api.transactions.supplier import (
 	get_account_statement,
 	get_dashboard,
@@ -319,9 +320,9 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 		self.make_invoice(theirs)
 
 		with self.set_user(user):
-			statement = get_account_statement()
+			statement = get_account_statement().data
 
-		[section] = statement["companies"]
+		section = statement["section"]
 		self.assertEqual([row["voucher_no"] for row in section["rows"]], [invoice.name])
 		self.assertEqual(section["totals"]["outstanding"], 500)
 		self.assertEqual(section["rows"][0]["bill_no"], invoice.bill_no, "their own invoice number")
@@ -330,7 +331,10 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 		_supplier, user = self.make_supplier()
 
 		with self.set_user(user):
-			self.assertEqual(get_account_statement()["companies"], [])
+			statement = get_account_statement().data
+
+		self.assertEqual(statement["companies"], [])
+		self.assertIsNone(statement["section"])
 
 	def test_a_suppliers_dashboard_counts_what_needs_their_attention(self):
 		mine, user = self.make_supplier()
@@ -349,3 +353,19 @@ class TestSupplierTransactions(SourcingFixtures, IntegrationTestCase):
 		self.assertEqual(dashboard["orders_by_month"][-1]["value"], order.base_grand_total)
 		self.assertEqual(dashboard["balance"]["outstanding"], 500)
 		self.assertEqual(dashboard["invoices_by_status"], [{"status": "Unpaid", "count": 1}])
+
+	def test_a_supplier_can_search_their_own_orders_and_invoices(self):
+		"""Search finds the supplier's documents and nothing of another supplier's."""
+		mine, user = self.make_supplier()
+		theirs, _other = self.make_supplier()
+		order = self.make_order(mine)
+		other_order = self.make_order(theirs)
+
+		with self.set_user(user):
+			groups = search_documents("Supplier", mine, order.name).data["groups"]
+			others = search_documents("Supplier", mine, other_order.name).data["groups"]
+			self.assertRaises(frappe.PermissionError, search_documents, "Supplier", theirs, other_order.name)
+
+		found = {group["doctype"]: [row["name"] for row in group["results"]] for group in groups}
+		self.assertEqual(found["Purchase Order"], [order.name])
+		self.assertEqual(others, [])

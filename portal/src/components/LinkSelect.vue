@@ -4,7 +4,7 @@ import { Combobox, FormLabel, createResource } from "frappe-ui";
 
 const props = defineProps<{
 	modelValue: string | null | undefined;
-	doctype: "Country" | "Bank";
+	doctype: "Country";
 	label: string;
 	placeholder?: string;
 	required?: boolean;

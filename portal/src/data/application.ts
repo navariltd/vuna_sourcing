@@ -49,8 +49,6 @@ export interface OnboardingType {
   is_default: number;
   require_tax_id: number;
   require_registration_number: number;
-  require_bank_details: number;
-  require_shipping_address: number;
   documents: RequiredDocument[];
 }
 
@@ -69,12 +67,6 @@ export interface Application {
   tax_id: string | null;
   registration_number: string | null;
   website: string | null;
-  bank: string | null;
-  bank_account_no: string | null;
-  account_holder_name: string | null;
-  iban: string | null;
-  branch_code: string | null;
-  swift_number: string | null;
   contacts: ApplicationContact[];
   addresses: ApplicationAddress[];
   documents: RequiredDocument[];
@@ -279,4 +271,30 @@ export async function downloadApplication(name: string) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export interface TaxIdFormat {
+  label: string;
+  pattern: string;
+  example: string;
+  hint: string;
+}
+
+export const taxIdFormats = createResource({
+  url: "vuna_sourcing.api.onboarding.get_tax_id_formats",
+  cache: "vuna-sourcing:tax-id-formats",
+  auto: false,
+});
+
+export function normaliseTaxId(value: string | null | undefined, format: TaxIdFormat | null) {
+  if (!value) return value ?? null;
+  return format ? value.replace(/\s+/g, "").toUpperCase() : value.trim();
+}
+
+export function taxIdProblem(value: string | null | undefined, format: TaxIdFormat | null) {
+  const tax = normaliseTaxId(value, format);
+  if (!format || !tax) return null;
+  return new RegExp(format.pattern).test(tax)
+    ? null
+    : `Check your ${format.label}. It should be ${format.hint.charAt(0).toLowerCase()}${format.hint.slice(1)} For example ${format.example}.`;
 }

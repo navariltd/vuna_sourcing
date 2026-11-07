@@ -10,7 +10,7 @@ from frappe.utils import cint, escape_html, validate_email_address
 
 from vuna_sourcing.api.permission import PORTAL_USER_ROLE
 from vuna_sourcing.api.response import ApiResponse
-from vuna_sourcing.utils import get_app_branding, get_open_party_types
+from vuna_sourcing.utils import get_open_party_types, get_portal_branding
 
 OPEN_TO_PUBLIC = "Open to Public"
 
@@ -50,7 +50,7 @@ def registration_is_open() -> bool:
 @frappe.whitelist(allow_guest=True)  # nosemgrep
 def get_signup_context() -> ApiResponse[SignupContext]:
 	is_open = registration_is_open()
-	branding = get_app_branding()
+	branding = get_portal_branding()
 
 	return ApiResponse.success(
 		data=SignupContext(

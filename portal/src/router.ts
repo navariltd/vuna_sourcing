@@ -2,12 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { BASE_PATH, loginUrl, session } from '@/data/session'
 import { usePortalStore } from '@/stores/portal'
-import type { PartyType } from '@/stores/portal'
+import type { PartyType, PortalFeature } from '@/stores/portal'
 
 declare module 'vue-router' {
   interface RouteMeta {
     public?: boolean
     partyType?: PartyType
+    feature?: PortalFeature
   }
 }
 
@@ -170,27 +171,27 @@ const routes: RouteRecordRaw[] = [
     path: '/credit-note-requests',
     name: 'CreditRequestList',
     component: () => import('@/pages/CreditRequestList.vue'),
-    meta: { partyType: 'Customer' },
+    meta: { partyType: 'Customer', feature: 'credit_requests' },
   },
   {
     path: '/credit-note-requests/new',
     name: 'CreditRequestNew',
     component: () => import('@/pages/CreditRequestForm.vue'),
-    meta: { partyType: 'Customer' },
+    meta: { partyType: 'Customer', feature: 'credit_requests' },
   },
   {
     path: '/credit-note-requests/:name/edit',
     name: 'CreditRequestEdit',
     component: () => import('@/pages/CreditRequestForm.vue'),
     props: true,
-    meta: { partyType: 'Customer' },
+    meta: { partyType: 'Customer', feature: 'credit_requests' },
   },
   {
     path: '/credit-note-requests/:name',
     name: 'CreditRequestDetail',
     component: () => import('@/pages/CreditRequestDetail.vue'),
     props: true,
-    meta: { partyType: 'Customer' },
+    meta: { partyType: 'Customer', feature: 'credit_requests' },
   },
   {
     path: '/sales-invoices/:name',
@@ -266,6 +267,8 @@ router.beforeEach(async (to) => {
   if (portal.isApplicant && !portal.hasParties && to.name === 'PortalOverview') {
     return { name: 'ApplicationForm' }
   }
+
+  if (to.meta.feature && !portal.features[to.meta.feature]) return { name: 'PortalOverview' }
 
   const partyType = to.meta.partyType
   if (partyType) {

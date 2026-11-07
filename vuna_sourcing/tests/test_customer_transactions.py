@@ -20,6 +20,7 @@ from vuna_sourcing.api.transactions.customer import (
 	get_sales_order,
 	get_sales_orders,
 )
+from vuna_sourcing.api.transactions.search import search_documents
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
 
 
@@ -245,12 +246,12 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(user):
 			frappe.local.session.sid = "a-browser-session"
 			frappe.local.session.data = frappe._dict(kept=True)
-			statement = get_account_statement()
+			statement = get_account_statement().data
 			self.assertEqual(frappe.session.user, user, "the report runs elevated, then hands back")
 			self.assertEqual(frappe.local.session.sid, "a-browser-session", "the login survives")
 			self.assertTrue(frappe.local.session.data.kept)
 
-		[section] = statement["companies"]
+		section = statement["section"]
 		self.assertEqual([row["voucher_no"] for row in section["rows"]], [invoice.name])
 		self.assertEqual(section["totals"]["outstanding"], 500)
 
@@ -285,3 +286,65 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 
 		with self.set_user(user):
 			self.assertRaises(frappe.PermissionError, get_dashboard, theirs)
+
+	def search(self, customer, query):
+		groups = search_documents("Customer", customer, query).data["groups"]
+		return {group["doctype"]: [row["name"] for row in group["results"]] for group in groups}
+
+	def test_a_customer_can_search_their_own_documents(self):
+		"""Search finds the customer's orders and invoices by number or their PO reference."""
+		mine, user = self.make_customer()
+		order = self.make_order(mine, po_no="_Test PO SEARCH-1")
+		invoice = self.invoice(order)
+
+		with self.set_user(user):
+			by_po = self.search(mine, "SEARCH-1")
+			by_number = self.search(mine, invoice.name)
+
+		self.assertIn(order.name, by_po["Sales Order"])
+		self.assertEqual(by_number["Sales Invoice"], [invoice.name])
+
+	def test_search_never_returns_another_customers_documents(self):
+		"""Another customer's documents stay hidden, and their account cannot be searched."""
+		mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+		hidden = self.make_order(theirs, po_no="_Test PO HIDDEN-9")
+
+		with self.set_user(user):
+			found = self.search(mine, "HIDDEN-9")
+			self.assertRaises(frappe.PermissionError, search_documents, "Customer", theirs, "HIDDEN-9")
+
+		self.assertNotIn(hidden.name, found.get("Sales Order", []))
+
+	def test_short_searches_return_nothing(self):
+		"""One character is too broad to search on."""
+		mine, user = self.make_customer()
+		self.make_order(mine)
+
+		with self.set_user(user):
+			self.assertEqual(search_documents("Customer", mine, "S").data["groups"], [])
+
+	def test_desk_drafts_are_not_searchable(self):
+		"""A draft our team is still preparing on the desk is not found by search."""
+		mine, user = self.make_customer()
+		draft = self.make_order(mine, submit=False, po_no="_Test PO DRAFT-7")
+
+		with self.set_user(user):
+			found = self.search(mine, "DRAFT-7")
+
+		self.assertNotIn(draft.name, found.get("Sales Order", []))
+
+	def test_credit_requests_are_left_out_of_search_when_turned_off(self):
+		"""With credit note requests off, search does not look in them."""
+		mine, user = self.make_customer()
+		current = frappe.db.get_single_value("Sourcing Settings", "allow_customer_credit_requests")
+		self.addCleanup(
+			frappe.db.set_single_value, "Sourcing Settings", "allow_customer_credit_requests", current
+		)
+		frappe.db.set_single_value("Sourcing Settings", "allow_customer_credit_requests", 0)
+		self.invoice(self.make_order(mine))
+
+		with self.set_user(user):
+			found = self.search(mine, "-")
+
+		self.assertNotIn("Credit Note Request", found)

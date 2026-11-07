@@ -33,9 +33,15 @@ class TestSignup(IntegrationTestCase):
 				"registration_mode": mode,
 				"accept_supplier_applications": int("Supplier" in party_types),
 				"accept_customer_applications": int("Customer" in party_types),
+				"brand_name": None,
+				"brand_logo": None,
 			},
 		)
 		frappe.clear_cache()
+
+	def brand(self, name=None, logo=None):
+		frappe.db.set_single_value("Sourcing Settings", {"brand_name": name, "brand_logo": logo})
+		frappe.clear_document_cache("Sourcing Settings", "Sourcing Settings")
 
 	def new_email(self):
 		return f"{frappe.generate_hash(length=10)}@example.com"
@@ -98,6 +104,32 @@ class TestSignup(IntegrationTestCase):
 		self.assertIsNone(context.data.closed_message)
 		self.assertEqual(context.data.logo, get_app_branding()["logo"])
 		self.assertEqual(context.data.app_title, get_app_branding()["title"])
+
+	def test_the_signup_page_shows_the_business_brand_when_set(self):
+		"""A brand name and logo on Sourcing Settings replace the app's own on the sign-up page."""
+		self.brand("Greenfield Traders Ltd", "/files/greenfield-logo.png")
+
+		context = get_signup_context().data
+
+		self.assertEqual(context.app_title, "Greenfield Traders Ltd")
+		self.assertEqual(context.logo, "/files/greenfield-logo.png")
+
+	def test_a_brand_name_without_a_logo_does_not_borrow_the_app_logo(self):
+		"""Only the app's own name goes with the app's own logo."""
+		self.brand("Greenfield Traders Ltd")
+
+		context = get_signup_context().data
+
+		self.assertEqual(context.app_title, "Greenfield Traders Ltd")
+		self.assertIsNone(context.logo)
+
+	def test_a_private_brand_logo_is_refused(self):
+		"""Guests cannot load private files, so a private logo would show as broken."""
+		frappe.set_user("Administrator")
+		settings = frappe.get_doc("Sourcing Settings")
+		settings.brand_logo = "/private/files/logo.png"
+
+		self.assertRaises(frappe.ValidationError, settings.save)
 
 	def test_signup_context_says_what_an_account_can_apply_as(self):
 		self.assertEqual(get_signup_context().data.party_types, ["Supplier", "Customer"])

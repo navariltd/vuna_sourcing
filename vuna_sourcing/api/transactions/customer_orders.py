@@ -27,7 +27,12 @@ PORTAL_STATUS_FIELD = "portal_submission_status"
 ORDER_PENDING = "Pending"
 ORDER_SUBMITTED = "Submitted"
 
+PUBLISH_FIELD = "publish_on_portal"
+ITEM_GROUP = "Item Group"
 MAX_ORDER_LINES = 100
+CATEGORY_PAGE = 24
+MAX_CATEGORY_PAGE = 100
+SEARCH_LENGTH = 140
 PO_NUMBER_LENGTH = 140
 
 
@@ -90,11 +95,15 @@ def order_company(customer: str, company: str | None) -> str:
 def orderable_items_query(company: str):
 	item = frappe.qb.DocType("Item")
 	default = frappe.qb.DocType("Item Default")
+	group = frappe.qb.DocType(ITEM_GROUP)
 
 	return (
 		frappe.qb.from_(item)
 		.join(default)
 		.on((default.parent == item.name) & (default.parenttype == "Item") & (default.company == company))
+		.join(group)
+		.on((group.name == item.item_group) & (group[PUBLISH_FIELD] == 1))
+		.where(item[PUBLISH_FIELD] == 1)
 		.where(item.is_sales_item == 1)
 		.where(item.disabled == 0)
 		.where(item.has_variants == 0)
@@ -606,21 +615,45 @@ def priced_items_query(company: str, price_list: str, customer: str):
 
 
 @frappe.whitelist()
-def get_order_categories(customer: str, company: str | None = None) -> ApiResponse[list]:
+def get_order_categories(
+	customer: str,
+	company: str | None = None,
+	search: str | None = None,
+	start: int = 0,
+	limit: int = CATEGORY_PAGE,
+) -> ApiResponse[dict]:
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
 	company = order_company(customer, company)
+	start = max(cint(start), 0)
+	limit = min(max(cint(limit), 1), MAX_CATEGORY_PAGE)
+	search = cstr(search).strip()[:SEARCH_LENGTH]
+	price_list = customer_price_list(customer)
 
-	query, item = priced_items_query(company, customer_price_list(customer), customer)
-	rows = (
+	query, item = priced_items_query(company, price_list, customer)
+	query = (
 		query.select(item.item_group, Count(item.name).distinct().as_("item_count"))
 		.where(IfNull(item.item_group, "") != "")
 		.groupby(item.item_group)
 		.orderby(item.item_group)
-		.run(as_dict=True)
 	)
+	if search:
+		query = query.where(item.item_group.like(f"%{search}%"))
 
-	return ApiResponse.success(data=[{"name": row.item_group, "count": row.item_count} for row in rows])
+	rows = query.limit(limit + 1).offset(start).run(as_dict=True)
+
+	all_items = None
+	if not start and not search:
+		count_query, counted = priced_items_query(company, price_list, customer)
+		all_items = count_query.select(Count(counted.name).distinct()).run()[0][0]
+
+	return ApiResponse.success(
+		data={
+			"rows": [{"name": row.item_group, "count": row.item_count} for row in rows[:limit]],
+			"has_more": len(rows) > limit,
+			"all_items": all_items,
+		}
+	)
 
 
 @frappe.whitelist()
@@ -644,8 +677,9 @@ def get_orderable_items(
 		item.name, item.item_name, item.description, item.image, item.stock_uom, item.item_group
 	).distinct()
 
-	if search and search.strip():
-		pattern = f"%{search.strip()}%"
+	search = cstr(search).strip()[:SEARCH_LENGTH]
+	if search:
+		pattern = f"%{search}%"
 		query = query.where(item.name.like(pattern) | item.item_name.like(pattern))
 
 	if item_group:

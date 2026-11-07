@@ -124,7 +124,7 @@ watch([customer, () => props.name], load, { immediate: true });
 			</dl>
 
 			<div
-				v-if="invoice.credit_request?.open_request"
+				v-if="portal.features.credit_requests && invoice.credit_request?.open_request"
 				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border p-4"
 			>
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
