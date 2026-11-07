@@ -348,3 +348,70 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 			found = self.search(mine, "-")
 
 		self.assertNotIn("Credit Note Request", found)
+
+	def pay(self, invoice):
+		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+		payment = get_payment_entry("Sales Invoice", invoice.name)
+		payment.reference_no = "_Test payment"
+		payment.reference_date = nowdate()
+		self.save(payment, submit=True)
+
+	def invoice_names(self, **params):
+		return {row["name"] for row in get_sales_invoices(**params)["rows"]}
+
+	def test_invoices_can_be_filtered_by_status(self):
+		"""Picking Paid shows only paid invoices, and the counts cover every status."""
+		mine, user = self.make_customer()
+		paid = self.invoice(self.make_order(mine))
+		unpaid = self.invoice(self.make_order(mine))
+		self.pay(paid)
+
+		with self.set_user(user):
+			page = get_sales_invoices(customer=mine, status="Paid")
+			self.assertEqual(self.invoice_names(customer=mine, status="Unpaid"), {unpaid.name})
+
+		self.assertEqual([row["name"] for row in page["rows"]], [paid.name])
+		self.assertEqual(page["counts"], {"Paid": 1, "Unpaid": 1})
+
+	def test_invoices_can_be_filtered_by_date(self):
+		"""Only invoices posted within the chosen dates are listed."""
+		mine, user = self.make_customer()
+		recent = self.invoice(self.make_order(mine))
+		older = make_sales_invoice(self.make_order(mine).name)
+		older.set_posting_time = 1
+		older.posting_date = add_days(nowdate(), -40)
+		older.due_date = add_days(nowdate(), -10)
+		self.save(older, submit=True)
+
+		with self.set_user(user):
+			this_month = self.invoice_names(customer=mine, from_date=add_days(nowdate(), -7))
+			back_then = self.invoice_names(
+				customer=mine, from_date=add_days(nowdate(), -45), to_date=add_days(nowdate(), -30)
+			)
+
+		self.assertEqual(this_month, {recent.name})
+		self.assertEqual(back_then, {older.name})
+
+	def test_a_backwards_date_range_is_refused(self):
+		"""A start date after the end date is turned back with a plain message."""
+		mine, user = self.make_customer()
+
+		with self.set_user(user):
+			self.assertRaises(
+				frappe.ValidationError,
+				get_sales_invoices,
+				customer=mine,
+				from_date=nowdate(),
+				to_date=add_days(nowdate(), -1),
+			)
+
+	def test_filters_never_widen_to_another_customer(self):
+		"""Status and date filters still only cover the caller's own invoices."""
+		_mine, user = self.make_customer()
+		theirs, _other = self.make_customer()
+		self.invoice(self.make_order(theirs))
+
+		with self.set_user(user):
+			self.assertEqual(self.invoice_names(status="Unpaid", from_date=add_days(nowdate(), -1)), set())
+			self.assertRaises(frappe.PermissionError, get_sales_invoices, customer=theirs, status="Unpaid")

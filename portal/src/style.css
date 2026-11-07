@@ -29,3 +29,8 @@ body {
 		@apply rounded-4 transition-colors hover:bg-surface-gray-2;
 	}
 }
+
+.list-fill.w-max {
+	width: 100%;
+	min-width: min-content;
+}

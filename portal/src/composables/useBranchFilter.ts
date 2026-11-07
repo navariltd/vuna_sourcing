@@ -21,7 +21,7 @@ export function useBranchFilter() {
 	return { branchFilter, showBranch, branchTitle, clearBranches };
 }
 
-export const BRANCH_COLUMN = { label: "Branch", key: "branch", width: "180px" };
+export const BRANCH_COLUMN = { label: "Branch", key: "branch", width: "minmax(120px, 1fr)" };
 
 export function withBranchColumn<T>(columns: T[], show: boolean): Array<T | typeof BRANCH_COLUMN> {
 	if (!show || !columns.length) return columns;

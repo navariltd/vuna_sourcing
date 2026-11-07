@@ -4,8 +4,8 @@ import { Alert, Badge, Button, Spinner, TabButtons } from "frappe-ui";
 import { ListView } from "frappe-ui/experimental";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
-import ListFilters from "@/components/ListFilters.vue";
-import type { FilterField } from "@/components/ListFilters.vue";
+import FilterFields from "@/components/FilterFields.vue";
+import type { StatusOption } from "@/components/FilterFields.vue";
 import { money, shortDate } from "@/data/purchase";
 import {
 	CREDIT_REQUEST_EXPLAINER,
@@ -56,18 +56,13 @@ watch([customer, branchFilter, filters, pageLength], load, {
 	deep: true,
 });
 
-const filterFields = computed<FilterField[]>(() => [
-	{
-		field: "status",
-		label: "Status",
-		type: "select",
-		options: Object.entries(CREDIT_REQUEST_STATUS_LABEL).map(([value, label]) => ({
-			label,
-			value,
-			count: page.value?.counts?.[value] ?? 0,
-		})),
-	},
-]);
+const statusOptions = computed<StatusOption[]>(() =>
+	Object.entries(CREDIT_REQUEST_STATUS_LABEL).map(([value, label]) => ({
+		label,
+		value,
+		count: page.value?.counts?.[value] ?? 0,
+	}))
+);
 
 const baseColumns = computed(() => {
 	if (isMobile.value) {
@@ -77,11 +72,11 @@ const baseColumns = computed(() => {
 		];
 	}
 	return [
-		{ label: "Request", key: "name", width: "minmax(130px, 1.3fr)" },
+		{ label: "Request", key: "name", width: "minmax(180px, 1.6fr)" },
 		{ label: "Invoice", key: "sales_invoice", width: "minmax(130px, 1.3fr)" },
 		{ label: "Requested", key: "transaction_date", width: "minmax(90px, 1fr)" },
 		{ label: "Reason", key: "reason", width: "minmax(120px, 1.3fr)" },
-		{ label: "Reduction", key: "total_amount", width: "minmax(100px, 1fr)" },
+		{ label: "Reduction", key: "total_amount", width: "minmax(140px, 1fr)" },
 		{ label: "Status", key: "status", width: "130px" },
 	];
 });
@@ -106,7 +101,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer :look="LOOKS.creditRequest" wide title="Credit Note Requests">
+	<PageContainer :look="LOOKS.creditRequest" fluid title="Credit Note Requests">
 		<template #actions>
 			<Button
 				v-if="customer"
@@ -141,10 +136,10 @@ function loadMore() {
 				:description="CREDIT_REQUEST_EXPLAINER.description"
 			/>
 
-			<ListFilters
+			<FilterFields
 				v-model="filters"
 				class="mb-4"
-				:fields="filterFields"
+				:statuses="statusOptions"
 				search-placeholder="Search by number"
 			/>
 
@@ -190,7 +185,13 @@ function loadMore() {
 			</EmptyState>
 
 			<template v-else>
-				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
+				<ListView
+					class="list-fill"
+					row-key="name"
+					:columns="columns"
+					:rows="rows"
+					:options="options"
+				>
 					<template #cell="{ column, row }">
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>

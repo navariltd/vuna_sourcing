@@ -51,7 +51,7 @@ const columns = computed(() =>
 				{ label: "Status", key: "status", width: "120px" },
 		  ]
 		: [
-				{ label: "Quotation", key: "name", width: "minmax(110px, 1.4fr)" },
+				{ label: "Quotation", key: "name", width: "minmax(180px, 1.6fr)" },
 				{ label: "Against", key: "rfq", width: "minmax(110px, 1.2fr)" },
 				{ label: "Value", key: "total", width: "minmax(90px, 1fr)" },
 				{ label: "Valid until", key: "valid_till", width: "minmax(90px, 1fr)" },
@@ -93,7 +93,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer :look="LOOKS.supplierQuotation" wide title="Supplier Quotations">
+	<PageContainer :look="LOOKS.supplierQuotation" fluid title="Supplier Quotations">
 		<template #actions>
 			<Button
 				v-if="supplier"
@@ -143,7 +143,13 @@ function loadMore() {
 			</EmptyState>
 
 			<template v-else>
-				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
+				<ListView
+					class="list-fill"
+					row-key="name"
+					:columns="columns"
+					:rows="rows"
+					:options="options"
+				>
 					<template #cell="{ column, row }">
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">
@@ -174,7 +180,11 @@ function loadMore() {
 
 						<Badge
 							v-else
-							:theme="SUPPLIER_QUOTATION_STATUS_THEME[row.status as SupplierQuotationStatus]"
+							:theme="
+								SUPPLIER_QUOTATION_STATUS_THEME[
+									row.status as SupplierQuotationStatus
+								]
+							"
 							variant="subtle"
 							:label="row.status"
 						/>

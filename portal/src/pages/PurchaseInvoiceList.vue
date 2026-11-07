@@ -78,19 +78,19 @@ const columns = computed(() => {
 	}
 	if (props.debitNotes) {
 		return [
-			{ label: copy.label, key: "name", width: "minmax(130px, 1.4fr)" },
+			{ label: copy.label, key: "name", width: "minmax(180px, 1.6fr)" },
 			{ label: "Against invoice", key: "return_against", width: "minmax(130px, 1.2fr)" },
 			{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
-			{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+			{ label: "Value", key: "grand_total", width: "minmax(140px, 1fr)" },
 			{ label: "Status", key: "status", width: "130px" },
 		];
 	}
 	return [
-		{ label: copy.label, key: "name", width: "minmax(130px, 1.4fr)" },
+		{ label: copy.label, key: "name", width: "minmax(180px, 1.6fr)" },
 		{ label: "Your number", key: "bill_no", width: "minmax(100px, 1fr)" },
 		{ label: "Dated", key: "posting_date", width: "minmax(90px, 1fr)" },
 		{ label: "Due", key: "due_date", width: "minmax(90px, 1fr)" },
-		{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+		{ label: "Value", key: "grand_total", width: "minmax(140px, 1fr)" },
 		{ label: "Status", key: "status", width: "130px" },
 	];
 });
@@ -120,7 +120,7 @@ function loadMore() {
 <template>
 	<PageContainer
 		:look="debitNotes ? LOOKS.debitNote : LOOKS.purchaseInvoice"
-		wide
+		fluid
 		:title="copy.title"
 	>
 		<template #actions>
@@ -170,7 +170,13 @@ function loadMore() {
 			/>
 
 			<template v-else>
-				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
+				<ListView
+					class="list-fill"
+					row-key="name"
+					:columns="columns"
+					:rows="rows"
+					:options="options"
+				>
 					<template #cell="{ column, row }">
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>
