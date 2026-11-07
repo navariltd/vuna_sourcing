@@ -51,6 +51,7 @@ export interface CreditRequestRow {
   total_amount: number | null;
   status: CreditRequestStatus;
   credit_note: string | null;
+  branch?: string | null;
 }
 
 export type CreditRequestPage = PurchasePage<CreditRequestRow> & { can_request: boolean };

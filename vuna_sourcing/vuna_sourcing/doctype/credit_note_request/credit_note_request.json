@@ -13,6 +13,7 @@
   "customer",
   "customer_name",
   "sales_invoice",
+  "shipping_address_name",
   "column_break_request",
   "request_status",
   "transaction_date",
@@ -75,6 +76,16 @@
    "label": "Sales Invoice",
    "options": "Sales Invoice",
    "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "sales_invoice.shipping_address_name",
+   "fieldname": "shipping_address_name",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Address",
+   "read_only": 1,
    "search_index": 1
   },
   {
@@ -240,7 +251,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-30 14:00:00.000000",
+ "modified": "2026-11-05 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Credit Note Request",

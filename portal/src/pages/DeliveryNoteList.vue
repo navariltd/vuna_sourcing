@@ -11,12 +11,14 @@ import { DELIVERY_NOTE_STATUS_THEME, deliveryNoteList } from "@/data/selling";
 import type { DeliveryNoteRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { useBranchFilter, withBranchColumn } from "@/composables/useBranchFilter";
 import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
 
 const filters = ref<Record<string, string>>({});
+const { branchFilter, showBranch, branchTitle, clearBranches } = useBranchFilter();
 const pageLength = ref(20);
 
 const customer = computed(() =>
@@ -34,15 +36,19 @@ function load() {
 
 	deliveryNoteList.fetch({
 		customer: customer.value,
+		branches: branchFilter.value,
 		search: filters.value.search || null,
 		start: 0,
 		limit: pageLength.value,
 	});
 }
 
-watch([customer, filters, pageLength], load, { immediate: true, deep: true });
+watch([customer, branchFilter, filters, pageLength], load, {
+	immediate: true,
+	deep: true,
+});
 
-const columns = computed(() =>
+const baseColumns = computed(() =>
 	isMobile.value
 		? [
 				{ label: "Delivery", key: "name", width: "minmax(140px, 2fr)" },
@@ -56,6 +62,10 @@ const columns = computed(() =>
 				{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
 				{ label: "Status", key: "status", width: "140px" },
 		  ]
+);
+
+const columns = computed(() =>
+	withBranchColumn(baseColumns.value, showBranch.value && !isMobile.value)
 );
 
 const options = {
@@ -104,6 +114,15 @@ function loadMore() {
 			<div v-if="deliveryNoteList.loading && !page" class="flex justify-center py-16">
 				<Spinner class="size-5" />
 			</div>
+
+			<EmptyState
+				v-else-if="!rows.length && branchFilter && !filters.search"
+				icon="lucide-map-pin-off"
+				title="No deliveries for the branches you picked"
+				description="Pick other branches, or show every branch you have access to."
+			>
+				<Button variant="subtle" label="Show all branches" @click="clearBranches" />
+			</EmptyState>
 
 			<EmptyState
 				v-else-if="!rows.length && filters.search"
@@ -160,6 +179,14 @@ function loadMore() {
 							class="text-base text-ink-gray-7"
 						>
 							{{ money(row.grand_total, row.currency) }}
+						</span>
+
+						<span
+							v-else-if="column.key === 'branch'"
+							class="truncate text-base text-ink-gray-7"
+							:title="branchTitle(row.branch)"
+						>
+							{{ branchTitle(row.branch) || "—" }}
 						</span>
 
 						<Badge

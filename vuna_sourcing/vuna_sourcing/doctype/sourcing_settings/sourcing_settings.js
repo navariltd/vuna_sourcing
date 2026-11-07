@@ -4,18 +4,18 @@
 frappe.ui.form.on("Sourcing Settings", {
 	refresh(frm) {
 		frm.add_custom_button(__("Portal Signup Link"), () => show_signup_link(frm));
-		frm.add_custom_button(__("Invite Supplier"), () => show_invite_supplier());
+		frm.add_custom_button(__("Invite User"), () => show_invite_user());
 	},
 });
 
-function show_invite_supplier() {
+function show_invite_user() {
 	frappe
 		.call({ method: "vuna_sourcing.api.signup.get_signup_context" })
 		.then(({ message: context }) => {
 			const branding = context?.data || {};
 
 			const dialog = new frappe.ui.Dialog({
-				title: __("Invite Supplier"),
+				title: __("Invite User"),
 				fields: [
 					{ fieldtype: "HTML", fieldname: "intro" },
 					{ fieldtype: "Section Break" },
@@ -84,7 +84,7 @@ function show_invite_supplier() {
 			const title = frappe.utils.escape_html(branding.app_title || __("Sourcing Portal"));
 			dialog.fields_dict.intro.$wrapper.html(
 				`<p class="text-muted" style="margin-bottom: 0.5rem">${__(
-					"They get an email to set a password for {0}, then they can apply to become a supplier.",
+					"They get an email to set a password for {0}, then they can apply to become a supplier or customer. To add someone to an existing customer, use the Portal Users table on that customer.",
 					[title]
 				)}</p>`
 			);
