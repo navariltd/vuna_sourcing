@@ -30,6 +30,7 @@ body {
 	}
 }
 
+<<<<<<< HEAD
 .page-layer {
 	@apply relative bg-surface-base;
 	min-height: 100%;
@@ -78,6 +79,8 @@ body {
 	opacity: 0;
 }
 
+=======
+>>>>>>> 0454a6f (fix ui)
 .list-fill.w-max {
 	width: 100%;
 	min-width: min-content;
