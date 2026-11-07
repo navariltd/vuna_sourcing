@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import base64
+import random
 from contextlib import contextmanager
 
 import frappe
@@ -158,7 +159,8 @@ class TestPortalApplication(IntegrationTestCase):
 			"party_type": party_type,
 			"onboarding_template": TEMPLATE_FOR[party_type],
 			"party_name": "Portal Traders " + frappe.generate_hash(length=6),
-			"tax_id": "PTAX-" + frappe.generate_hash(length=8),
+			"country": "Kenya",
+			"tax_id": "P" + "".join(random.choices("0123456789", k=9)) + "X",
 			"contacts": [self.contact()],
 			"addresses": [self.address(), *([self.delivery()] if party_type == "Customer" else [])],
 		}
