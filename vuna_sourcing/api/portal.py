@@ -74,7 +74,10 @@ def check_party_access(party_type: str, party: str, user: str | None = None):
 @frappe.whitelist()
 def get_session() -> dict:
 	from vuna_sourcing.api.transactions.branches import branch_restrictions
+<<<<<<< HEAD
 	from vuna_sourcing.api.transactions.credit_limits import credit_limits_enabled
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 	from vuna_sourcing.api.transactions.credit_requests import credit_requests_enabled
 	from vuna_sourcing.api.transactions.customer_orders import orders_enabled
 	from vuna_sourcing.api.transactions.team import admin_customers, team_management_enabled
@@ -110,7 +113,10 @@ def get_session() -> dict:
 		"features": {
 			"customer_orders": orders_enabled(),
 			"credit_requests": credit_requests_enabled(),
+<<<<<<< HEAD
 			"credit_limits": credit_limits_enabled(),
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 		},
 		"branding": get_portal_branding(),
 	}

@@ -35,6 +35,7 @@ PORTAL_STATUS_FIELD = "portal_submission_status"
 ORDER_PENDING = "Pending"
 ORDER_SUBMITTED = "Submitted"
 
+<<<<<<< HEAD
 PO_DOCUMENT_FIELD = "portal_po_document"
 PO_DOCUMENT_TYPES = ("pdf", "png", "jpg", "jpeg")
 PO_DOCUMENT_SUFFIX = "LPO"
@@ -45,6 +46,10 @@ ITEM_GROUP = "Item Group"
 COMPANY_RESTRICTION = "Company Restriction"
 RESTRICTED_FIELD = "restrict_to_companies"
 ALLOWED_COMPANIES_FIELD = "allowed_companies"
+=======
+PUBLISH_FIELD = "publish_on_portal"
+ITEM_GROUP = "Item Group"
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 MAX_ORDER_LINES = 100
 CATEGORY_PAGE = 24
 MAX_CATEGORY_PAGE = 100
@@ -115,15 +120,28 @@ def order_company(customer: str, company: str | None) -> str:
 
 
 def orderable_items_query(company: str):
+<<<<<<< HEAD
 	item = frappe.qb.DocType(ITEM)
+=======
+	item = frappe.qb.DocType("Item")
+	default = frappe.qb.DocType("Item Default")
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 	group = frappe.qb.DocType(ITEM_GROUP)
 
 	return (
 		frappe.qb.from_(item)
+<<<<<<< HEAD
 		.join(group)
 		.on((group.name == item.item_group) & (group[PUBLISH_FIELD] == 1))
 		.where(item[PUBLISH_FIELD] == 1)
 		.where(get_restriction_criterion(ITEM, [company]))
+=======
+		.join(default)
+		.on((default.parent == item.name) & (default.parenttype == "Item") & (default.company == company))
+		.join(group)
+		.on((group.name == item.item_group) & (group[PUBLISH_FIELD] == 1))
+		.where(item[PUBLISH_FIELD] == 1)
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 		.where(item.is_sales_item == 1)
 		.where(item.disabled == 0)
 		.where(item.has_variants == 0)
@@ -784,7 +802,11 @@ def get_order_categories(
 	start = max(cint(start), 0)
 	limit = min(max(cint(limit), 1), MAX_CATEGORY_PAGE)
 	search = cstr(search).strip()[:SEARCH_LENGTH]
+<<<<<<< HEAD
 	price_list = portal_price_list()
+=======
+	price_list = customer_price_list(customer)
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 
 	query, item = priced_items_query(company, price_list, customer)
 	query = (

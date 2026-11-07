@@ -47,7 +47,10 @@ import type {
 	ApplicationProgress,
 	OnboardingType,
 	RequiredDocument,
+<<<<<<< HEAD
 	ScreeningAnswer,
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 	TaxIdFormat,
 } from "@/data/application";
 import { isBlankValue } from "@/data/dynamicFields";
@@ -105,10 +108,13 @@ function choosePartyType(partyType: PartyType) {
 	shapeForParty();
 }
 
+<<<<<<< HEAD
 const asksQuestions = computed(
 	() => !!selectedType.value?.questions.length || screening.value.length > 0
 );
 
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 const steps = computed(() => [
 	{ key: "type", label: "Applying as" },
 	{ key: "business", label: isIndividual.value ? "About you" : "Business" },
@@ -239,7 +245,10 @@ function hydrate(data: Application | null) {
 	contacts.value = (data.contacts ?? []).map((c) => ({ ...c }));
 	addresses.value = (data.addresses ?? []).map((a) => ({ ...a }));
 	documents.value = (data.documents ?? []).map((d) => ({ ...d }));
+<<<<<<< HEAD
 	screening.value = (data.screening ?? []).map((row) => ({ ...row }));
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 	if (data.party_type) shapeForParty();
 	else ensureShape();
 }
@@ -363,6 +372,7 @@ const stepIssues = computed<string[]>(() => {
 			break;
 		}
 
+<<<<<<< HEAD
 		case "questions":
 			screening.value.forEach((row) => {
 				if (row.mandatory && isBlankValue(row.answer))
@@ -370,6 +380,8 @@ const stepIssues = computed<string[]>(() => {
 			});
 			break;
 
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 		case "documents": {
 			const today = localToday();
 			documents.value.forEach((row) =>

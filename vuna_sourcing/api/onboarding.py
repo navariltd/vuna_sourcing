@@ -10,7 +10,10 @@ from frappe.utils.pdf import get_pdf
 
 from vuna_sourcing.api.portal import get_current_user
 from vuna_sourcing.api.response import ApiResponse
+<<<<<<< HEAD
 from vuna_sourcing.dynamic_fields import choices_of
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 from vuna_sourcing.utils import CUSTOMER, PARTY_TYPES, get_open_party_types, tax_id_formats
 from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
 	DOCTYPE,
@@ -67,9 +70,12 @@ DOCUMENT_FIELDS = (
 )
 
 LINK_OPTION_DOCTYPES = ("Country",)
+<<<<<<< HEAD
 
 SCREENING_QUESTION_DOCTYPE = "Party Onboarding Screening Question"
 MAX_SCREENING_ANSWERS = 200
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 
 
 def get_own_application(name: str, *, for_write: bool = False):

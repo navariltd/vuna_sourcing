@@ -1,5 +1,9 @@
 <script setup lang="ts">
+<<<<<<< HEAD
 import { computed, h, onMounted, ref, watch } from "vue";
+=======
+import { computed, h, onMounted, ref } from "vue";
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 import { useRoute, useRouter } from "vue-router";
 import {
 	Avatar,
@@ -72,7 +76,13 @@ const userMenu = computed(() => [
 	},
 ]);
 
+<<<<<<< HEAD
 onMounted(() => installedApps.fetch());
+=======
+onMounted(() => {
+	if (!installedApps.data) installedApps.fetch();
+});
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 
 const apps = computed(() => appsFor(portal.user?.is_website_user !== false));
 
@@ -103,7 +113,11 @@ const headerMenu = computed(() => [
 	{
 		label: "Settings",
 		icon: "lucide-settings",
+<<<<<<< HEAD
 		onClick: () => openSettings(),
+=======
+		onClick: () => (settingsOpen.value = true),
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 	},
 	{
 		label: "Sign out",
@@ -517,8 +531,11 @@ function runAccountAction(action: () => void) {
 				</div>
 			</div>
 
+<<<<<<< HEAD
 			<CreditLimitCard class="mt-4" />
 
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 			<section v-if="apps.length" class="mt-4" aria-label="Apps">
 				<p class="px-1 pb-1 text-xs uppercase tracking-wide text-ink-gray-5">Apps</p>
 				<div class="grid grid-cols-3 gap-2">

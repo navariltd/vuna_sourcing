@@ -8,7 +8,10 @@ from frappe.query_builder.functions import IfNull
 from frappe.utils import escape_html, get_link_to_form, getdate, now_datetime, today
 
 from vuna_sourcing.api.transactions.branches import ACCOUNT_ADMIN_FIELD
+<<<<<<< HEAD
 from vuna_sourcing.dynamic_fields import choices_of, clean_value, is_blank
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type, validate_tax_id
 
 PENDING_REVIEW = "Pending Review"

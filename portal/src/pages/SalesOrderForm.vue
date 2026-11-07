@@ -22,9 +22,13 @@ import SideSheet from "@/components/SideSheet.vue";
 import OrderItemCard from "@/components/OrderItemCard.vue";
 import { provideOrderDraft, useOrderDraft } from "@/composables/useOrderDraft";
 import { useOrderCategories } from "@/composables/useOrderCategories";
+<<<<<<< HEAD
 import { useIsMobile, useIsWide } from "@/composables/useViewport";
 import { useCreditStatus } from "@/composables/useCreditStatus";
 import { orderCreditImpact } from "@/data/credit";
+=======
+import { useIsWide } from "@/composables/useViewport";
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 import { errorText, fetchOrderableItems } from "@/data/orders";
 import type { OrderableItem } from "@/data/orders";
 import { money } from "@/data/purchase";
@@ -845,8 +849,11 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 
 		<SideSheet
 			v-model:open="cartOpen"
+<<<<<<< HEAD
 			v-model:expanded="cartExpanded"
 			expandable
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 			title="Your order"
 			:description="
 				lines.length
@@ -854,6 +861,7 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 					: 'Add items, then choose when and where we deliver.'
 			"
 		>
+<<<<<<< HEAD
 			<OrderCart
 				class="flex-1"
 				:wide="cartExpanded && !isMobile"
@@ -861,6 +869,9 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 				@send="askToSend"
 				@clear="askToClear"
 			/>
+=======
+			<OrderCart class="min-h-0 flex-1" @save="save" @send="askToSend" @clear="askToClear" />
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 		</SideSheet>
 
 		<Dialog

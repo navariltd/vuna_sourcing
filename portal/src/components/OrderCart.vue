@@ -43,6 +43,7 @@ const addressMissing = computed(
 	() => choosesAddress.value && !draft.address.value && draft.lines.value.length > 0
 );
 
+<<<<<<< HEAD
 const showPoDocument = computed(() => !!draft.poNo.value.trim());
 
 const orderFieldsNeedAttention = computed(
@@ -90,6 +91,18 @@ const detailsNeedAttention = computed(
 					v-for="line in draft.lines.value"
 					:key="`${line.item_code}::${line.uom}`"
 					class="flex gap-3 py-3 first:pt-0"
+=======
+const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.value.length > 0);
+</script>
+
+<template>
+	<div class="flex min-h-0 flex-col">
+		<div class="cart-body -mr-2 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-4 pr-2">
+			<section aria-label="Items in your cart" class="min-w-0">
+				<div
+					v-if="!draft.lines.value.length"
+					class="flex flex-col items-center gap-2 rounded-6 border border-dashed border-outline-gray-3 px-4 py-8 text-center"
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 				>
 					<span
 						class="grid shrink-0 place-items-center overflow-hidden rounded-6 bg-surface-gray-2"
@@ -108,6 +121,7 @@ const detailsNeedAttention = computed(
 							aria-hidden="true"
 						/>
 					</span>
+<<<<<<< HEAD
 					<div class="flex min-w-0 flex-1 flex-col gap-2">
 						<div class="flex items-start justify-between gap-3">
 							<p class="min-w-0 text-base font-medium leading-snug text-ink-gray-9">
@@ -155,13 +169,124 @@ const detailsNeedAttention = computed(
 								:model-value="line.qty"
 								:label="line.item_name"
 								@update:model-value="draft.setQty(line, $event)"
+=======
+					<p class="text-base font-medium text-ink-gray-8">Your cart is empty</p>
+					<p class="text-p-sm text-ink-gray-6">
+						Tap Add on an item to start your order.
+					</p>
+				</div>
+
+				<div v-else class="mb-2 flex items-center justify-between gap-2">
+					<p class="text-p-sm text-ink-gray-6">
+						{{ draft.lines.value.length }}
+						{{ draft.lines.value.length === 1 ? "item" : "different items" }}
+					</p>
+					<Button
+						size="sm"
+						variant="subtle"
+						theme="red"
+						icon-left="lucide-trash-2"
+						label="Clear cart"
+						:disabled="!!draft.busy.value"
+						:loading="draft.busy.value === 'clear'"
+						@click="emit('clear')"
+					/>
+				</div>
+
+				<ul v-if="draft.lines.value.length" class="divide-y divide-outline-gray-1">
+					<li
+						v-for="line in draft.lines.value"
+						:key="`${line.item_code}::${line.uom}`"
+						class="flex gap-3 py-3 first:pt-0"
+					>
+						<span
+							class="grid size-12 shrink-0 place-items-center overflow-hidden rounded-6 bg-surface-gray-2"
+						>
+							<img
+								v-if="line.image"
+								:src="line.image"
+								alt=""
+								loading="lazy"
+								class="size-full object-cover"
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 							/>
+							<i
+								v-else
+								class="lucide-package size-5 text-ink-gray-5"
+								aria-hidden="true"
+							/>
+						</span>
+						<div class="flex min-w-0 flex-1 flex-col gap-2">
+							<div class="flex items-start justify-between gap-3">
+								<p
+									class="min-w-0 text-base font-medium leading-snug text-ink-gray-9"
+								>
+									{{ line.item_name }}
+								</p>
+								<p
+									class="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-ink-gray-9"
+								>
+									<template v-if="draft.pricedLine(line)">
+										{{
+											money(
+												draft.pricedLine(line)!.amount,
+												draft.currency.value
+											)
+										}}
+									</template>
+									<span
+										v-else
+										class="inline-block h-3.5 w-16 animate-pulse rounded bg-surface-gray-2"
+									/>
+								</p>
+							</div>
+							<div class="flex items-center justify-between gap-3">
+								<div
+									class="flex min-w-0 items-center gap-2 text-p-sm text-ink-gray-6"
+								>
+									<Select
+										v-if="line.uoms.length > 1"
+										size="sm"
+										class="w-28"
+										:aria-label="`Unit for ${line.item_name}`"
+										:options="
+											line.uoms.map((option) => ({
+												label: option.uom,
+												value: option.uom,
+											}))
+										"
+										:model-value="line.uom"
+										@update:model-value="draft.changeUom(line, String($event))"
+									/>
+									<span v-else>{{ line.uom }}</span>
+									<span
+										v-if="draft.pricedLine(line)"
+										class="truncate tabular-nums"
+									>
+										×
+										{{
+											money(
+												draft.pricedLine(line)!.rate,
+												draft.currency.value
+											)
+										}}
+									</span>
+								</div>
+								<QtyStepper
+									class="w-32 shrink-0"
+									size="sm"
+									:model-value="line.qty"
+									:label="line.item_name"
+									@update:model-value="draft.setQty(line, $event)"
+								/>
+							</div>
 						</div>
 					</div>
 				</li>
 			</ul>
 		</section>
 
+<<<<<<< HEAD
 		<div class="cart-details flex min-w-0 flex-col gap-4">
 			<OrderCreditAlert />
 
@@ -205,6 +330,42 @@ const detailsNeedAttention = computed(
 					</p>
 				</div>
 
+=======
+			<section
+				class="flex flex-col gap-4 rounded-8 border p-3"
+				:class="
+					addressMissing || deliveryMissing
+						? 'border-outline-amber-3 bg-surface-amber-1'
+						: 'border-outline-gray-2 bg-surface-gray-1'
+				"
+				aria-labelledby="delivery-heading"
+			>
+				<div class="flex items-center gap-2">
+					<span
+						class="grid size-7 shrink-0 place-items-center rounded-full bg-surface-gray-10 text-ink-base"
+						aria-hidden="true"
+					>
+						<i class="lucide-truck size-4" />
+					</span>
+					<div class="min-w-0">
+						<h3 id="delivery-heading" class="text-base font-semibold text-ink-gray-9">
+							Delivery details
+						</h3>
+						<p class="text-p-xs text-ink-gray-6">
+							Needed before you can send the order.
+						</p>
+					</div>
+				</div>
+
+				<FormControl
+					v-model="draft.deliveryDate.value"
+					type="date"
+					label="Deliver by"
+					:min="draft.form.value?.today"
+					required
+				/>
+
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 				<div v-if="choosesAddress">
 					<Combobox
 						v-if="usesPicker"
@@ -318,6 +479,7 @@ const detailsNeedAttention = computed(
 
 				<PoDocumentField v-if="showPoDocument" />
 			</section>
+<<<<<<< HEAD
 
 			<section
 				v-if="draft.fields.value.length"
@@ -356,6 +518,8 @@ const detailsNeedAttention = computed(
 					:field="field"
 				/>
 			</section>
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 		</div>
 
 		<div class="cart-footer flex shrink-0 flex-col gap-3 border-t bg-surface-base pt-3">

@@ -1023,6 +1023,7 @@ class TestPortalApplication(ApplicationFixtures):
 
 		self.assertFalse(saved["addresses"][0]["is_shipping_address"])
 		self.assertIn("A delivery address", progress["missing_details"])
+<<<<<<< HEAD
 
 
 SCREENED_TEMPLATE = "_Portal Screened Supplier"
@@ -1154,3 +1155,5 @@ class TestScreeningQuestions(ApplicationFixtures):
 			{"question": "Pick one", "field_type": "Multiple Choice", "options": "Only"},
 		)
 		self.assertRaisesRegex(frappe.ValidationError, "at least 2 choices", template.save)
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
