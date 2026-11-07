@@ -95,7 +95,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer :look="LOOKS.rfq" wide title="Request for Quotation">
+	<PageContainer :look="LOOKS.rfq" fluid title="Request for Quotation">
 		<template #actions>
 			<Badge
 				v-if="supplier && counts.Invited"
@@ -176,7 +176,13 @@ function loadMore() {
 			/>
 
 			<template v-else>
-				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
+				<ListView
+					class="list-fill"
+					row-key="name"
+					:columns="columns"
+					:rows="rows"
+					:options="options"
+				>
 					<template #cell="{ column, row }">
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>

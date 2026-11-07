@@ -1,11 +1,12 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+from collections import Counter
 from collections.abc import Callable
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, nowdate
+from frappe.utils import cint, flt, getdate, nowdate
 
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.api.transactions.branches import (
@@ -433,12 +434,33 @@ def get_delivery_note(name: str, customer: str | None = None) -> dict:
 	}
 
 
+def date_range(from_date: str | None, to_date: str | None, field: str = "posting_date") -> dict:
+	try:
+		start = getdate(from_date) if from_date else None
+		end = getdate(to_date) if to_date else None
+	except Exception:
+		frappe.throw(_("Pick the dates again. One of them could not be read."))
+
+	if start and end and start > end:
+		frappe.throw(_("The start date must be on or before the end date."))
+	if start and end:
+		return {field: ("between", [start, end])}
+	if start:
+		return {field: (">=", start)}
+	if end:
+		return {field: ("<=", end)}
+	return {}
+
+
 @frappe.whitelist()
 def get_sales_invoices(
 	customer: str | None = None,
 	search: str | None = None,
 	credit_notes: bool = False,
 	branches: list | str | None = None,
+	status: str | None = None,
+	from_date: str | None = None,
+	to_date: str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> dict:
@@ -454,29 +476,34 @@ def get_sales_invoices(
 		search_fields=("name", "po_no"),
 		branches=requested_branches(customers, branches),
 		is_return=cint(credit_notes),
+		**date_range(from_date, to_date),
 	)
 
+	rows = [
+		{
+			"name": invoice.name,
+			"customer": invoice.customer,
+			"po_no": invoice.po_no,
+			"posting_date": invoice.posting_date,
+			"due_date": invoice.due_date,
+			"branch": invoice.get(BRANCH_FIELD),
+			"currency": invoice.currency,
+			"grand_total": invoice.grand_total,
+			"outstanding_amount": invoice.outstanding_amount,
+			"is_return": bool(invoice.is_return),
+			"return_against": invoice.return_against,
+			"is_debit_note": bool(invoice.is_debit_note),
+			"status": invoice.status or "Unpaid",
+		}
+		for invoice in invoices
+	]
+	counts = dict(Counter(row["status"] for row in rows))
+
 	return page_of(
-		[
-			{
-				"name": invoice.name,
-				"customer": invoice.customer,
-				"po_no": invoice.po_no,
-				"posting_date": invoice.posting_date,
-				"due_date": invoice.due_date,
-				"branch": invoice.get(BRANCH_FIELD),
-				"currency": invoice.currency,
-				"grand_total": invoice.grand_total,
-				"outstanding_amount": invoice.outstanding_amount,
-				"is_return": bool(invoice.is_return),
-				"return_against": invoice.return_against,
-				"is_debit_note": bool(invoice.is_debit_note),
-				"status": invoice.status or "Unpaid",
-			}
-			for invoice in invoices
-		],
+		[row for row in rows if not status or row["status"] == status],
 		start,
 		limit,
+		counts,
 	)
 
 

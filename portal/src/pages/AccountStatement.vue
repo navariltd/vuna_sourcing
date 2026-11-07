@@ -144,7 +144,7 @@ function documentRoute(row: StatementRow) {
 <template>
 	<PageContainer
 		:look="isCustomer ? LOOKS.receivable : LOOKS.payable"
-		wide
+		fluid
 		:title="'Pending Invoices'"
 	>
 		<template #actions>
@@ -282,6 +282,7 @@ function documentRoute(row: StatementRow) {
 				</div>
 
 				<ListView
+					class="list-fill"
 					row-key="voucher_no"
 					:columns="columns"
 					:rows="section.rows"

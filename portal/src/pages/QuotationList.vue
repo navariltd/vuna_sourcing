@@ -55,10 +55,10 @@ const baseColumns = computed(() =>
 				{ label: "Status", key: "status", width: "130px" },
 		  ]
 		: [
-				{ label: "Quotation", key: "name", width: "minmax(130px, 1.4fr)" },
+				{ label: "Quotation", key: "name", width: "minmax(180px, 1.6fr)" },
 				{ label: "Dated", key: "transaction_date", width: "minmax(90px, 1fr)" },
 				{ label: "Valid until", key: "valid_till", width: "minmax(90px, 1fr)" },
-				{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+				{ label: "Value", key: "grand_total", width: "minmax(140px, 1fr)" },
 				{ label: "Status", key: "status", width: "150px" },
 		  ]
 );
@@ -83,7 +83,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer :look="LOOKS.quotation" wide title="Quotations">
+	<PageContainer :look="LOOKS.quotation" fluid title="Quotations">
 		<template #actions>
 			<Button
 				v-if="customer"
@@ -140,7 +140,13 @@ function loadMore() {
 			/>
 
 			<template v-else>
-				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
+				<ListView
+					class="list-fill"
+					row-key="name"
+					:columns="columns"
+					:rows="rows"
+					:options="options"
+				>
 					<template #cell="{ column, row }">
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>
