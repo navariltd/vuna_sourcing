@@ -19,6 +19,7 @@ from vuna_sourcing.api.transactions.bidding import (
 	is_sealed,
 )
 from vuna_sourcing.api.transactions.common import (
+	as_administrator,
 	balance,
 	company_currency,
 	distinct,
@@ -406,17 +407,45 @@ def items_awarded_to(request: str, supplier: str) -> set[str]:
 	}
 
 
+def buying_rate(from_currency: str, to_currency: str, on_date) -> float:
+	from erpnext.setup.utils import get_exchange_rate
+
+	if from_currency == to_currency:
+		return 1.0
+
+	with as_administrator():
+		rate = flt(get_exchange_rate(from_currency, to_currency, on_date, "for_buying"))
+
+	if rate <= 0:
+		frappe.throw(
+			_("We cannot take prices in {0} yet. Please contact us to set up your currency.").format(
+				from_currency
+			)
+		)
+	return rate
+
+
+def quote_price_list(supplier: str, currency: str) -> str | None:
+	price_list = frappe.db.get_value(
+		"Supplier", supplier, "default_price_list"
+	) or frappe.db.get_single_value("Buying Settings", "buying_price_list")
+	if price_list and frappe.get_cached_value("Price List", price_list, "currency") == currency:
+		return price_list
+	return None
+
+
 def build_quote(request, supplier: str):
 	doc = frappe.new_doc(SUPPLIER_QUOTATION)
 	doc.supplier = supplier
 	doc.company = request.company
 	doc.transaction_date = nowdate()
-	doc.currency = frappe.db.get_value("Supplier", supplier, "default_currency") or frappe.get_cached_value(
-		"Company", request.company, "default_currency"
-	)
-	doc.buying_price_list = frappe.db.get_value(
-		"Supplier", supplier, "default_price_list"
-	) or frappe.db.get_single_value("Buying Settings", "buying_price_list")
+	home_currency = frappe.get_cached_value("Company", request.company, "default_currency")
+	doc.currency = frappe.db.get_value("Supplier", supplier, "default_currency") or home_currency
+	doc.conversion_rate = buying_rate(doc.currency, home_currency, doc.transaction_date)
+	doc.buying_price_list = quote_price_list(supplier, doc.currency)
+	doc.price_list_currency = doc.currency
+	doc.plc_conversion_rate = doc.conversion_rate
+	doc.dont_update_if_missing = [*doc.dont_update_if_missing, "buying_price_list"]
 
 	for item in request.items:
 		row = {field: item.get(field) for field in QUOTE_ITEM_FIELDS}
