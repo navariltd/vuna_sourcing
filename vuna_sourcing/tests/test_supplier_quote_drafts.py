@@ -218,3 +218,76 @@ class TestSupplierQuoteDrafts(SourcingFixtures, IntegrationTestCase):
 			[(0, 0)],
 			"the buyer's own price list never fills in the supplier's prices",
 		)
+
+	def use_single(self, doctype, field, value):
+		current = frappe.db.get_single_value(doctype, field)
+		self.addCleanup(frappe.db.set_single_value, doctype, field, current)
+		frappe.db.set_single_value(doctype, field, value)
+
+	def foreign_currency(self):
+		home = frappe.get_cached_value("Company", self.company, "default_currency")
+		return next(currency for currency in ("USD", "EUR", "INR") if currency != home), home
+
+	def test_a_price_list_in_another_currency_is_left_off_the_quote(self):
+		"""The supplier types their own prices, so a default price list in another currency is not used."""
+		foreign, _home = self.foreign_currency()
+		price_list = "_Test Portal Buying " + foreign
+		if not frappe.db.exists("Price List", price_list):
+			frappe.get_doc(
+				{
+					"doctype": "Price List",
+					"price_list_name": price_list,
+					"currency": foreign,
+					"buying": 1,
+					"enabled": 1,
+				}
+			).insert(ignore_permissions=True)
+		self.use_single("Buying Settings", "buying_price_list", price_list)
+		previous_default = frappe.db.get_default("buying_price_list")
+		self.addCleanup(frappe.db.set_default, "buying_price_list", previous_default)
+		frappe.db.set_default("buying_price_list", price_list)
+
+		supplier, user = self.make_supplier()
+		rfq = self.make_rfq([supplier])
+		quote = frappe.get_doc("Supplier Quotation", self.quote_name(self.save_draft(rfq, user)))
+
+		self.assertFalse(quote.buying_price_list)
+		self.assertEqual(quote.conversion_rate, 1)
+
+	def test_a_supplier_quoting_in_their_own_currency_uses_the_stored_rate(self):
+		"""A portal supplier billing in another currency gets the rate our team stored."""
+		foreign, home = self.foreign_currency()
+		frappe.get_doc(
+			{
+				"doctype": "Currency Exchange",
+				"date": nowdate(),
+				"from_currency": foreign,
+				"to_currency": home,
+				"exchange_rate": 129.5,
+				"for_buying": 1,
+				"for_selling": 1,
+			}
+		).insert(ignore_permissions=True)
+		supplier, user = self.make_supplier()
+		frappe.db.set_value("Supplier", supplier, "default_currency", foreign)
+		rfq = self.make_rfq([supplier])
+
+		quote = frappe.get_doc("Supplier Quotation", self.quote_name(self.save_draft(rfq, user)))
+
+		self.assertEqual(quote.currency, foreign)
+		self.assertEqual(quote.conversion_rate, 129.5)
+
+	def test_a_currency_without_a_rate_gets_a_plain_message(self):
+		"""With no stored rate and no rate provider, the supplier is told to contact us instead of seeing a permission error."""
+		foreign, _home = self.foreign_currency()
+		self.use_single("Currency Exchange Settings", "disabled", 1)
+		frappe.db.delete("Currency Exchange", {"from_currency": foreign})
+		supplier, user = self.make_supplier()
+		frappe.db.set_value("Supplier", supplier, "default_currency", foreign)
+		rfq = self.make_rfq([supplier])
+
+		with self.assertRaises(frappe.ValidationError) as caught:
+			self.save_draft(rfq, user)
+
+		self.assertNotIsInstance(caught.exception, frappe.PermissionError)
+		self.assertIn("contact us", str(caught.exception))
