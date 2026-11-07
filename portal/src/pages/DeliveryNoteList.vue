@@ -55,11 +55,11 @@ const baseColumns = computed(() =>
 				{ label: "Status", key: "status", width: "130px" },
 		  ]
 		: [
-				{ label: "Delivery", key: "name", width: "minmax(130px, 1.4fr)" },
+				{ label: "Delivery", key: "name", width: "minmax(180px, 1.6fr)" },
 				{ label: "Your PO", key: "po_no", width: "minmax(100px, 1fr)" },
 				{ label: "Dispatched", key: "posting_date", width: "minmax(90px, 1fr)" },
 				{ label: "Transporter", key: "transporter_name", width: "minmax(120px, 1.2fr)" },
-				{ label: "Value", key: "grand_total", width: "minmax(100px, 1fr)" },
+				{ label: "Value", key: "grand_total", width: "minmax(140px, 1fr)" },
 				{ label: "Status", key: "status", width: "140px" },
 		  ]
 );
@@ -84,7 +84,7 @@ function loadMore() {
 </script>
 
 <template>
-	<PageContainer :look="LOOKS.deliveryNote" wide title="Delivery Notes">
+	<PageContainer :look="LOOKS.deliveryNote" fluid title="Delivery Notes">
 		<template #actions>
 			<Button
 				v-if="customer"
@@ -141,7 +141,13 @@ function loadMore() {
 			/>
 
 			<template v-else>
-				<ListView row-key="name" :columns="columns" :rows="rows" :options="options">
+				<ListView
+					class="list-fill"
+					row-key="name"
+					:columns="columns"
+					:rows="rows"
+					:options="options"
+				>
 					<template #cell="{ column, row }">
 						<span v-if="column.key === 'name'" class="flex min-w-0 flex-col">
 							<span class="truncate text-base text-ink-gray-8">{{ row.name }}</span>

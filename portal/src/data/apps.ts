@@ -16,7 +16,6 @@ export const DESK_APP: InstalledApp = {
 
 export const installedApps = createResource({
   url: "frappe.apps.get_apps",
-  cache: "vuna-sourcing:apps",
   auto: false,
 });
 

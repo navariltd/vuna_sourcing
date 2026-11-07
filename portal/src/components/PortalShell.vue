@@ -68,9 +68,7 @@ const userMenu = computed(() => [
 	},
 ]);
 
-onMounted(() => {
-	if (!installedApps.data) installedApps.fetch();
-});
+onMounted(() => installedApps.fetch());
 
 const apps = computed(() => appsFor(portal.user?.is_website_user !== false));
 
