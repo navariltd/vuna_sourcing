@@ -56,6 +56,19 @@ export interface PortalUser {
   is_website_user: boolean
 }
 
+export interface PortalFeatures {
+  customer_orders: boolean
+  credit_requests: boolean
+}
+
+export type PortalFeature = keyof PortalFeatures
+
+export interface PortalBranding {
+  title: string | null
+  logo: string | null
+  is_custom: boolean
+}
+
 export interface PortalSession {
   user: PortalUser
   parties: Party[]
@@ -63,6 +76,8 @@ export interface PortalSession {
   open_party_types: PartyType[]
   can_apply: boolean
   is_applicant: boolean
+  features: PortalFeatures
+  branding: PortalBranding
 }
 
 export function partyKey(party: Pick<Party, 'party_type' | 'name'>) {
@@ -175,8 +190,12 @@ export const usePortalStore = defineStore('portal', () => {
     () => activeParty.value?.party_type === 'Customer' && !!activeParty.value.can_manage_team,
   )
 
-  const seesAnyStatement = computed(() =>
-    customers.value.some((customer) => customer.all_branches !== false),
+  const features = computed<PortalFeatures>(
+    () => session.data?.features ?? { customer_orders: false, credit_requests: false },
+  )
+
+  const branding = computed<PortalBranding>(
+    () => session.data?.branding ?? { title: null, logo: null, is_custom: false },
   )
 
   const isApplicant = computed(() => !!session.data?.is_applicant)
@@ -255,6 +274,7 @@ export const usePortalStore = defineStore('portal', () => {
     setSelectedBranches,
     isBranchLimited,
     canManageTeam,
-    seesAnyStatement,
+    features,
+    branding,
   }
 })

@@ -42,7 +42,7 @@ const accountOptions = computed(() =>
 				class="flex flex-1 items-center justify-center gap-1.5 rounded-4 px-2 py-1 text-base font-medium transition-colors"
 				:class="
 					side === activeType
-						? 'bg-surface-white text-ink-gray-8 shadow-sm'
+						? 'bg-surface-base text-ink-gray-8 shadow-sm'
 						: 'text-ink-gray-6 hover:text-ink-gray-8'
 				"
 				@click="switchToType(side)"

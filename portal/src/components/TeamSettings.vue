@@ -9,6 +9,8 @@ import {
 	ErrorMessage,
 	FormControl,
 	Spinner,
+	TextInput,
+	debounce,
 	toast,
 } from "frappe-ui";
 import BranchPicker from "@/components/BranchPicker.vue";
@@ -49,6 +51,31 @@ const loadError = computed(() =>
 	team.value?.error ? errorText(team.value.error, "We could not load your team.") : null
 );
 const othersCount = computed(() => members.value.filter((member) => !member.is_you).length);
+
+const SEARCH_FROM = 6;
+const PAGE = 25;
+
+const memberQuery = ref("");
+const memberTerm = ref("");
+const shown = ref(PAGE);
+const applyMemberQuery = debounce((value: string) => {
+	memberTerm.value = value.trim().toLowerCase();
+	shown.value = PAGE;
+}, 250);
+watch(memberQuery, (value) => applyMemberQuery(value));
+
+const matchingMembers = computed(() => {
+	const term = memberTerm.value;
+	if (!term) return members.value;
+	return members.value.filter(
+		(member) =>
+			member.full_name.toLowerCase().includes(term) ||
+			member.user.toLowerCase().includes(term) ||
+			member.branches.some((branch) => branch.title.toLowerCase().includes(term))
+	);
+});
+
+const visibleMembers = computed(() => matchingMembers.value.slice(0, shown.value));
 
 function showMembers(updated: TeamMember[] | undefined) {
 	if (!team.value || !customer.value || !updated) return;
@@ -210,12 +237,26 @@ function actionsFor(member: TeamMember) {
 				each one sees.
 			</p>
 			<Button
+				class="shrink-0 whitespace-nowrap"
 				variant="solid"
-				label="Invite someone"
+				label="Invite"
 				icon-left="lucide-user-plus"
 				@click="openInvite"
 			/>
 		</div>
+
+		<TextInput
+			v-if="members.length >= SEARCH_FROM"
+			v-model="memberQuery"
+			type="search"
+			size="md"
+			:placeholder="`Search ${members.length} people by name, email or branch`"
+			aria-label="Search your team"
+		>
+			<template #prefix>
+				<i class="lucide-search size-4 text-ink-gray-5" aria-hidden="true" />
+			</template>
+		</TextInput>
 
 		<div v-if="loading" class="flex justify-center py-10">
 			<Spinner class="size-5" />
@@ -225,7 +266,7 @@ function actionsFor(member: TeamMember) {
 
 		<div v-else class="divide-y rounded-6 border">
 			<div
-				v-for="member in members"
+				v-for="member in visibleMembers"
 				:key="member.user"
 				class="flex items-center gap-3 px-3 py-2.5"
 			>
@@ -282,6 +323,26 @@ function actionsFor(member: TeamMember) {
 				<span v-else class="size-7 shrink-0" aria-hidden="true" />
 			</div>
 
+			<div v-if="memberTerm && !matchingMembers.length" class="px-3 py-6 text-center">
+				<p class="text-base font-medium text-ink-gray-7">
+					No one matches “{{ memberQuery.trim() }}”
+				</p>
+				<p class="mt-1 text-p-sm text-ink-gray-5">
+					Try a different name, email or branch.
+				</p>
+			</div>
+
+			<div
+				v-if="matchingMembers.length > visibleMembers.length"
+				class="px-3 py-2 text-center"
+			>
+				<Button
+					variant="ghost"
+					:label="`Show more (${matchingMembers.length - visibleMembers.length} left)`"
+					@click="shown += PAGE"
+				/>
+			</div>
+
 			<div v-if="!othersCount" class="px-3 py-6 text-center">
 				<p class="text-base font-medium text-ink-gray-7">Just you so far</p>
 				<p class="mt-1 text-p-sm text-ink-gray-5">
@@ -296,7 +357,7 @@ function actionsFor(member: TeamMember) {
 
 		<Dialog
 			v-model:open="inviting"
-			title="Invite someone"
+			title="Invite"
 			message="They get an email with a link to set a password, then they can sign in."
 			icon="lucide-user-plus"
 			:actions="[

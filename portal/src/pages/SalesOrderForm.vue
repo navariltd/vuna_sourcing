@@ -3,11 +3,12 @@ import { computed, onBeforeUnmount, ref, toRef, watch } from "vue";
 import type { Ref } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
 import {
+	Avatar,
 	Badge,
 	BottomSheet,
 	Button,
 	Dialog,
-	FormControl,
+	Dropdown,
 	Spinner,
 	TextInput,
 	Tooltip,
@@ -15,11 +16,15 @@ import {
 } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
+import CategoryList from "@/components/CategoryList.vue";
 import OrderCart from "@/components/OrderCart.vue";
+import SideSheet from "@/components/SideSheet.vue";
 import OrderItemCard from "@/components/OrderItemCard.vue";
 import { provideOrderDraft, useOrderDraft } from "@/composables/useOrderDraft";
-import { errorText, fetchOrderCategories, fetchOrderableItems } from "@/data/orders";
-import type { OrderCategory, OrderableItem } from "@/data/orders";
+import { useOrderCategories } from "@/composables/useOrderCategories";
+import { useIsWide } from "@/composables/useViewport";
+import { errorText, fetchOrderableItems } from "@/data/orders";
+import type { OrderableItem } from "@/data/orders";
 import { money } from "@/data/purchase";
 import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
@@ -41,8 +46,29 @@ provideOrderDraft(draft);
 
 const { form, loading, unavailable, orderName, company, companies, lines, units, busy } = draft;
 
-const categories = ref<OrderCategory[]>([]);
 const category = ref<string | null>(null);
+const isWide = useIsWide();
+const categories = useOrderCategories(
+	customer,
+	company,
+	computed(() => !!form.value)
+);
+const categorySheet = ref(false);
+
+const companyLocked = computed(() => !!orderName.value || lines.value.length > 0);
+
+const companyOptions = computed(() =>
+	companies.value.map((name) => ({
+		label: name,
+		icon: name === company.value ? "lucide-check" : undefined,
+		onClick: () => (company.value = name),
+	}))
+);
+
+function pickCategory(name: string | null) {
+	category.value = name;
+	categorySheet.value = false;
+}
 const search = ref("");
 const items = ref<OrderableItem[]>([]);
 const itemsCurrency = ref<string | null>(null);
@@ -76,26 +102,16 @@ watch(view, (value) => {
 	} catch {}
 });
 
-const allCount = computed(() => categories.value.reduce((total, row) => total + row.count, 0));
-
-const tabs = computed(() => [
-	{ name: null, label: "All", count: allCount.value },
-	...categories.value.map((row) => ({ name: row.name, label: row.name, count: row.count })),
+const chips = computed(() => [
+	{ name: null, label: "All", count: categories.allItems.value },
+	...categories.rows.value
+		.slice(0, 12)
+		.map((row) => ({ name: row.name, label: row.name, count: row.count as number | null })),
+	...(category.value &&
+	!categories.rows.value.slice(0, 12).some((row) => row.name === category.value)
+		? [{ name: category.value, label: category.value, count: null }]
+		: []),
 ]);
-
-async function loadCategories() {
-	if (!customer.value || !company.value || !form.value) {
-		categories.value = [];
-		return;
-	}
-
-	try {
-		const response = await fetchOrderCategories(customer.value, company.value);
-		if (isOk(response)) categories.value = response.data;
-	} catch {
-		categories.value = [];
-	}
-}
 
 async function browse(append = false) {
 	if (!customer.value || !company.value || !form.value) {
@@ -135,7 +151,6 @@ async function browse(append = false) {
 
 watch([customer, company, form], () => {
 	category.value = null;
-	loadCategories();
 	browse();
 });
 
@@ -207,10 +222,7 @@ async function refresh() {
 	refreshing.value = true;
 	draft.refreshPrices();
 	try {
-		await Promise.all([loadCategories(), browse()]);
-		if (category.value && !categories.value.some((row) => row.name === category.value)) {
-			category.value = null;
-		}
+		await Promise.all([categories.reload(), browse()]);
 	} finally {
 		refreshing.value = false;
 	}
@@ -262,7 +274,7 @@ function sendFromNotice() {
 	toast.info(
 		nextStep ? `Before sending: ${nextStep.toLowerCase()}.` : draft.pricingError.value!
 	);
-	if (window.matchMedia?.("(max-width: 1023px)").matches) cartOpen.value = true;
+	cartOpen.value = true;
 }
 
 function askToClear() {
@@ -321,6 +333,30 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 		]"
 	>
 		<template #actions>
+			<button
+				v-if="form && !unavailable"
+				type="button"
+				class="cart-trigger relative hidden h-9 items-center gap-2 rounded-full border border-outline-gray-3 bg-surface-base pl-1 pr-3 text-base font-medium text-ink-gray-9 transition-colors hover:bg-surface-gray-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-outline-gray-4 lg:flex"
+				:aria-label="units ? `Open cart, ${unitsLabel}` : 'Open cart, empty'"
+				@click="cartOpen = true"
+			>
+				<span
+					class="relative grid size-7 place-items-center rounded-full bg-surface-gray-10 text-ink-base"
+				>
+					<i class="lucide-shopping-basket size-4" aria-hidden="true" />
+					<span
+						v-if="lines.length"
+						:key="units"
+						class="cart-count absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-surface-red-6 px-1 text-[11px] font-bold tabular-nums text-ink-base shadow-[0_0_0_2px_var(--surface-base)]"
+					>
+						{{ lines.length }}
+					</span>
+				</span>
+				<span class="tabular-nums">
+					<Spinner v-if="draft.pricing.value" class="size-3.5" />
+					<template v-else>{{ units ? cartTotal ?? "Cart" : "Cart" }}</template>
+				</span>
+			</button>
 			<template v-if="form && !unavailable && orderName">
 				<Badge theme="gray" variant="solid" size="lg" label="Draft" />
 				<Button
@@ -386,130 +422,230 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 				/>
 			</div>
 
-			<div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-				<div class="min-w-0">
-					<div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-						<FormControl
-							v-if="companies.length > 1"
-							v-model="company"
-							class="sm:w-64"
-							type="select"
-							label="Ordering from"
-							placeholder="Choose a company"
-							:options="companies.map((name) => ({ label: name, value: name }))"
-							:disabled="!!orderName || lines.length > 0"
-						/>
-						<div class="flex min-w-0 flex-1 items-center gap-2">
-							<TextInput
-								v-model="search"
-								class="min-w-0 flex-1"
-								type="search"
-								size="md"
-								placeholder="Search items"
-								aria-label="Search items"
-								:disabled="!company"
+			<section
+				v-if="companies.length > 1 && !company"
+				class="mx-auto max-w-3xl py-6"
+				aria-labelledby="choose-company"
+			>
+				<div class="mb-5 text-center">
+					<span
+						class="mx-auto grid size-12 place-items-center rounded-full bg-surface-gray-2"
+						aria-hidden="true"
+					>
+						<i class="lucide-store size-6 text-ink-gray-7" />
+					</span>
+					<h2 id="choose-company" class="mt-3 text-xl font-semibold text-ink-gray-9">
+						Where would you like to order from?
+					</h2>
+					<p class="mt-1 text-p-base text-ink-gray-6">
+						Each company has its own items and prices. You can start another order for
+						a different company later.
+					</p>
+				</div>
+				<div class="grid gap-3 sm:grid-cols-2">
+					<button
+						v-for="name in companies"
+						:key="name"
+						type="button"
+						class="flex items-center gap-3 rounded-8 border border-outline-gray-2 bg-surface-base p-4 text-left transition-[border-color,box-shadow] hover:border-outline-gray-4 hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-outline-gray-4"
+						@click="company = name"
+					>
+						<Avatar :label="name" size="xl" shape="square" />
+						<span class="min-w-0 flex-1">
+							<span class="block truncate text-base font-semibold text-ink-gray-9">
+								{{ name }}
+							</span>
+							<span class="block text-p-sm text-ink-gray-6"
+								>Browse items and prices</span
 							>
-								<template #prefix>
+						</span>
+						<i
+							class="lucide-chevron-right size-4 text-ink-gray-5"
+							aria-hidden="true"
+						/>
+					</button>
+				</div>
+			</section>
+
+			<div
+				v-else
+				class="grid grid-cols-1 gap-6 xl:grid-cols-[230px_minmax(0,1fr)] xl:items-start"
+			>
+				<aside
+					v-if="isWide"
+					class="sticky top-6 flex max-h-[calc(100dvh-6.5rem)] flex-col overflow-hidden"
+					aria-label="Categories"
+				>
+					<h2
+						class="mb-2 px-0.5 text-sm font-semibold uppercase tracking-wide text-ink-gray-5"
+					>
+						Categories
+					</h2>
+					<div class="min-h-0 overflow-y-auto pr-1">
+						<CategoryList
+							:categories="categories"
+							:selected="category"
+							@select="pickCategory"
+						/>
+					</div>
+				</aside>
+
+				<div class="min-w-0">
+					<div
+						v-if="companies.length > 1"
+						class="mb-3 flex items-center gap-3 rounded-8 border border-outline-gray-2 bg-surface-gray-1 p-2.5 pr-3"
+					>
+						<Avatar :label="company || '?'" size="lg" shape="square" />
+						<div class="min-w-0 flex-1">
+							<p class="text-p-xs text-ink-gray-5">You are ordering from</p>
+							<p class="truncate text-base font-semibold text-ink-gray-9">
+								{{ company }}
+							</p>
+						</div>
+						<Dropdown
+							v-if="!companyLocked"
+							:options="companyOptions"
+							placement="bottom-end"
+						>
+							<Button variant="outline" icon-left="lucide-repeat" label="Change" />
+						</Dropdown>
+						<Tooltip
+							v-else
+							:text="
+								orderName
+									? 'To buy from another company, start a new order.'
+									: 'Empty the cart to switch company.'
+							"
+						>
+							<span
+								class="flex items-center gap-1 text-p-xs text-ink-gray-5"
+								tabindex="0"
+							>
+								<i class="lucide-lock size-3.5" aria-hidden="true" />
+								<span class="hidden sm:inline">Locked to this order</span>
+							</span>
+						</Tooltip>
+					</div>
+
+					<div class="flex min-w-0 items-center gap-2">
+						<TextInput
+							v-model="search"
+							class="min-w-0 flex-1"
+							type="search"
+							size="md"
+							placeholder="Search items"
+							aria-label="Search items"
+							:disabled="!company"
+						>
+							<template #prefix>
+								<i
+									class="lucide-search size-4 text-ink-gray-5"
+									aria-hidden="true"
+								/>
+							</template>
+						</TextInput>
+						<Tooltip text="Refresh items and prices">
+							<Button
+								size="md"
+								variant="outline"
+								aria-label="Refresh items and prices"
+								:disabled="!company || refreshing"
+								@click="refresh"
+							>
+								<template #icon>
 									<i
-										class="lucide-search size-4 text-ink-gray-5"
+										class="lucide-refresh-cw size-4"
+										:class="refreshing ? 'animate-spin' : ''"
 										aria-hidden="true"
 									/>
 								</template>
-							</TextInput>
-							<Tooltip text="Refresh items and prices">
-								<Button
-									size="md"
-									variant="outline"
-									aria-label="Refresh items and prices"
-									:disabled="!company || refreshing"
-									@click="refresh"
-								>
-									<template #icon>
-										<i
-											class="lucide-refresh-cw size-4"
-											:class="refreshing ? 'animate-spin' : ''"
-											aria-hidden="true"
-										/>
-									</template>
-								</Button>
-							</Tooltip>
-							<div
-								class="flex h-8 shrink-0 items-center rounded-6 bg-surface-gray-2 p-0.5"
-								role="group"
-								aria-label="Item layout"
-							>
-								<button
-									v-for="option in [
+							</Button>
+						</Tooltip>
+						<div
+							class="flex h-8 shrink-0 items-center rounded-6 bg-surface-gray-2 p-0.5"
+							role="group"
+							aria-label="Item layout"
+						>
+							<button
+								v-for="option in [
 									{ value: 'grid', icon: 'lucide-layout-grid', label: 'Grid view' },
 									{ value: 'list', icon: 'lucide-list', label: 'List view' },
 								] as const"
-									:key="option.value"
-									type="button"
-									class="grid h-7 w-8 place-items-center rounded-5 transition-colors"
-									:class="
-										view === option.value
-											? 'bg-surface-base text-ink-gray-9 shadow-sm'
-											: 'text-ink-gray-6 hover:text-ink-gray-8'
-									"
-									:aria-label="option.label"
-									:aria-pressed="view === option.value"
-									:title="option.label"
-									@click="view = option.value"
-								>
-									<i :class="option.icon" class="size-4" aria-hidden="true" />
-								</button>
-							</div>
+								:key="option.value"
+								type="button"
+								class="grid h-7 w-8 place-items-center rounded-5 transition-colors"
+								:class="
+									view === option.value
+										? 'bg-surface-base text-ink-gray-9 shadow-sm'
+										: 'text-ink-gray-6 hover:text-ink-gray-8'
+								"
+								:aria-label="option.label"
+								:aria-pressed="view === option.value"
+								:title="option.label"
+								@click="view = option.value"
+							>
+								<i :class="option.icon" class="size-4" aria-hidden="true" />
+							</button>
 						</div>
 					</div>
 
-					<p
-						v-if="companies.length > 1 && (orderName || lines.length)"
-						class="mt-1.5 text-p-xs text-ink-gray-5"
-					>
-						{{
-							orderName
-								? "To buy from another company, start a new order."
-								: "Empty the cart to switch company."
-						}}
-					</p>
-
 					<nav
-						v-if="categories.length > 1"
-						class="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0"
+						v-if="!isWide && (categories.rows.value.length || category)"
+						class="-mx-4 mt-3 flex items-center gap-2 px-4 sm:mx-0 sm:px-0"
 						aria-label="Item categories"
 					>
 						<button
-							v-for="tab in tabs"
-							:key="tab.name ?? '__all'"
 							type="button"
-							class="flex h-9 shrink-0 items-center gap-2 rounded-full border pl-3.5 pr-1.5 text-base font-medium transition-colors"
-							:class="
-								category === tab.name
-									? 'border-outline-gray-9 bg-surface-gray-10 text-ink-base'
-									: 'border-outline-gray-2 bg-surface-base text-ink-gray-8 hover:border-outline-gray-4 hover:bg-surface-gray-1'
-							"
-							:aria-pressed="category === tab.name"
-							@click="category = tab.name"
+							class="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-outline-gray-3 bg-surface-base px-3 text-base font-medium text-ink-gray-8 hover:bg-surface-gray-1"
+							@click="categorySheet = true"
 						>
-							{{ tab.label }}
-							<span
-								class="grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-xs font-semibold tabular-nums"
-								:class="
-									category === tab.name
-										? 'bg-surface-base text-ink-gray-9'
-										: 'bg-surface-gray-10 text-ink-base'
-								"
-							>
-								{{ tab.count }}
-							</span>
+							<i class="lucide-sliders-horizontal size-4" aria-hidden="true" />
+							Categories
 						</button>
+						<div class="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
+							<button
+								v-for="chip in chips"
+								:key="chip.name ?? '__all'"
+								type="button"
+								class="flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-base font-medium transition-colors"
+								:class="
+									category === chip.name
+										? 'border-outline-gray-9 bg-surface-gray-10 text-ink-base'
+										: 'border-outline-gray-2 bg-surface-base text-ink-gray-8 hover:border-outline-gray-4 hover:bg-surface-gray-1'
+								"
+								:aria-pressed="category === chip.name"
+								@click="pickCategory(chip.name)"
+							>
+								{{ chip.label }}
+								<span
+									v-if="chip.count != null"
+									class="text-xs tabular-nums"
+									:class="
+										category === chip.name
+											? 'text-ink-base'
+											: 'text-ink-gray-5'
+									"
+								>
+									{{ chip.count }}
+								</span>
+							</button>
+						</div>
 					</nav>
 
-					<p v-if="!company" class="mt-8 text-center text-p-base text-ink-gray-5">
-						Choose the company you are ordering from to see its items.
+					<p
+						v-if="category"
+						class="mt-3 flex items-center gap-2 text-p-sm text-ink-gray-6"
+					>
+						Showing <b class="text-ink-gray-9">{{ category }}</b>
+						<Button
+							size="sm"
+							variant="ghost"
+							label="Show all"
+							@click="pickCategory(null)"
+						/>
 					</p>
 
-					<p v-else-if="browseError" class="mt-8 text-center text-p-base text-ink-red-4">
+					<p v-if="browseError" class="mt-8 text-center text-p-base text-ink-red-4">
 						{{ browseError }}
 					</p>
 
@@ -603,24 +739,6 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 					</div>
 				</div>
 
-				<aside
-					class="hidden max-h-[calc(100dvh-6.5rem)] flex-col rounded-8 border bg-surface-base p-4 lg:sticky lg:top-6 lg:flex"
-				>
-					<h2
-						class="mb-3 flex shrink-0 items-center justify-between gap-2 text-lg font-semibold text-ink-gray-9"
-					>
-						Your order
-						<span
-							v-if="lines.length"
-							class="rounded-full bg-surface-gray-10 px-2.5 py-0.5 text-xs font-semibold text-ink-base"
-						>
-							{{ lines.length }} {{ lines.length === 1 ? "line" : "lines" }} ·
-							{{ unitsLabel }}
-						</span>
-					</h2>
-					<OrderCart class="flex-1" @save="save" @send="askToSend" @clear="askToClear" />
-				</aside>
-
 				<div class="sticky bottom-3 z-10 lg:hidden">
 					<button
 						type="button"
@@ -673,11 +791,27 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 			</div>
 		</template>
 
-		<BottomSheet v-model:open="cartOpen" title="Your order">
+		<BottomSheet v-model:open="categorySheet" title="Categories">
 			<div class="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-				<OrderCart @save="save" @send="askToSend" @clear="askToClear" />
+				<CategoryList
+					:categories="categories"
+					:selected="category"
+					@select="pickCategory"
+				/>
 			</div>
 		</BottomSheet>
+
+		<SideSheet
+			v-model:open="cartOpen"
+			title="Your order"
+			:description="
+				lines.length
+					? `${lines.length} ${lines.length === 1 ? 'line' : 'lines'} · ${unitsLabel}`
+					: 'Add items, then choose when and where we deliver.'
+			"
+		>
+			<OrderCart class="min-h-0 flex-1" @save="save" @send="askToSend" @clear="askToClear" />
+		</SideSheet>
 
 		<Dialog
 			v-model:open="confirmingSend"
@@ -742,6 +876,28 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 @media (min-width: 640px) {
 	.item-grid {
 		grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	}
+}
+
+.cart-count {
+	animation: cart-bump 260ms ease-out;
+}
+
+@keyframes cart-bump {
+	0% {
+		transform: scale(0.6);
+	}
+	60% {
+		transform: scale(1.15);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cart-count {
+		animation: none;
 	}
 }
 

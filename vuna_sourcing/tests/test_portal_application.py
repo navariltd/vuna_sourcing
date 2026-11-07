@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import base64
+import random
 from contextlib import contextmanager
 
 import frappe
@@ -17,6 +18,7 @@ from vuna_sourcing.api.onboarding import (
 	get_my_applications,
 	get_onboarding_types,
 	get_own_application,
+	get_tax_id_formats,
 	resubmit_application,
 	save_application,
 	save_attachment,
@@ -87,7 +89,6 @@ class TestPortalApplication(IntegrationTestCase):
 				{
 					"customer_group": leaf("Customer Group"),
 					"territory": leaf("Territory"),
-					"require_shipping_address": 1,
 				},
 				[
 					{"document_type": DOC_CERT, "is_mandatory": 1},
@@ -102,7 +103,6 @@ class TestPortalApplication(IntegrationTestCase):
 						"template_name": name,
 						"party_type": party_type,
 						"entity_type": "Company",
-						"require_bank_details": 0,
 						"require_registration_number": 0,
 						"required_documents": documents,
 						**extra,
@@ -159,10 +159,20 @@ class TestPortalApplication(IntegrationTestCase):
 			"party_type": party_type,
 			"onboarding_template": TEMPLATE_FOR[party_type],
 			"party_name": "Portal Traders " + frappe.generate_hash(length=6),
-			"tax_id": "PTAX-" + frappe.generate_hash(length=8),
+			"country": "Kenya",
+			"tax_id": "P" + "".join(random.choices("0123456789", k=9)) + "X",
 			"contacts": [self.contact()],
-			"addresses": [self.address(is_shipping_address=1 if party_type == "Customer" else 0)],
+			"addresses": [self.address(), *([self.delivery()] if party_type == "Customer" else [])],
 		}
+
+	def delivery(self, **overrides):
+		return self.address(
+			address_type="Shipping",
+			address_line1="9 Depot Lane",
+			is_primary_address=0,
+			is_shipping_address=1,
+			**overrides,
+		)
 
 	def upload(self, docname, filename=None, content=None, document_type=DOC_CERT, purpose=None):
 		"""The way the portal attaches: Frappe's upload_file stores the upload, then calls our method."""
@@ -298,7 +308,6 @@ class TestPortalApplication(IntegrationTestCase):
 		supplier, customer = types[SUPPLIER_TEMPLATE], types[CUSTOMER_TEMPLATE]
 		self.assertEqual(supplier["party_type"], "Supplier")
 		self.assertEqual(customer["party_type"], "Customer")
-		self.assertTrue(customer["require_shipping_address"])
 
 		supplier_docs = [d["document_type"] for d in supplier["documents"]]
 		self.assertIn(DOC_CERT, supplier_docs)
@@ -374,7 +383,7 @@ class TestPortalApplication(IntegrationTestCase):
 				progress = get_application_progress(saved["name"])
 				self.assertFalse(progress["can_submit"])
 				self.assertIn("A primary contact", progress["missing_details"])
-				self.assertIn("A registered address", progress["missing_details"])
+				self.assertIn("A billing address", progress["missing_details"])
 				self.assertRaises(frappe.ValidationError, submit_application, saved["name"])
 
 	def test_mobile_number_is_mandatory(self):
@@ -732,7 +741,7 @@ class TestPortalApplication(IntegrationTestCase):
 	def test_link_lookups_serve_the_allowlisted_doctypes(self):
 		with self.set_user(self.make_applicant()):
 			countries = get_link_options("Country")
-			get_link_options("Bank")
+			self.assertRaises(frappe.PermissionError, get_link_options, "Bank")
 
 		self.assertTrue(countries)
 		self.assertEqual(set(countries[0]), {"label", "value"})
@@ -927,3 +936,88 @@ class TestPortalApplication(IntegrationTestCase):
 			self.assertRaises(
 				frappe.ValidationError, self.upload, saved["name"], "logo.pdf", None, None, "logo"
 			)
+
+	def test_a_supplier_gives_only_a_billing_address(self):
+		"""Suppliers are not asked where goods go; a second address is refused."""
+		warehouse = self.address(address_type="Warehouse", is_primary_address=0)
+		with self.set_user(self.make_applicant()):
+			self.assertRaises(
+				frappe.ValidationError,
+				save_application,
+				{**self.base_values(), "addresses": [self.address(), warehouse]},
+			)
+
+	def test_a_supplier_can_submit_with_just_a_billing_address(self):
+		"""No delivery address is outstanding for a supplier."""
+		applicant = self.make_applicant()
+		saved = self.complete(applicant)
+		with self.set_user(applicant):
+			progress = get_application_progress(saved["name"])
+
+		self.assertNotIn("A delivery address", progress["missing_details"])
+		self.assertTrue(progress["can_submit"])
+
+	def test_extra_customer_addresses_become_delivery_addresses(self):
+		"""Every address after the billing one is saved as a delivery address."""
+		branch = self.address(address_type="Office", is_primary_address=0, is_shipping_address=0)
+		with self.set_user(self.make_applicant()):
+			saved = save_application(
+				{**self.base_values("Customer"), "addresses": [self.address(address_type="Shop"), branch]}
+			)
+
+		billing, delivery = saved["addresses"]
+		self.assertEqual(billing["address_type"], "Billing")
+		self.assertEqual(delivery["address_type"], "Shipping")
+		self.assertTrue(delivery["is_shipping_address"])
+
+	def test_only_a_primary_and_a_billing_contact_are_collected(self):
+		"""A third contact is refused; more people can be added after approval."""
+		contacts = [
+			self.contact(),
+			self.contact(is_primary_contact=0, is_billing_contact=1, email_id="billing@example.com"),
+			self.contact(is_primary_contact=0, email_id="other@example.com"),
+		]
+		with self.set_user(self.make_applicant()):
+			self.assertRaises(
+				frappe.ValidationError, save_application, {**self.base_values(), "contacts": contacts}
+			)
+
+	def test_contact_rows_that_are_not_objects_are_refused(self):
+		"""A tampered request with a list of strings is rejected rather than half-saved."""
+		with self.set_user(self.make_applicant()):
+			self.assertRaises(
+				frappe.ValidationError, save_application, {**self.base_values(), "contacts": ["x"]}
+			)
+
+	def test_tax_number_formats_are_shared_with_the_portal(self):
+		"""The portal checks the KRA PIN with the same pattern the server enforces."""
+		with self.set_user(self.make_applicant()):
+			formats = get_tax_id_formats().data
+
+		self.assertEqual(formats["Kenya"]["example"], "P051234567X")
+
+	def test_a_bad_kra_pin_is_refused_on_save(self):
+		"""The server rejects a malformed KRA PIN even if the portal check was skipped."""
+		with self.set_user(self.make_applicant()):
+			self.assertRaises(
+				frappe.ValidationError,
+				save_application,
+				{**self.base_values(), "country": "Kenya", "tax_id": "A12"},
+			)
+
+	def test_guests_cannot_read_tax_number_formats(self):
+		"""The format list is for signed-in applicants only."""
+		with self.set_user("Guest"):
+			self.assertRaises(frappe.PermissionError, get_tax_id_formats)
+
+	def test_the_billing_address_does_not_count_as_a_delivery_address(self):
+		"""A customer must give a delivery address of its own, even if it matches the billing one."""
+		applicant = self.make_applicant()
+		with self.set_user(applicant):
+			saved = save_application(
+				{**self.base_values("Customer"), "addresses": [self.address(is_shipping_address=1)]}
+			)
+			progress = get_application_progress(saved["name"])
+
+		self.assertFalse(saved["addresses"][0]["is_shipping_address"])
+		self.assertIn("A delivery address", progress["missing_details"])

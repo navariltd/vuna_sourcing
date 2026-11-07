@@ -35,14 +35,6 @@
   "contacts",
   "section_addresses",
   "addresses",
-  "bank_tab",
-  "bank",
-  "bank_account_no",
-  "account_holder_name",
-  "column_break_bank",
-  "iban",
-  "branch_code",
-  "swift_number",
   "documents_tab",
   "required_documents",
   "review_tab",
@@ -53,8 +45,6 @@
   "review_remarks",
   "section_outcome",
   "party",
-  "column_break_outcome",
-  "bank_account",
   "amended_from"
  ],
  "fields": [
@@ -73,7 +63,7 @@
    "set_only_once": 1
   },
   {
-   "description": "Supplier \u2014 we buy from them. Customer \u2014 they buy from us. Decides what is asked and what approval creates.",
+   "description": "Supplier — we buy from them. Customer — they buy from us. Decides what is asked and what approval creates.",
    "fieldname": "party_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -93,7 +83,7 @@
    "reqd": 1
   },
   {
-   "description": "Company, Individual or Partnership \u2014 carried onto the Supplier or Customer on approval.",
+   "description": "Company, Individual or Partnership — carried onto the Supplier or Customer on approval.",
    "fetch_from": "onboarding_template.entity_type",
    "fieldname": "entity_type",
    "fieldtype": "Select",
@@ -223,7 +213,7 @@
    "label": "Contacts & Addresses"
   },
   {
-   "description": "One primary contact. Tick Billing on whoever handles invoices \u2014 without one, the primary contact does both.",
+   "description": "One primary contact. Tick Billing on whoever handles invoices — without one, the primary contact does both.",
    "fieldname": "section_contacts",
    "fieldtype": "Section Break",
    "label": "Contacts"
@@ -235,7 +225,7 @@
    "options": "Party Onboarding Contact"
   },
   {
-   "description": "One primary (registered / billing) address. Customers also mark where goods are delivered.",
+   "description": "One billing address (ticked Primary). Customers also need at least one address ticked Deliver Here, where goods are delivered.",
    "fieldname": "section_addresses",
    "fieldtype": "Section Break",
    "label": "Addresses"
@@ -245,47 +235,6 @@
    "fieldtype": "Table",
    "label": "Addresses",
    "options": "Party Onboarding Address"
-  },
-  {
-   "fieldname": "bank_tab",
-   "fieldtype": "Tab Break",
-   "label": "Bank Details"
-  },
-  {
-   "fieldname": "bank",
-   "fieldtype": "Link",
-   "label": "Bank",
-   "options": "Bank"
-  },
-  {
-   "fieldname": "bank_account_no",
-   "fieldtype": "Data",
-   "label": "Bank Account Number"
-  },
-  {
-   "fieldname": "account_holder_name",
-   "fieldtype": "Data",
-   "label": "Account Holder Name"
-  },
-  {
-   "fieldname": "column_break_bank",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "iban",
-   "fieldtype": "Data",
-   "label": "IBAN",
-   "options": "IBAN"
-  },
-  {
-   "fieldname": "branch_code",
-   "fieldtype": "Data",
-   "label": "Branch Code"
-  },
-  {
-   "fieldname": "swift_number",
-   "fieldtype": "Data",
-   "label": "SWIFT / BIC"
   },
   {
    "fieldname": "documents_tab",
@@ -355,19 +304,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_outcome",
-   "fieldtype": "Column Break"
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "bank_account",
-   "fieldtype": "Link",
-   "label": "Bank Account",
-   "no_copy": 1,
-   "options": "Bank Account",
-   "read_only": 1
-  },
-  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -381,7 +317,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-13 18:41:41.434319",
+ "modified": "2026-11-07 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Party Onboarding Request",

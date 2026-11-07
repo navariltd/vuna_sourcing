@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { Button, ErrorMessage, FormControl, Spinner, createResource } from "frappe-ui";
 import type { ApiResponse, SignupContext, SignupResult } from "@/types/api";
 import { PARTY_COPY, joinNouns } from "@/data/parties";
@@ -24,7 +24,11 @@ const signupContext = computed<SignupContext | null>(
 );
 
 const isOpen = computed(() => !!signupContext.value?.is_open);
-const appTitle = computed(() => signupContext.value?.app_title ?? "Portal");
+const appTitle = computed(() => signupContext.value?.app_title || "Portal");
+
+watch(appTitle, (title) => (document.title = `Create your account · ${title}`), {
+	immediate: true,
+});
 
 const partyTypes = computed(() => (signupContext.value?.party_types ?? []) as PartyType[]);
 const nouns = computed(() => joinNouns(partyTypes.value) || "supplier or customer");
@@ -86,58 +90,42 @@ async function submit() {
 </script>
 
 <template>
-	<div class="min-h-full bg-surface-white text-ink-gray-9 lg:flex">
-		<aside
-			class="relative hidden overflow-hidden bg-surface-gray-5 lg:flex lg:w-[46%] lg:flex-col"
-		>
-			<div
-				aria-hidden="true"
-				class="pointer-events-none absolute -right-32 -top-32 size-[34rem] rounded-full border-[5rem] border-surface-gray-4/50"
-			/>
-
-			<div
-				aria-hidden="true"
-				class="pointer-events-none absolute -bottom-48 -left-32 size-[30rem] rounded-full bg-surface-gray-4/40 blur-3xl"
-			/>
-
-			<div class="relative flex h-full flex-col px-12 py-10 xl:px-16">
-				<div class="flex flex-col items-start gap-3">
-					<span class="text-sm font-semibold text-ink-gray-9">
-						{{ appTitle }}
-					</span>
-
-					<div
-						class="rounded-full flex size-40 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-outline-gray-2"
+	<div class="min-h-full bg-surface-base text-ink-gray-9 lg:flex">
+		<aside class="hidden bg-surface-gray-10 lg:flex lg:w-[46%] lg:flex-col">
+			<div class="flex h-full flex-col px-12 py-10 xl:px-16">
+				<div class="flex items-center gap-3">
+					<span
+						class="grid size-14 shrink-0 place-items-center overflow-hidden rounded-8 bg-surface-base"
 					>
 						<img
 							v-if="logo"
 							:src="logo"
 							:alt="appTitle"
-							class="size-full rounded-full object-contain p-2"
+							class="size-full object-contain p-1.5"
 						/>
-
-						<span v-else class="text-lg font-bold text-ink-gray-8">
+						<span v-else class="text-xl font-bold text-ink-gray-9">
 							{{ appTitle.charAt(0) }}
 						</span>
-					</div>
+					</span>
+					<span class="text-lg font-semibold text-ink-base">{{ appTitle }}</span>
 				</div>
 
-				<div class="relative mt-auto max-w-xl pb-8 pt-20">
+				<div class="mt-auto max-w-xl pb-8 pt-16">
 					<div
-						class="mb-5 inline-flex items-center gap-2 rounded-full border border-outline-gray-2 bg-white/70 px-3 py-1.5 text-xs font-medium text-ink-gray-7 backdrop-blur"
+						class="mb-5 inline-flex items-center gap-2 rounded-full border border-outline-gray-8 px-3 py-1.5 text-xs font-medium text-ink-gray-4"
 					>
-						<span class="size-1.5 rounded-full bg-ink-green-6" />
+						<span class="size-1.5 rounded-full bg-surface-base" />
 						One account. Multiple relationships.
 					</div>
 
 					<h1
-						class="text-4xl font-semibold leading-[1.08] tracking-[-0.03em] text-ink-gray-9 xl:text-5xl"
+						class="text-4xl font-semibold leading-[1.08] tracking-[-0.03em] text-ink-base xl:text-5xl"
 					>
 						Less paperwork.
 						<span class="text-ink-gray-5"> More business. </span>
 					</h1>
 
-					<p class="mt-5 max-w-lg text-base leading-7 text-ink-gray-6">
+					<p class="mt-5 max-w-lg text-base leading-7 text-ink-gray-4">
 						Create one account and manage your relationship with
 						{{ appTitle }} from a single place — whether you supply us, buy from us, or
 						both.
@@ -152,34 +140,26 @@ async function submit() {
 								? partyTypes
 								: (['Supplier', 'Customer'] as PartyType[])"
 							:key="partyType"
-							class="group rounded-5 border border-outline-gray-2 bg-white/80 p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
+							class="rounded-8 border border-outline-gray-8 p-4"
 						>
-							<div class="flex items-start justify-between">
-								<div
-									class="flex size-9 items-center justify-center rounded-lg bg-surface-gray-2"
-								>
-									<i
-										:class="[
-											PARTY_COPY[partyType].icon,
-											'size-4 text-ink-gray-8',
-										]"
-									/>
-								</div>
-
+							<span
+								class="grid size-9 place-items-center rounded-6 bg-surface-base"
+								aria-hidden="true"
+							>
 								<i
-									class="lucide-arrow-up-right size-4 text-ink-gray-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+									:class="[PARTY_COPY[partyType].icon, 'size-4 text-ink-gray-9']"
 								/>
-							</div>
+							</span>
 
-							<p class="mt-5 text-sm font-semibold text-ink-gray-9">
+							<p class="mt-4 text-sm font-semibold text-ink-base">
 								{{ PARTY_COPY[partyType].headline }}
 							</p>
 
-							<p class="mt-1 text-xs font-medium text-ink-gray-5">
+							<p class="mt-0.5 text-xs font-medium text-ink-gray-5">
 								{{ PARTY_COPY[partyType].noun }}
 							</p>
 
-							<p class="mt-3 text-xs leading-5 text-ink-gray-6">
+							<p class="mt-3 text-xs leading-5 text-ink-gray-4">
 								{{ PARTY_COPY[partyType].pitch }}
 							</p>
 						</div>
@@ -191,14 +171,15 @@ async function submit() {
 							:key="item.title"
 							class="flex items-start gap-3"
 						>
-							<div
-								class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-outline-gray-2"
+							<span
+								class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-outline-gray-8"
+								aria-hidden="true"
 							>
-								<i :class="[item.icon, 'size-3.5 text-ink-gray-8']" />
-							</div>
+								<i :class="[item.icon, 'size-3.5 text-ink-base']" />
+							</span>
 
 							<div>
-								<p class="text-sm font-medium text-ink-gray-8">
+								<p class="text-sm font-medium text-ink-base">
 									{{ item.title }}
 								</p>
 
@@ -210,45 +191,45 @@ async function submit() {
 					</div>
 				</div>
 
-				<div class="flex items-center justify-between border-t border-outline-gray-2 pt-5">
+				<div class="flex items-center justify-between border-t border-outline-gray-8 pt-5">
 					<p class="text-xs text-ink-gray-5">Secure partner onboarding</p>
 
 					<a
 						:href="loginUrl()"
-						class="inline-flex items-center gap-1 text-xs font-medium text-ink-gray-8 hover:underline"
+						class="inline-flex items-center gap-1 text-xs font-medium text-ink-base hover:underline"
 					>
 						Sign in
-						<i class="lucide-arrow-up-right size-3" />
+						<i class="lucide-arrow-up-right size-3" aria-hidden="true" />
 					</a>
 				</div>
 			</div>
 		</aside>
 
 		<div
-			class="flex items-center justify-between border-b border-outline-gray-2 px-5 py-4 lg:hidden"
+			class="flex items-center justify-between gap-3 border-b border-outline-gray-2 bg-surface-base px-4 py-3 lg:hidden"
 		>
-			<div class="flex flex-col items-start gap-3">
-				<span class="text-sm font-semibold text-ink-gray-9">
-					{{ appTitle }}
-				</span>
-
-				<div
-					class="rounded-full flex size-16 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-outline-gray-2"
+			<div class="flex min-w-0 items-center gap-2.5">
+				<span
+					class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-6 border border-outline-gray-2 bg-surface-base"
 				>
 					<img
 						v-if="logo"
 						:src="logo"
 						:alt="appTitle"
-						class="size-full rounded-full object-contain p-2"
+						class="size-full object-contain p-1"
 					/>
-
-					<span v-else class="text-lg font-bold text-ink-gray-8">
+					<span v-else class="text-base font-bold text-ink-gray-9">
 						{{ appTitle.charAt(0) }}
 					</span>
-				</div>
+				</span>
+				<span class="truncate text-base font-semibold text-ink-gray-9">{{
+					appTitle
+				}}</span>
 			</div>
 
-			<a :href="loginUrl()" class="text-sm font-medium text-ink-gray-7"> Sign in </a>
+			<a :href="loginUrl()" class="shrink-0 text-sm font-medium text-ink-gray-7">
+				Sign in
+			</a>
 		</div>
 
 		<main
@@ -268,7 +249,7 @@ async function submit() {
 
 				<div
 					v-else-if="!isOpen"
-					class="rounded-5 border border-outline-gray-2 bg-surface-white p-6 shadow-sm sm:p-8"
+					class="rounded-5 border border-outline-gray-2 bg-surface-base p-6 shadow-sm sm:p-8"
 				>
 					<div
 						class="flex size-12 items-center justify-center rounded-xl bg-surface-amber-2"
@@ -325,7 +306,7 @@ async function submit() {
 
 				<div
 					v-else-if="result"
-					class="rounded-5 border border-outline-gray-2 bg-surface-white p-6 text-center sm:p-8"
+					class="rounded-5 border border-outline-gray-2 bg-surface-base p-6 text-center sm:p-8"
 				>
 					<div
 						class="mx-auto flex size-14 items-center justify-center rounded-5"
@@ -399,9 +380,7 @@ async function submit() {
 						</p>
 					</div>
 
-					<div
-						class="rounded-5 border border-outline-gray-2 bg-surface-white p-5 sm:p-6"
-					>
+					<div class="rounded-5 border border-outline-gray-2 bg-surface-base p-5 sm:p-6">
 						<div class="space-y-5">
 							<div class="grid gap-5 sm:grid-cols-2">
 								<FormControl

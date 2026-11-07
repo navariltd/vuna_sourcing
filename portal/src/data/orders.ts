@@ -102,14 +102,20 @@ export interface OrderCategory {
   count: number;
 }
 
-export function fetchOrderCategories(
-  customer: string,
-  company: string | null,
-): Promise<ApiResponse<OrderCategory[]>> {
-  return createResource({ url: `${ORDERS}.get_order_categories` }).fetch({
-    customer,
-    company,
-  });
+export interface OrderCategoryPage {
+  rows: OrderCategory[];
+  has_more: boolean;
+  all_items: number | null;
+}
+
+export function fetchOrderCategories(params: {
+  customer: string;
+  company: string | null;
+  search?: string | null;
+  start?: number;
+  limit?: number;
+}): Promise<ApiResponse<OrderCategoryPage>> {
+  return createResource({ url: `${ORDERS}.get_order_categories` }).fetch(params);
 }
 
 export function fetchOrderableItems(params: {

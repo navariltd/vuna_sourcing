@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Button, ErrorMessage, FormControl, Select, Spinner } from "frappe-ui";
+import { Button, Combobox, ErrorMessage, FormControl, Select, Spinner } from "frappe-ui";
 import QtyStepper from "@/components/QtyStepper.vue";
 import { injectOrderDraft } from "@/composables/useOrderDraft";
 import { money } from "@/data/purchase";
@@ -9,6 +9,8 @@ const emit = defineEmits<{ (e: "save"): void; (e: "send"): void; (e: "clear"): v
 
 const draft = injectOrderDraft();
 
+const PICKER_FROM = 5;
+
 const total = computed(() =>
 	draft.priced.value && draft.lines.value.length
 		? money(draft.priced.value.grand_total, draft.currency.value)
@@ -16,12 +18,33 @@ const total = computed(() =>
 );
 
 const nextStep = computed(() => draft.missing.value[0]?.label ?? null);
+
+const choosesAddress = computed(() => draft.addresses.value.length > 1);
+const usesPicker = computed(() => draft.addresses.value.length >= PICKER_FROM);
+
+const chosenAddress = computed(
+	() => draft.addresses.value.find((option) => option.name === draft.address.value) ?? null
+);
+
+const addressOptions = computed(() =>
+	draft.addresses.value.map((option) => ({
+		label: option.title,
+		value: option.name,
+		description: option.lines || undefined,
+	}))
+);
+
+const addressMissing = computed(
+	() => choosesAddress.value && !draft.address.value && draft.lines.value.length > 0
+);
+
+const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.value.length > 0);
 </script>
 
 <template>
 	<div class="flex min-h-0 flex-col">
 		<div class="cart-body -mr-2 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-4 pr-2">
-			<section aria-label="Items in your cart">
+			<section aria-label="Items in your cart" class="min-w-0">
 				<div
 					v-if="!draft.lines.value.length"
 					class="flex flex-col items-center gap-2 rounded-6 border border-dashed border-outline-gray-3 px-4 py-8 text-center"
@@ -59,61 +82,119 @@ const nextStep = computed(() => draft.missing.value[0]?.label ?? null);
 					<li
 						v-for="line in draft.lines.value"
 						:key="`${line.item_code}::${line.uom}`"
-						class="flex flex-col gap-2 py-3 first:pt-0"
+						class="flex gap-3 py-3 first:pt-0"
 					>
-						<div class="flex items-start justify-between gap-3">
-							<p class="min-w-0 text-base font-medium leading-snug text-ink-gray-9">
-								{{ line.item_name }}
-							</p>
-							<p
-								class="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-ink-gray-9"
-							>
-								<template v-if="draft.pricedLine(line)">
-									{{
-										money(draft.pricedLine(line)!.amount, draft.currency.value)
-									}}
-								</template>
-								<span
-									v-else
-									class="inline-block h-3.5 w-16 animate-pulse rounded bg-surface-gray-2"
-								/>
-							</p>
-						</div>
-						<div class="flex items-center justify-between gap-3">
-							<div class="flex min-w-0 items-center gap-2 text-p-sm text-ink-gray-6">
-								<Select
-									v-if="line.uoms.length > 1"
-									size="sm"
-									class="w-28"
-									:aria-label="`Unit for ${line.item_name}`"
-									:options="
-										line.uoms.map((option) => ({
-											label: option.uom,
-											value: option.uom,
-										}))
-									"
-									:model-value="line.uom"
-									@update:model-value="draft.changeUom(line, String($event))"
-								/>
-								<span v-else>{{ line.uom }}</span>
-								<span v-if="draft.pricedLine(line)" class="truncate tabular-nums">
-									×
-									{{ money(draft.pricedLine(line)!.rate, draft.currency.value) }}
-								</span>
-							</div>
-							<QtyStepper
-								class="w-32 shrink-0"
-								size="sm"
-								:model-value="line.qty"
-								:label="line.item_name"
-								@update:model-value="draft.setQty(line, $event)"
+						<span
+							class="grid size-12 shrink-0 place-items-center overflow-hidden rounded-6 bg-surface-gray-2"
+						>
+							<img
+								v-if="line.image"
+								:src="line.image"
+								alt=""
+								loading="lazy"
+								class="size-full object-cover"
 							/>
+							<i
+								v-else
+								class="lucide-package size-5 text-ink-gray-5"
+								aria-hidden="true"
+							/>
+						</span>
+						<div class="flex min-w-0 flex-1 flex-col gap-2">
+							<div class="flex items-start justify-between gap-3">
+								<p
+									class="min-w-0 text-base font-medium leading-snug text-ink-gray-9"
+								>
+									{{ line.item_name }}
+								</p>
+								<p
+									class="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-ink-gray-9"
+								>
+									<template v-if="draft.pricedLine(line)">
+										{{
+											money(
+												draft.pricedLine(line)!.amount,
+												draft.currency.value
+											)
+										}}
+									</template>
+									<span
+										v-else
+										class="inline-block h-3.5 w-16 animate-pulse rounded bg-surface-gray-2"
+									/>
+								</p>
+							</div>
+							<div class="flex items-center justify-between gap-3">
+								<div
+									class="flex min-w-0 items-center gap-2 text-p-sm text-ink-gray-6"
+								>
+									<Select
+										v-if="line.uoms.length > 1"
+										size="sm"
+										class="w-28"
+										:aria-label="`Unit for ${line.item_name}`"
+										:options="
+											line.uoms.map((option) => ({
+												label: option.uom,
+												value: option.uom,
+											}))
+										"
+										:model-value="line.uom"
+										@update:model-value="draft.changeUom(line, String($event))"
+									/>
+									<span v-else>{{ line.uom }}</span>
+									<span
+										v-if="draft.pricedLine(line)"
+										class="truncate tabular-nums"
+									>
+										×
+										{{
+											money(
+												draft.pricedLine(line)!.rate,
+												draft.currency.value
+											)
+										}}
+									</span>
+								</div>
+								<QtyStepper
+									class="w-32 shrink-0"
+									size="sm"
+									:model-value="line.qty"
+									:label="line.item_name"
+									@update:model-value="draft.setQty(line, $event)"
+								/>
+							</div>
 						</div>
 					</li>
 				</ul>
 			</section>
 
-			<section class="flex flex-col gap-4 border-t pt-4" aria-label="Delivery">
+			<section
+				class="flex flex-col gap-4 rounded-8 border p-3"
+				:class="
+					addressMissing || deliveryMissing
+						? 'border-outline-amber-3 bg-surface-amber-1'
+						: 'border-outline-gray-2 bg-surface-gray-1'
+				"
+				aria-labelledby="delivery-heading"
+			>
+				<div class="flex items-center gap-2">
+					<span
+						class="grid size-7 shrink-0 place-items-center rounded-full bg-surface-gray-10 text-ink-base"
+						aria-hidden="true"
+					>
+						<i class="lucide-truck size-4" />
+					</span>
+					<div class="min-w-0">
+						<h3 id="delivery-heading" class="text-base font-semibold text-ink-gray-9">
+							Delivery details
+						</h3>
+						<p class="text-p-xs text-ink-gray-6">
+							Needed before you can send the order.
+						</p>
+					</div>
+				</div>
+
 				<FormControl
 					v-model="draft.deliveryDate.value"
 					type="date"
@@ -122,68 +203,95 @@ const nextStep = computed(() => draft.missing.value[0]?.label ?? null);
 					required
 				/>
 
-				<fieldset v-if="draft.addresses.value.length > 1">
-					<legend class="mb-1.5 text-xs text-ink-gray-5">
-						Deliver to <span class="text-ink-red-4">*</span>
-					</legend>
-					<div class="flex flex-col gap-2">
-						<label
-							v-for="option in draft.addresses.value"
-							:key="option.name"
-							class="address-option flex cursor-pointer items-start gap-2.5 rounded-6 border p-3 transition-[background-color,border-color,box-shadow]"
-							:class="
-								draft.address.value === option.name
-									? 'border-outline-gray-7 bg-surface-gray-1 shadow-[0_0_0_1px_var(--outline-gray-7)]'
-									: 'border-outline-gray-2 bg-surface-base hover:border-outline-gray-4'
-							"
-						>
-							<input
-								v-model="draft.address.value"
-								type="radio"
-								name="delivery-address"
-								class="sr-only"
-								:value="option.name"
+				<div v-if="choosesAddress">
+					<Combobox
+						v-if="usesPicker"
+						v-model="draft.address.value"
+						trigger="button"
+						label="Deliver to"
+						required
+						placeholder="Choose a delivery address"
+						empty-text="No address matches"
+						:options="addressOptions"
+						:error="
+							addressMissing
+								? 'Choose where we should deliver this order.'
+								: undefined
+						"
+					>
+						<template #prefix>
+							<i
+								class="lucide-map-pin size-4 shrink-0 text-ink-gray-6"
+								aria-hidden="true"
 							/>
-							<span
-								class="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
+						</template>
+					</Combobox>
+
+					<fieldset v-else>
+						<legend class="mb-1.5 text-xs text-ink-gray-5">
+							Deliver to <span class="text-ink-red-4">*</span>
+						</legend>
+						<div class="flex flex-col gap-2">
+							<label
+								v-for="option in draft.addresses.value"
+								:key="option.name"
+								class="address-option flex cursor-pointer items-start gap-2.5 rounded-6 border p-3 transition-[background-color,border-color,box-shadow]"
 								:class="
 									draft.address.value === option.name
-										? 'border-outline-gray-9 bg-surface-gray-10'
-										: 'border-outline-gray-4 bg-surface-base'
+										? 'border-outline-gray-7 bg-surface-base shadow-[0_0_0_1px_var(--outline-gray-7)]'
+										: 'border-outline-gray-2 bg-surface-base hover:border-outline-gray-4'
 								"
-								aria-hidden="true"
 							>
-								<span
-									v-if="draft.address.value === option.name"
-									class="size-1.5 rounded-full bg-surface-base"
+								<input
+									v-model="draft.address.value"
+									type="radio"
+									name="delivery-address"
+									class="sr-only"
+									:value="option.name"
 								/>
-							</span>
-							<span class="min-w-0 flex-1">
-								<span class="flex items-center justify-between gap-2">
+								<span
+									class="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
+									:class="
+										draft.address.value === option.name
+											? 'border-outline-gray-9 bg-surface-gray-10'
+											: 'border-outline-gray-4 bg-surface-base'
+									"
+									aria-hidden="true"
+								>
 									<span
-										class="truncate text-base font-medium"
-										:class="
-											draft.address.value === option.name
-												? 'text-ink-gray-9'
-												: 'text-ink-gray-8'
-										"
+										v-if="draft.address.value === option.name"
+										class="size-1.5 rounded-full bg-surface-base"
+									/>
+								</span>
+								<span class="min-w-0 flex-1">
+									<span
+										class="block truncate text-base font-medium text-ink-gray-9"
 									>
 										{{ option.title }}
 									</span>
-									<span
-										v-if="draft.address.value === option.name"
-										class="shrink-0 rounded-full bg-surface-gray-10 px-2 py-0.5 text-xs font-semibold text-ink-base"
-									>
-										Selected
+									<span class="block text-p-sm text-ink-gray-6">
+										{{ option.lines || "No address lines on file" }}
 									</span>
 								</span>
-								<span class="block text-p-sm text-ink-gray-6">
-									{{ option.lines || "No address lines on file" }}
-								</span>
-							</span>
-						</label>
-					</div>
-				</fieldset>
+							</label>
+						</div>
+						<p
+							v-if="addressMissing"
+							class="mt-1.5 text-p-xs font-medium text-ink-amber-7"
+							role="alert"
+						>
+							Choose where we should deliver this order.
+						</p>
+					</fieldset>
+
+					<p
+						v-if="usesPicker && chosenAddress"
+						class="mt-2 flex items-start gap-1.5 text-p-sm text-ink-gray-7"
+					>
+						<i class="lucide-check mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+						<span>{{ chosenAddress.lines || chosenAddress.title }}</span>
+					</p>
+				</div>
 				<div v-else-if="draft.addresses.value.length === 1" class="text-p-sm">
 					<p class="text-xs text-ink-gray-5">Deliver to</p>
 					<p class="mt-1 text-ink-gray-8">
@@ -193,7 +301,7 @@ const nextStep = computed(() => draft.missing.value[0]?.label ?? null);
 						>
 					</p>
 				</div>
-				<p v-else class="text-p-sm text-ink-gray-5">
+				<p v-else class="text-p-sm text-ink-gray-6">
 					We do not have a delivery address for you yet. Our team will confirm where to
 					deliver.
 				</p>
@@ -206,11 +314,6 @@ const nextStep = computed(() => draft.missing.value[0]?.label ?? null);
 					maxlength="140"
 				/>
 			</section>
-
-			<p class="text-p-xs text-ink-gray-5">
-				Prices come from your account's price list. We confirm every order before it is
-				processed.
-			</p>
 		</div>
 
 		<div

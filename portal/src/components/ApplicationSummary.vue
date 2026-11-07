@@ -4,12 +4,11 @@ import { Avatar, Badge, Button } from "frappe-ui";
 import { fullName } from "@/data/application";
 import type { Application, ApplicationAddress, ApplicationContact } from "@/data/application";
 
-export type SummarySection = "type" | "business" | "people" | "bank" | "documents";
+export type SummarySection = "type" | "business" | "people" | "documents";
 
 const props = defineProps<{
 	application: Partial<Application>;
 	individual?: boolean;
-	showBank?: boolean;
 	editable?: boolean;
 	lockType?: boolean;
 }>();
@@ -41,15 +40,6 @@ const business = computed(() => [
 	...(props.individual ? [] : [["Website", props.application.website]]),
 ]);
 
-const bank = computed(() => [
-	["Bank", props.application.bank],
-	["Account number", props.application.bank_account_no],
-	["Account holder", props.application.account_holder_name],
-	["Branch code", props.application.branch_code],
-	["IBAN", props.application.iban],
-	["SWIFT / BIC", props.application.swift_number],
-]);
-
 function contactRole(contact: ApplicationContact) {
 	const roles = [
 		contact.is_primary_contact ? "Primary" : null,
@@ -60,7 +50,7 @@ function contactRole(contact: ApplicationContact) {
 
 function addressRole(address: ApplicationAddress) {
 	if (address.is_primary_address)
-		return address.is_shipping_address ? "Registered · deliveries" : "Registered";
+		return address.is_shipping_address ? "Billing · deliveries" : "Billing";
 	return address.is_shipping_address ? "Delivery" : address.address_type;
 }
 
@@ -187,26 +177,6 @@ function fullAddress(address: ApplicationAddress) {
 					No contacts or addresses yet.
 				</p>
 			</div>
-		</section>
-
-		<section v-if="showBank" class="summary-card">
-			<header class="summary-head">
-				<h3>Bank details</h3>
-				<Button
-					v-if="editable"
-					size="sm"
-					variant="subtle"
-					icon-left="lucide-pencil"
-					label="Edit"
-					@click="emit('edit', 'bank')"
-				/>
-			</header>
-			<dl class="summary-grid">
-				<div v-for="[label, value] in bank" :key="label as string">
-					<dt>{{ label }}</dt>
-					<dd>{{ value || "—" }}</dd>
-				</div>
-			</dl>
 		</section>
 
 		<section class="summary-card">

@@ -20,7 +20,7 @@ import { Button } from "frappe-ui";
 			></div>
 
 			<div
-				class="relative flex size-24 items-center justify-center rounded-3xl border border-outline-gray-2 bg-surface-white shadow-sm"
+				class="relative flex size-24 items-center justify-center rounded-3xl border border-outline-gray-2 bg-surface-base shadow-sm"
 			>
 				<i class="lucide-compass size-11 text-ink-gray-6" aria-hidden="true" />
 			</div>

@@ -25,9 +25,10 @@ class SourcingSettings(Document):
 		allow_opening_before_bids_close: DF.Check
 		allow_opening_below_minimum: DF.Check
 		allowed_file_types: DF.Data | None
+		brand_logo: DF.AttachImage | None
+		brand_name: DF.Data | None
 		contact_email: DF.Data | None
 		create_address_on_approval: DF.Check
-		create_bank_account_on_approval: DF.Check
 		create_contact_on_approval: DF.Check
 		create_purchase_orders_on_award: DF.Check
 		default_customer_group: DF.Link | None
@@ -52,6 +53,7 @@ class SourcingSettings(Document):
 			frappe.throw(_("Invitation Valid For (Days) cannot be negative."))
 
 		self.normalise_allowed_file_types()
+		self.validate_brand_logo()
 
 		if not (self.accept_supplier_applications or self.accept_customer_applications):
 			frappe.msgprint(
@@ -60,6 +62,16 @@ class SourcingSettings(Document):
 				),
 				indicator="orange",
 				alert=True,
+			)
+
+	def validate_brand_logo(self):
+		self.brand_name = (self.brand_name or "").strip() or None
+		if self.brand_logo and self.brand_logo.startswith("/private/"):
+			frappe.throw(
+				_(
+					"The brand logo is a private file, so visitors to the sign-up page cannot see it. Upload it again and leave Is Private unticked."
+				),
+				title=_("Logo Must Be Public"),
 			)
 
 	def normalise_allowed_file_types(self):

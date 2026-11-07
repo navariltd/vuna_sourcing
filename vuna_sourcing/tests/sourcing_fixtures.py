@@ -9,11 +9,22 @@ from vuna_sourcing.tests import make_test_user
 
 class SourcingFixtures:
 	item = "_Test Portal RFQ Item"
+	item_group = "_Test Portal Item Group"
 	committee = "_Test RFQ Opening Committee"
 
 	@classmethod
 	def setUpClass(cls):
 		super().setUpClass()
+
+		if not frappe.db.exists("Item Group", cls.item_group):
+			frappe.get_doc(
+				{
+					"doctype": "Item Group",
+					"item_group_name": cls.item_group,
+					"parent_item_group": "All Item Groups",
+					"publish_on_portal": 1,
+				}
+			).insert(ignore_permissions=True)
 
 		if not frappe.db.exists("Item", cls.item):
 			frappe.get_doc(

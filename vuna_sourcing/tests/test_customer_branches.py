@@ -21,6 +21,7 @@ from vuna_sourcing.api.transactions.customer import (
 	get_sales_orders,
 )
 from vuna_sourcing.api.transactions.customer_orders import get_order_form, save_order
+from vuna_sourcing.api.transactions.search import search_documents
 from vuna_sourcing.overrides.server.customer import search_branches
 from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
@@ -89,9 +90,8 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 				{
 					"doctype": "Item",
 					"item_code": "_Test Portal Branch Item " + frappe.generate_hash(length=6),
-					"item_group": frappe.get_all(
-						"Item Group", filters={"is_group": 0}, limit=1, pluck="name"
-					)[0],
+					"item_group": self.item_group,
+					"publish_on_portal": 1,
 					"stock_uom": "Nos",
 					"is_stock_item": 0,
 					"item_defaults": [{"company": self.company, "default_warehouse": self.warehouse}],
@@ -240,14 +240,62 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(staff):
 			self.assertTrue(frappe.has_permission("Sales Order", doc=self.industrial_order.name))
 
-	def test_the_statement_and_balance_are_only_for_customer_wide_users(self):
-		"""Payments carry no branch, so branch users get no statement or balance."""
+	def test_pending_invoices_follow_the_branch(self):
+		"""A branch user's pending invoices and balance come from their branch invoices only."""
+		mine = self.invoice(self.westlands_order)
+		theirs = self.invoice(self.industrial_order)
+
 		with self.set_user(self.branch_user):
-			self.assertEqual(get_account_statement(self.customer)["companies"], [])
-			self.assertIsNone(get_dashboard(self.customer)["balance"])
+			statement = get_account_statement(self.customer, self.company).data
+			balance = get_dashboard(self.customer)["balance"]
+
+		vouchers = {row["voucher_no"] for row in statement["section"]["rows"]}
+		self.assertIn(mine.name, vouchers)
+		self.assertNotIn(theirs.name, vouchers)
+		self.assertTrue(statement["branch_limited"])
+		self.assertEqual(balance["outstanding"], statement["section"]["totals"]["outstanding"])
 
 		with self.set_user(self.owner_user):
-			self.assertIsNotNone(get_dashboard(self.customer)["balance"])
+			everything = get_account_statement(self.customer, self.company).data
+
+		self.assertTrue(
+			{mine.name, theirs.name} <= {row["voucher_no"] for row in everything["section"]["rows"]}
+		)
+		self.assertFalse(everything["branch_limited"])
+
+	def test_a_branch_user_does_not_see_payments_that_have_no_branch(self):
+		"""Unallocated payments carry no branch, so they stay off a branch user's statement."""
+		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+		self.invoice(self.westlands_order)
+		advance = get_payment_entry("Sales Order", self.industrial_order.name)
+		advance.reference_no = "_Test advance"
+		advance.reference_date = nowdate()
+		advance.paid_amount = advance.received_amount = 40
+		advance.references = []
+		advance.flags.ignore_permissions = True
+		advance.insert()
+		advance.submit()
+
+		with self.set_user(self.branch_user):
+			rows = get_account_statement(self.customer, self.company).data["section"]["rows"]
+		with self.set_user(self.owner_user):
+			owner_rows = get_account_statement(self.customer, self.company).data["section"]["rows"]
+
+		self.assertNotIn(advance.name, {row["voucher_no"] for row in rows})
+		self.assertIn(advance.name, {row["voucher_no"] for row in owner_rows})
+
+	def test_pending_invoices_are_fetched_one_company_at_a_time(self):
+		"""Nothing is fetched until a company is chosen when the customer deals with several."""
+		self.invoice(self.westlands_order)
+
+		with self.set_user(self.owner_user):
+			statement = get_account_statement(self.customer).data
+			self.assertEqual(statement["companies"], [self.company])
+			self.assertEqual(statement["company"], self.company, "a single company is picked for them")
+			self.assertRaises(
+				frappe.ValidationError, get_account_statement, self.customer, "_Test Not Their Company"
+			)
 
 	def test_the_session_says_whether_a_user_has_every_branch(self):
 		"""The session only flags branch-limited users; the branch list comes from its own endpoint."""
@@ -403,3 +451,12 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			self.assertIn(order.name, self.names(get_sales_orders()))
 		with self.set_user(self.branch_user):
 			self.assertNotIn(order.name, self.names(get_sales_orders()))
+
+	def test_search_follows_the_branch(self):
+		"""A branch user's search only finds documents for their branches."""
+		with self.set_user(self.branch_user):
+			groups = search_documents("Customer", self.customer, self.industrial_order.name).data["groups"]
+			own = search_documents("Customer", self.customer, self.westlands_order.name).data["groups"]
+
+		self.assertEqual(groups, [])
+		self.assertEqual(own[0]["results"][0]["name"], self.westlands_order.name)
