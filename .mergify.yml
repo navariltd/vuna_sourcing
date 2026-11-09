@@ -15,7 +15,9 @@ queue_rules:
     merge_conditions:
       - and: *checks_passed
     merge_method: squash
-    commit_message_template: "{{ title }}"
+    commit_message_format:
+      title: pr-title
+      body: empty
 
 pull_request_rules:
   - name: backport every merged develop PR to version-16
