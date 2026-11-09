@@ -26,6 +26,7 @@ import { partyKey, usePortalStore } from "@/stores/portal";
 import type { Party } from "@/stores/portal";
 import { session } from "@/data/session";
 import PartySwitcher from "@/components/PartySwitcher.vue";
+import BranchFilter from "@/components/BranchFilter.vue";
 import PortalSettings from "@/components/PortalSettings.vue";
 import LiveBidDock from "@/components/LiveBidDock.vue";
 
@@ -130,12 +131,16 @@ const SELLING: NavLink[] = [
 	{ label: "Pending Invoices", look: LOOKS.receivable, route: "CustomerStatement" },
 ];
 
+const sellingLinks = computed(() =>
+	SELLING.filter((link) => link.route !== "CustomerStatement" || portal.seesAnyStatement)
+);
+
 const navSections = computed<NavSection[]>(() => {
 	const sections: NavSection[] = [];
 	if (portal.suppliers.length)
 		sections.push({ label: "Buying", links: BUYING, collapsible: true });
 	if (portal.customers.length)
-		sections.push({ label: "Selling", links: SELLING, collapsible: true });
+		sections.push({ label: "Selling", links: sellingLinks.value, collapsible: true });
 	sections.push({
 		label: "Onboarding",
 		collapsible: false,
@@ -150,7 +155,7 @@ const navSections = computed<NavSection[]>(() => {
 });
 
 const tabs = computed(() => {
-	const side = isSupplier.value ? BUYING : isCustomer.value ? SELLING : [];
+	const side = isSupplier.value ? BUYING : isCustomer.value ? sellingLinks.value : [];
 	return side.filter((link) => link.tab);
 });
 
@@ -183,9 +188,10 @@ function runAccountAction(action: () => void) {
 
 <template>
 	<MobileShell v-if="isMobile">
-		<PartySwitcher
-			class="sticky top-0 z-10 border-b border-outline-gray-2 bg-surface-white px-4 py-2"
-		/>
+		<div class="sticky top-0 z-10 bg-surface-white">
+			<PartySwitcher class="border-b border-outline-gray-2 px-4 py-2" />
+			<BranchFilter class="border-b border-outline-gray-2 px-4 py-2" />
+		</div>
 
 		<div class="relative overflow-x-clip">
 			<RouterView v-slot="{ Component, route: pageRoute }">
@@ -306,6 +312,7 @@ function runAccountAction(action: () => void) {
 				</SidebarHeader>
 
 				<PartySwitcher class="px-2 pb-1" />
+				<BranchFilter class="px-2 pb-1" />
 
 				<div class="flex-1 overflow-y-auto px-2 py-1">
 					<SidebarItem

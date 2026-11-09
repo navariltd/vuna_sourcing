@@ -17,12 +17,14 @@ import {
 import type { CreditRequestPage, CreditRequestRow } from "@/data/creditRequests";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { useBranchFilter, withBranchColumn } from "@/composables/useBranchFilter";
 import { LOOKS } from "@/data/accents";
 
 const portal = usePortalStore();
 const isMobile = useIsMobile();
 
 const filters = ref<Record<string, string>>({});
+const { branchFilter, showBranch, branchTitle, clearBranches } = useBranchFilter();
 const pageLength = ref(20);
 
 const customer = computed(() =>
@@ -41,6 +43,7 @@ function load() {
 
 	creditRequestList.fetch({
 		customer: customer.value,
+		branches: branchFilter.value,
 		search: filters.value.search || null,
 		status: filters.value.status || null,
 		start: 0,
@@ -48,7 +51,10 @@ function load() {
 	});
 }
 
-watch([customer, filters, pageLength], load, { immediate: true, deep: true });
+watch([customer, branchFilter, filters, pageLength], load, {
+	immediate: true,
+	deep: true,
+});
 
 const filterFields = computed<FilterField[]>(() => [
 	{
@@ -63,7 +69,7 @@ const filterFields = computed<FilterField[]>(() => [
 	},
 ]);
 
-const columns = computed(() => {
+const baseColumns = computed(() => {
 	if (isMobile.value) {
 		return [
 			{ label: "Request", key: "name", width: "minmax(140px, 2fr)" },
@@ -79,6 +85,10 @@ const columns = computed(() => {
 		{ label: "Status", key: "status", width: "130px" },
 	];
 });
+
+const columns = computed(() =>
+	withBranchColumn(baseColumns.value, showBranch.value && !isMobile.value)
+);
 
 const options = {
 	selectable: false,
@@ -143,6 +153,15 @@ function loadMore() {
 			</div>
 
 			<EmptyState
+				v-else-if="!rows.length && branchFilter && !filters.search && !filters.status"
+				icon="lucide-map-pin-off"
+				title="No credit requests for the branches you picked"
+				description="Pick other branches, or show every branch you have access to."
+			>
+				<Button variant="subtle" label="Show all branches" @click="clearBranches" />
+			</EmptyState>
+
+			<EmptyState
 				v-else-if="!rows.length && (filters.search || filters.status)"
 				icon="lucide-search-x"
 				title="No request matches"
@@ -200,6 +219,14 @@ function loadMore() {
 							class="text-base text-ink-gray-7"
 						>
 							{{ money(row.total_amount, row.currency) }}
+						</span>
+
+						<span
+							v-else-if="column.key === 'branch'"
+							class="truncate text-base text-ink-gray-7"
+							:title="branchTitle(row.branch)"
+						>
+							{{ branchTitle(row.branch) || "—" }}
 						</span>
 
 						<Badge

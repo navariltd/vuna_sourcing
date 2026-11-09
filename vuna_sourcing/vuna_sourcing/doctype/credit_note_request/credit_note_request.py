@@ -7,6 +7,8 @@ from frappe.model.document import Document
 from frappe.query_builder.functions import Abs, IfNull, Sum
 from frappe.utils import cint, escape_html, flt, get_link_to_form, now_datetime
 
+from vuna_sourcing.api.transactions.branches import BRANCH_FIELD
+
 DOCTYPE = "Credit Note Request"
 SALES_INVOICE = "Sales Invoice"
 REQUEST_FIELD = "credit_note_request"
@@ -69,6 +71,7 @@ class CreditNoteRequest(Document):
 		reviewed_by: DF.Link | None
 		reviewed_on: DF.Datetime | None
 		sales_invoice: DF.Link
+		shipping_address_name: DF.Link | None
 		total_amount: DF.Currency
 		transaction_date: DF.Date | None
 	# end: auto-generated types
@@ -80,9 +83,17 @@ class CreditNoteRequest(Document):
 	def validate(self):
 		self.validate_reason()
 		self.refresh_lines()
+		self.set_branch()
 
 		if self.docstatus == 0 and self.request_status != RETURNED:
 			self.request_status = None
+
+	def set_branch(self):
+		self.shipping_address_name = (
+			frappe.db.get_value(SALES_INVOICE, self.sales_invoice, BRANCH_FIELD)
+			if self.sales_invoice
+			else None
+		)
 
 	def before_submit(self):
 		self.drop_unchanged_lines()

@@ -11,7 +11,14 @@ from frappe.utils import cint, cstr, flt, getdate, nowdate, strip_html
 from pypika.terms import ExistsCriterion
 
 from vuna_sourcing.api.response import ApiResponse
-from vuna_sourcing.api.transactions.common import as_administrator, party_scope
+from vuna_sourcing.api.transactions.branches import (
+	BRANCH_FIELD,
+	branch_restrictions,
+	customer_scope_filters,
+	is_in_branch_scope,
+	linked_addresses,
+)
+from vuna_sourcing.api.transactions.common import all_of, as_administrator, party_scope
 from vuna_sourcing.utils import CUSTOMER
 
 SALES_ORDER = "Sales Order"
@@ -235,32 +242,12 @@ def delivery_date_of(value: str | None, required: bool = True):
 
 
 def customer_addresses(customer: str) -> list[dict]:
-	address = frappe.qb.DocType("Address")
-	link = frappe.qb.DocType("Dynamic Link")
+	addresses = linked_addresses([customer], enabled_only=True)
+	allowed = branch_restrictions().get(customer)
+	if allowed is None:
+		return addresses
 
-	return (
-		frappe.qb.from_(address)
-		.join(link)
-		.on((link.parent == address.name) & (link.parenttype == "Address"))
-		.select(
-			address.name,
-			address.address_title,
-			address.address_type,
-			address.address_line1,
-			address.address_line2,
-			address.city,
-			address.state,
-			address.country,
-			address.is_primary_address,
-			address.is_shipping_address,
-		)
-		.where(link.link_doctype == CUSTOMER)
-		.where(link.link_name == customer)
-		.where(address.disabled == 0)
-		.orderby(address.is_shipping_address, order=Order.desc)
-		.orderby(address.is_primary_address, order=Order.desc)
-		.orderby(address.creation, order=Order.asc)
-	).run(as_dict=True)
+	return [address for address in addresses if address.name in allowed]
 
 
 def address_option(address: dict) -> dict:
@@ -285,6 +272,8 @@ def address_option(address: dict) -> dict:
 def delivery_address(customer: str, chosen: str | None) -> str | None:
 	names = [address.name for address in customer_addresses(customer)]
 	if not names:
+		if branch_restrictions().get(customer) is not None:
+			frappe.throw(_("None of your branches can receive orders right now. Please contact us."))
 		return None
 
 	if not chosen and len(names) == 1:
@@ -312,20 +301,40 @@ def validate_po_number(doc) -> None:
 		},
 		"name",
 	)
-	if used_on:
+	if not used_on:
+		return
+
+	if not is_in_branch_scope(doc.customer, frappe.db.get_value(SALES_ORDER, used_on, BRANCH_FIELD)):
 		frappe.throw(
-			_("You already used PO number {0} on order {1}. Use a different PO number.").format(
-				doc.po_no, used_on
-			)
+			_("PO number {0} is already used on another order. Use a different PO number.").format(doc.po_no)
 		)
+
+	frappe.throw(
+		_("You already used PO number {0} on order {1}. Use a different PO number.").format(
+			doc.po_no, used_on
+		)
+	)
+
+
+def own_portal_order(name: str, customer: str) -> str:
+	mine = frappe.db.get_value(
+		SALES_ORDER,
+		all_of(customer_scope_filters(SALES_ORDER, [customer]), {"name": name, FROM_PORTAL_FIELD: 1}),
+		"name",
+	)
+	if not mine:
+		frappe.throw(_("This order does not belong to you."), frappe.PermissionError)
+
+	return mine
 
 
 def locked_portal_order(name: str, customer: str):
-	if not frappe.db.exists(SALES_ORDER, {"name": name, "customer": customer, FROM_PORTAL_FIELD: 1}):
-		frappe.throw(_("This order does not belong to you."), frappe.PermissionError)
-
-	doc = frappe.get_doc(SALES_ORDER, name, for_update=True)
-	if doc.customer != customer or not doc.get(FROM_PORTAL_FIELD):
+	doc = frappe.get_doc(SALES_ORDER, own_portal_order(name, customer), for_update=True)
+	if (
+		doc.customer != customer
+		or not doc.get(FROM_PORTAL_FIELD)
+		or not is_in_branch_scope(customer, doc.get(BRANCH_FIELD))
+	):
 		frappe.throw(_("This order does not belong to you."), frappe.PermissionError)
 
 	return doc
@@ -571,10 +580,7 @@ def get_order_form(customer: str, name: str | None = None) -> ApiResponse[dict]:
 
 	order = None
 	if name:
-		if not frappe.db.exists(SALES_ORDER, {"name": name, "customer": customer, FROM_PORTAL_FIELD: 1}):
-			frappe.throw(_("This order does not belong to you."), frappe.PermissionError)
-
-		draft = frappe.get_doc(SALES_ORDER, name)
+		draft = frappe.get_doc(SALES_ORDER, own_portal_order(name, customer))
 		if draft.docstatus != 0 or draft.get(PORTAL_STATUS_FIELD) != ORDER_PENDING:
 			return ApiResponse.error(_("This order has been sent, so it can no longer be changed."))
 		order = order_view(draft)

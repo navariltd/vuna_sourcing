@@ -11,6 +11,7 @@ import { SALES_INVOICE_STATUS_THEME, creditNoteList, salesInvoiceList } from "@/
 import type { SalesInvoiceRow } from "@/data/selling";
 import { usePortalStore } from "@/stores/portal";
 import { useIsMobile } from "@/composables/useViewport";
+import { useBranchFilter, withBranchColumn } from "@/composables/useBranchFilter";
 import { LOOKS } from "@/data/accents";
 
 const props = defineProps<{ creditNotes?: boolean }>();
@@ -39,6 +40,7 @@ const copy = props.creditNotes
 	  };
 
 const filters = ref<Record<string, string>>({});
+const { branchFilter, showBranch, branchTitle, clearBranches } = useBranchFilter();
 const pageLength = ref(20);
 
 const customer = computed(() =>
@@ -56,6 +58,7 @@ function load() {
 
 	list.fetch({
 		customer: customer.value,
+		branches: branchFilter.value,
 		search: filters.value.search || null,
 		credit_notes: props.creditNotes ? 1 : 0,
 		start: 0,
@@ -63,9 +66,12 @@ function load() {
 	});
 }
 
-watch([customer, filters, pageLength], load, { immediate: true, deep: true });
+watch([customer, branchFilter, filters, pageLength], load, {
+	immediate: true,
+	deep: true,
+});
 
-const columns = computed(() => {
+const baseColumns = computed(() => {
 	if (isMobile.value) {
 		return [
 			{ label: copy.label, key: "name", width: "minmax(140px, 2fr)" },
@@ -91,6 +97,10 @@ const columns = computed(() => {
 		{ label: "Status", key: "status", width: "130px" },
 	];
 });
+
+const columns = computed(() =>
+	withBranchColumn(baseColumns.value, showBranch.value && !isMobile.value)
+);
 
 const options = {
 	selectable: false,
@@ -154,6 +164,15 @@ function loadMore() {
 			</div>
 
 			<EmptyState
+				v-else-if="!rows.length && branchFilter && !filters.search"
+				icon="lucide-map-pin-off"
+				:title="`No ${copy.noun}s for the branches you picked`"
+				description="Pick other branches, or show every branch you have access to."
+			>
+				<Button variant="subtle" label="Show all branches" @click="clearBranches" />
+			</EmptyState>
+
+			<EmptyState
 				v-else-if="!rows.length && filters.search"
 				icon="lucide-search-x"
 				:title="`No ${copy.noun} matches that number`"
@@ -206,6 +225,14 @@ function loadMore() {
 							class="text-base text-ink-gray-7"
 						>
 							{{ money(row[column.key], row.currency) }}
+						</span>
+
+						<span
+							v-else-if="column.key === 'branch'"
+							class="truncate text-base text-ink-gray-7"
+							:title="branchTitle(row.branch)"
+						>
+							{{ branchTitle(row.branch) || "—" }}
 						</span>
 
 						<Badge

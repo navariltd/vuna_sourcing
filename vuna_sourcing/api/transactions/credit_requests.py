@@ -8,7 +8,8 @@ from frappe import _
 from frappe.utils import cint, cstr, flt, strip_html
 
 from vuna_sourcing.api.response import ApiResponse
-from vuna_sourcing.api.transactions.common import empty_page, find_documents, page_of, party_scope
+from vuna_sourcing.api.transactions.branches import BRANCH_FIELD, customer_scope_filters, requested_branches
+from vuna_sourcing.api.transactions.common import all_of, empty_page, find_documents, page_of, party_scope
 from vuna_sourcing.utils import CUSTOMER
 from vuna_sourcing.vuna_sourcing.doctype.credit_note_request.credit_note_request import (
 	DOCTYPE,
@@ -35,6 +36,7 @@ REQUEST_FIELDS = [
 	"total_amount",
 	"request_status",
 	"credit_note",
+	BRANCH_FIELD,
 ]
 
 
@@ -56,15 +58,22 @@ def requesting_customer(customer: str | None) -> str:
 
 
 def own_invoice(name: str | None, customer: str) -> str:
-	if not name or not frappe.db.exists(SALES_INVOICE, {"name": name, "customer": customer, "docstatus": 1}):
+	mine = name and frappe.db.get_value(
+		SALES_INVOICE,
+		all_of(customer_scope_filters(SALES_INVOICE, [customer]), {"name": name, "docstatus": 1}),
+		"name",
+	)
+	if not mine:
 		frappe.throw(_("This invoice does not belong to you."), frappe.PermissionError)
 
-	return name
+	return mine
 
 
 def own_request(name: str, customers: list[str]):
 	mine = frappe.db.get_value(
-		DOCTYPE, {"name": name, "customer": ("in", customers or [""]), "docstatus": ("!=", 0)}, "name"
+		DOCTYPE,
+		all_of(customer_scope_filters(DOCTYPE, customers), {"name": name, "docstatus": ("!=", 0)}),
+		"name",
 	)
 	if not mine:
 		frappe.throw(_("This request does not belong to you."), frappe.PermissionError)
@@ -200,6 +209,7 @@ def get_credit_requests(
 	customer: str | None = None,
 	search: str | None = None,
 	status: str | None = None,
+	branches: list | str | None = None,
 	start: int = 0,
 	limit: int = 20,
 ) -> ApiResponse[dict]:
@@ -207,7 +217,10 @@ def get_credit_requests(
 	if not customers:
 		return ApiResponse.success(data={**empty_page(start, limit), "can_request": False})
 
-	filters = {"customer": ("in", customers), "docstatus": ("!=", 0)}
+	filters = all_of(
+		customer_scope_filters(DOCTYPE, customers, branches=requested_branches(customers, branches)),
+		{"docstatus": ("!=", 0)},
+	)
 	requests = find_documents(
 		DOCTYPE, filters, search, REQUEST_FIELDS, search_fields=("name", "sales_invoice")
 	)
@@ -225,6 +238,7 @@ def get_credit_requests(
 			"total_amount": row.total_amount,
 			"status": row.request_status,
 			"credit_note": row.credit_note,
+			"branch": row.get(BRANCH_FIELD),
 		}
 		for row in requests
 		if not status or row.request_status == status
@@ -247,7 +261,7 @@ def get_creditable_invoices(customer: str, search: str | None = None) -> ApiResp
 
 	invoices = find_documents(
 		SALES_INVOICE,
-		{"customer": customer, "docstatus": 1, "is_return": 0},
+		all_of(customer_scope_filters(SALES_INVOICE, [customer]), {"docstatus": 1, "is_return": 0}),
 		search,
 		["name", "posting_date", "po_no", "currency", "grand_total"],
 		search_fields=("name", "po_no"),

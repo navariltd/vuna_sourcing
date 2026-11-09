@@ -16,8 +16,9 @@ add_to_apps_screen = [
 		"name": "vuna_sourcing",
 		"logo": "/assets/vuna_sourcing/images/sourcing-logo.png",
 		"title": "Sourcing",
+		"route": "/desk/sourcing",
 		"has_permission": "vuna_sourcing.api.permission.has_app_permission",
-	}
+	},
 ]
 
 # Includes in <head>
@@ -45,6 +46,7 @@ app_include_js = "vuna_sourcing.bundle.js"
 doctype_js = {
 	"Request for Quotation": "overrides/client/request_for_quotation.js",
 	"Supplier Quotation": "overrides/client/supplier_quotation.js",
+	"Customer": "overrides/client/customer.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -88,6 +90,10 @@ doctype_js = {
 # ------------
 
 after_install = "vuna_sourcing.setup.app_setup.after_install"
+
+on_session_creation = "vuna_sourcing.api.permission.clear_portal_default_app"
+
+get_website_user_home_page = "vuna_sourcing.api.permission.portal_home_page"
 
 # Uninstallation
 # ------------
@@ -196,8 +202,23 @@ doc_events = {
 	"Purchase Order": {
 		"validate": "vuna_sourcing.api.transactions.award.validate_awarded_items",
 	},
+	"Customer": {
+		"validate": "vuna_sourcing.overrides.server.customer.validate_portal_branches",
+	},
+	"Quotation": {
+		"before_submit": "vuna_sourcing.overrides.server.selling_branch.validate_branch",
+	},
+	"Sales Order": {
+		"before_submit": "vuna_sourcing.overrides.server.selling_branch.validate_branch",
+	},
+	"Delivery Note": {
+		"before_submit": "vuna_sourcing.overrides.server.selling_branch.validate_branch",
+	},
 	"Sales Invoice": {
-		"before_submit": "vuna_sourcing.overrides.server.sales_invoice.validate_credit_note_request",
+		"before_submit": [
+			"vuna_sourcing.overrides.server.sales_invoice.validate_credit_note_request",
+			"vuna_sourcing.overrides.server.selling_branch.validate_branch",
+		],
 		"on_submit": "vuna_sourcing.overrides.server.sales_invoice.mark_credit_note_issued",
 		"on_cancel": "vuna_sourcing.overrides.server.sales_invoice.reopen_credit_note_request",
 	},

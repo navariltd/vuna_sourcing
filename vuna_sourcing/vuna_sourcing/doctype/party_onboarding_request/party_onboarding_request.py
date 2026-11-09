@@ -7,6 +7,7 @@ from frappe.model.document import Document
 from frappe.query_builder.functions import IfNull
 from frappe.utils import get_link_to_form, getdate, now_datetime, today
 
+from vuna_sourcing.api.transactions.branches import ACCOUNT_ADMIN_FIELD
 from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type
 
 PENDING_REVIEW = "Pending Review"
@@ -767,7 +768,10 @@ class PartyOnboardingRequest(Document):
 			return
 
 		party.reload()
-		party.append("portal_users", {"user": self.applicant_user})
+		party.append(
+			"portal_users",
+			{"user": self.applicant_user, ACCOUNT_ADMIN_FIELD: int(self.party_type == CUSTOMER)},
+		)
 		party.save(ignore_permissions=True)
 
 	def notify_applicant(self, subject: str, message: str):
