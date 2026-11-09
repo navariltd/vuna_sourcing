@@ -2,6 +2,7 @@ import { onBeforeUnmount, readonly, ref } from "vue";
 
 const MOBILE = "(max-width: 767px)";
 const WIDE = "(min-width: 1280px)";
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
 function useMediaQuery(media: string) {
   const matches = ref(false);
@@ -23,4 +24,8 @@ export function useIsMobile() {
 
 export function useIsWide() {
   return useMediaQuery(WIDE);
+}
+
+export function usePrefersReducedMotion() {
+  return useMediaQuery(REDUCED_MOTION);
 }

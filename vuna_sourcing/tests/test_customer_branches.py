@@ -381,8 +381,10 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 	def test_a_branch_user_orders_only_for_their_branches(self):
 		"""The order form offers the user's branches only, and another branch is refused."""
 		self.use_setting("allow_customer_sales_orders", 1)
+		selling_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+		self.addCleanup(frappe.db.set_single_value, "Selling Settings", "selling_price_list", selling_list)
+		frappe.db.set_single_value("Selling Settings", "selling_price_list", self.price_list)
 		doc = frappe.get_doc("Customer", self.customer)
-		doc.default_price_list = self.price_list
 		doc.append("accounts", {"company": self.company})
 		doc.save(ignore_permissions=True)
 		item = self.make_orderable_item()

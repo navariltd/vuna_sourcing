@@ -1,0 +1,43 @@
+shared:
+  checks_passed: &checks_passed
+    - check-success = Server
+    - check-success = Frappe Linter
+    - check-success = Vulnerable Dependency Check
+
+queue_rules:
+  - name: version-16
+    queue_conditions:
+      - base = version-16
+      - head ~= ^mergify/bp/version-16/
+      - -draft
+      - -conflict
+      - and: *checks_passed
+    merge_conditions:
+      - and: *checks_passed
+    merge_method: squash
+    commit_message_template: "{{ title }}"
+
+pull_request_rules:
+  - name: backport every merged develop PR to version-16
+    conditions:
+      - base = develop
+      - merged
+      - label != no-backport
+      - and: *checks_passed
+    actions:
+      backport:
+        branches:
+          - version-16
+        assignees:
+          - "{{ author }}"
+
+  - name: merge backport PRs into version-16 once checks pass
+    conditions:
+      - base = version-16
+      - head ~= ^mergify/bp/version-16/
+      - -draft
+      - -conflict
+      - and: *checks_passed
+    actions:
+      queue:
+        name: version-16
