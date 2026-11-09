@@ -136,12 +136,8 @@ def item_uoms(items: dict[str, dict]) -> dict[str, dict[str, float]]:
 	return uoms
 
 
-def customer_price_list(customer: str) -> str:
-	from erpnext.accounts.party import get_default_price_list
-
-	price_list = get_default_price_list(frappe.get_cached_doc(CUSTOMER, customer)) or (
-		frappe.db.get_single_value("Selling Settings", "selling_price_list")
-	)
+def portal_price_list() -> str:
+	price_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
 	if not price_list:
 		frappe.throw(_("We cannot price orders for your account yet. Please contact us."))
 
@@ -432,7 +428,7 @@ def fill_order(
 			"delivery_date": delivery_date,
 			"po_no": cstr(po_no).strip()[:PO_NUMBER_LENGTH] or None,
 			"shipping_address_name": shipping_address,
-			"selling_price_list": customer_price_list(customer),
+			"selling_price_list": portal_price_list(),
 			"currency": currency,
 			"ignore_pricing_rule": 1,
 			FROM_PORTAL_FIELD: 1,
@@ -628,7 +624,7 @@ def get_order_categories(
 	start = max(cint(start), 0)
 	limit = min(max(cint(limit), 1), MAX_CATEGORY_PAGE)
 	search = cstr(search).strip()[:SEARCH_LENGTH]
-	price_list = customer_price_list(customer)
+	price_list = portal_price_list()
 
 	query, item = priced_items_query(company, price_list, customer)
 	query = (
@@ -671,7 +667,7 @@ def get_orderable_items(
 	start = max(cint(start), 0)
 	limit = min(max(cint(limit), 1), 50)
 
-	price_list = customer_price_list(customer)
+	price_list = portal_price_list()
 	query, item = priced_items_query(company, price_list, customer)
 	query = query.select(
 		item.name, item.item_name, item.description, item.image, item.stock_uom, item.item_group
