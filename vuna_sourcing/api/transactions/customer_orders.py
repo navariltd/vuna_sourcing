@@ -606,13 +606,10 @@ def get_order_categories(customer: str, company: str | None = None) -> ApiRespon
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
 	company = order_company(customer, company)
-<<<<<<< HEAD
-=======
 	start = max(cint(start), 0)
 	limit = min(max(cint(limit), 1), MAX_CATEGORY_PAGE)
 	search = cstr(search).strip()[:SEARCH_LENGTH]
 	price_list = portal_price_list()
->>>>>>> 70bc3d5 (feat(ui): add mobile animations during navigations)
 
 	query, item = priced_items_query(company, customer_price_list(customer), customer)
 	rows = (
