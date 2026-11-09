@@ -18,6 +18,7 @@ import {
 	SidebarSection,
 } from "frappe-ui";
 import { useIsMobile } from "@/composables/useViewport";
+import { usePageTransition } from "@/composables/usePageTransition";
 import { usePartySwitch } from "@/composables/usePartySwitch";
 import { ACCENTS, LOOKS } from "@/data/accents";
 import type { DocumentLook } from "@/data/accents";
@@ -73,6 +74,7 @@ function switchParty(party: Party) {
 }
 
 const isMobile = useIsMobile();
+const { transitionName, holdLeavingPage } = usePageTransition();
 
 const accountSheet = ref(false);
 const settingsOpen = ref(false);
@@ -185,7 +187,15 @@ function runAccountAction(action: () => void) {
 			class="sticky top-0 z-10 border-b border-outline-gray-2 bg-surface-white px-4 py-2"
 		/>
 
-		<RouterView :key="route.fullPath" />
+		<div class="relative overflow-x-clip">
+			<RouterView v-slot="{ Component, route: pageRoute }">
+				<Transition :name="transitionName" @before-leave="holdLeavingPage">
+					<div :key="pageRoute.fullPath" class="page-layer">
+						<component :is="Component" />
+					</div>
+				</Transition>
+			</RouterView>
+		</div>
 
 		<template #nav>
 			<MobileNav>

@@ -62,6 +62,9 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 			frappe.db.set_single_value, "Sourcing Settings", "allow_customer_sales_orders", current
 		)
 		frappe.db.set_single_value("Sourcing Settings", "allow_customer_sales_orders", 1)
+		selling_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+		self.addCleanup(frappe.db.set_single_value, "Selling Settings", "selling_price_list", selling_list)
+		frappe.db.set_single_value("Selling Settings", "selling_price_list", self.price_list)
 
 		self.customer, self.user = self.make_ordering_customer()
 		self.item_code = self.make_item()
@@ -70,7 +73,6 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 	def make_ordering_customer(self):
 		customer, user = self.make_customer()
 		doc = frappe.get_doc("Customer", customer)
-		doc.default_price_list = self.price_list
 		doc.append("accounts", {"company": self.company})
 		doc.save(ignore_permissions=True)
 		return customer, user
@@ -172,6 +174,43 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(self.user):
 			listed = get_orderable_items(self.customer, self.company, search=self.item_code).data["rows"]
 		self.assertEqual(listed[0]["rate"], 80)
+
+	def test_prices_come_from_the_default_selling_list_not_the_customers_own_list(self):
+		"""The customer's default price list is ignored; the Selling Settings list prices the order."""
+		own_list = "_Test Portal Customer Retail"
+		if not frappe.db.exists("Price List", own_list):
+			frappe.get_doc(
+				{
+					"doctype": "Price List",
+					"price_list_name": own_list,
+					"currency": frappe.get_cached_value("Company", self.company, "default_currency"),
+					"selling": 1,
+					"enabled": 1,
+				}
+			).insert(ignore_permissions=True)
+		frappe.db.set_value("Customer", self.customer, "default_price_list", own_list)
+		frappe.get_doc(
+			{
+				"doctype": "Item Price",
+				"item_code": self.item_code,
+				"price_list": own_list,
+				"price_list_rate": 5,
+			}
+		).insert(ignore_permissions=True)
+		retail_only = self.make_item()
+		frappe.get_doc(
+			{
+				"doctype": "Item Price",
+				"item_code": retail_only,
+				"price_list": own_list,
+				"price_list_rate": 5,
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertEqual(self.order(qty=1)["items"][0]["rate"], 100)
+		with self.set_user(self.user):
+			listed = get_orderable_items(self.customer, self.company, search=retail_only).data["rows"]
+		self.assertEqual(listed, [])
 
 	def test_another_customers_price_is_never_used(self):
 		other, _user = self.make_ordering_customer()
