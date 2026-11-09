@@ -1,0 +1,29 @@
+{
+	"branches": ["version-16"],
+	"tagFormat": "v${version}",
+	"repositoryUrl": "https://github.com/navariltd/vuna_sourcing.git",
+	"plugins": [
+		[
+			"@semantic-release/commit-analyzer",
+			{
+				"preset": "angular",
+				"releaseRules": [{ "breaking": true, "release": false }]
+			}
+		],
+		"@semantic-release/release-notes-generator",
+		[
+			"@semantic-release/exec",
+			{
+				"prepareCmd": "sed -i -E 's/__version__ = \"[0-9]+\\.[0-9]+\\.[0-9]+\"/__version__ = \"${nextRelease.version}\"/' vuna_sourcing/__init__.py"
+			}
+		],
+		[
+			"@semantic-release/git",
+			{
+				"assets": ["vuna_sourcing/__init__.py"],
+				"message": "chore(release): Bumped to Version ${nextRelease.version}\n\n${nextRelease.notes}"
+			}
+		],
+		"@semantic-release/github"
+	]
+}
