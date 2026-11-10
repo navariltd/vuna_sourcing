@@ -9,6 +9,10 @@
   "portal_transactions_tab",
   "section_customer_orders",
   "allow_customer_sales_orders",
+  "column_break_customer_orders",
+  "require_po_document",
+  "section_credit_limits",
+  "show_customer_credit_limits",
   "section_credit_requests",
   "allow_customer_credit_requests",
   "column_break_credit_requests",
@@ -364,12 +368,36 @@
    "fieldname": "brand_logo",
    "fieldtype": "Attach Image",
    "label": "Brand Logo"
+  },
+  {
+   "fieldname": "column_break_customer_orders",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "allow_customer_sales_orders",
+   "description": "When a customer types a PO / LPO number on a portal order, they must attach the LPO document (PDF or image) before they can send the order. Drafts can still be saved without it.",
+   "fieldname": "require_po_document",
+   "fieldtype": "Check",
+   "label": "Require the LPO Document When a PO Number Is Given"
+  },
+  {
+   "fieldname": "section_credit_limits",
+   "fieldtype": "Section Break",
+   "label": "Credit Limits"
+  },
+  {
+   "default": "0",
+   "description": "Customers see their credit limit, what they owe and how far over the limit they are, for each company they buy from. Portal orders are never blocked; submitting the Sales Order on the desk still follows the customer's Credit Limit row and its Bypass Credit Limit Check. Users limited to some branches do not see account-wide balances.",
+   "fieldname": "show_customer_credit_limits",
+   "fieldtype": "Check",
+   "label": "Show Credit Limits on the Portal"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-07 12:00:00.000000",
+ "modified": "2026-11-10 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

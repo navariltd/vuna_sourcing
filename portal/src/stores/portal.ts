@@ -59,6 +59,7 @@ export interface PortalUser {
 export interface PortalFeatures {
   customer_orders: boolean
   credit_requests: boolean
+  credit_limits: boolean
 }
 
 export type PortalFeature = keyof PortalFeatures
@@ -191,7 +192,7 @@ export const usePortalStore = defineStore('portal', () => {
   )
 
   const features = computed<PortalFeatures>(
-    () => session.data?.features ?? { customer_orders: false, credit_requests: false },
+    () => session.data?.features ?? { customer_orders: false, credit_requests: false, credit_limits: false },
   )
 
   const branding = computed<PortalBranding>(

@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Badge, Button, Dialog, ErrorMessage, Spinner, toast } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
+import DocumentAddresses from "@/components/DocumentAddresses.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
 import PrintButton from "@/components/PrintButton.vue";
@@ -67,6 +68,7 @@ async function withdraw() {
 
 <template>
 	<PageContainer
+		wide
 		:look="LOOKS.salesOrder"
 		:title="order?.name || name"
 		:copy="order?.name"
@@ -121,198 +123,220 @@ async function withdraw() {
 			/>
 		</EmptyState>
 
-		<div v-else-if="order" class="space-y-6">
-			<div
-				v-if="order.editable"
-				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
-			>
-				<div>
-					<p class="text-base font-medium text-ink-gray-8">This order is a draft</p>
-					<p class="mt-1 text-p-sm text-ink-gray-6">
-						Only you can see it. Send it when you are ready and our team will confirm
-						it.
-					</p>
-				</div>
-				<Button
-					variant="solid"
-					icon-left="lucide-pencil"
-					label="Continue editing"
-					:route="{ name: 'SalesOrderEdit', params: { name: order.name } }"
-				/>
-			</div>
-
-			<div
-				v-else-if="order.is_draft"
-				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-outline-violet-2 bg-surface-violet-1 p-4"
-			>
-				<div>
-					<p class="text-base font-medium text-ink-gray-8">We have your order</p>
-					<p class="mt-1 text-p-sm text-ink-gray-6">
-						Our team is reviewing it. Need a change? Withdraw it while it is still
-						awaiting confirmation.
-					</p>
-				</div>
-				<Button
-					v-if="order.withdrawable"
-					variant="subtle"
-					theme="red"
-					icon-left="lucide-undo-2"
-					label="Withdraw order"
-					@click="confirmingWithdraw = true"
-				/>
-			</div>
-
-			<ErrorMessage v-if="withdrawError" :message="withdrawError" />
-
-			<dl
-				:class="ACCENTS[LOOKS.salesOrder.accent].panel"
-				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
-			>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Ordered</dt>
-					<dd class="text-p-base text-ink-gray-8">
-						{{ shortDate(order.transaction_date) }}
-					</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Delivery by</dt>
-					<dd class="text-p-base text-ink-gray-8">
-						{{ shortDate(order.delivery_date) }}
-					</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Delivered</dt>
-					<dd class="text-p-base text-ink-gray-8">{{ order.delivered }}%</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Invoiced</dt>
-					<dd class="text-p-base text-ink-gray-8">{{ order.billed }}%</dd>
-				</div>
-			</dl>
-
-			<div
-				v-if="order.quotations.length || order.invoices.length"
-				class="flex flex-wrap items-center gap-2"
-			>
-				<template v-if="order.quotations.length">
-					<span class="text-xs uppercase tracking-wide text-ink-gray-5">From</span>
-					<Button
-						v-for="quotation in order.quotations"
-						:key="quotation"
-						variant="subtle"
-						:label="quotation"
-						:route="{ name: 'QuotationDetail', params: { name: quotation } }"
-					/>
-				</template>
-				<template v-if="order.invoices.length">
-					<span class="text-xs uppercase tracking-wide text-ink-gray-5"
-						>Invoiced on</span
-					>
-					<Button
-						v-for="invoice in order.invoices"
-						:key="invoice"
-						variant="subtle"
-						:label="invoice"
-						:route="{ name: 'SalesInvoiceDetail', params: { name: invoice } }"
-					/>
-				</template>
-			</div>
-
-			<div class="overflow-hidden rounded-6 border">
+		<div
+			v-else-if="order"
+			class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start"
+		>
+			<div class="min-w-0 space-y-6">
 				<div
-					class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
+					v-if="order.editable"
+					class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
 				>
-					<span class="sm:col-span-4">Item</span>
-					<span class="sm:col-span-2">Ordered</span>
-					<span class="sm:col-span-2">Delivered</span>
-					<span class="sm:col-span-2">Still to come</span>
-					<span class="sm:col-span-2 text-right">Amount</span>
+					<div>
+						<p class="text-base font-medium text-ink-gray-8">This order is a draft</p>
+						<p class="mt-1 text-p-sm text-ink-gray-6">
+							Only you can see it. Send it when you are ready and our team will
+							confirm it.
+						</p>
+					</div>
+					<Button
+						variant="solid"
+						icon-left="lucide-pencil"
+						label="Continue editing"
+						:route="{ name: 'SalesOrderEdit', params: { name: order.name } }"
+					/>
 				</div>
 
-				<div class="divide-y">
+				<div
+					v-else-if="order.is_draft"
+					class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-outline-violet-2 bg-surface-violet-1 p-4"
+				>
+					<div>
+						<p class="text-base font-medium text-ink-gray-8">We have your order</p>
+						<p class="mt-1 text-p-sm text-ink-gray-6">
+							Our team is reviewing it. Need a change? Withdraw it while it is still
+							awaiting confirmation.
+						</p>
+					</div>
+					<Button
+						v-if="order.withdrawable"
+						variant="subtle"
+						theme="red"
+						icon-left="lucide-undo-2"
+						label="Withdraw order"
+						@click="confirmingWithdraw = true"
+					/>
+				</div>
+
+				<ErrorMessage v-if="withdrawError" :message="withdrawError" />
+
+				<dl
+					:class="ACCENTS[LOOKS.salesOrder.accent].panel"
+					class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
+				>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Ordered</dt>
+						<dd class="text-p-base text-ink-gray-8">
+							{{ shortDate(order.transaction_date) }}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">
+							Delivery by
+						</dt>
+						<dd class="text-p-base text-ink-gray-8">
+							{{ order.delivery_date ? shortDate(order.delivery_date) : "Any date" }}
+						</dd>
+					</div>
+					<div v-if="order.po_no">
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Your PO</dt>
+						<dd class="flex min-w-0 items-center gap-1.5 text-p-base text-ink-gray-8">
+							<span class="truncate">{{ order.po_no }}</span>
+							<a
+								v-if="order.po_document"
+								:href="order.po_document.file_url"
+								target="_blank"
+								rel="noopener"
+								class="inline-flex shrink-0 items-center gap-1 text-p-sm font-medium text-ink-gray-7 underline-offset-2 hover:underline"
+								:aria-label="`Open LPO document ${order.po_document.file_name}`"
+							>
+								<i class="lucide-paperclip size-3.5" aria-hidden="true" />
+								LPO
+							</a>
+						</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Delivered</dt>
+						<dd class="text-p-base text-ink-gray-8">{{ order.delivered }}%</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Invoiced</dt>
+						<dd class="text-p-base text-ink-gray-8">{{ order.billed }}%</dd>
+					</div>
+				</dl>
+
+				<div
+					v-if="order.quotations.length || order.invoices.length"
+					class="flex flex-wrap items-center gap-2"
+				>
+					<template v-if="order.quotations.length">
+						<span class="text-xs uppercase tracking-wide text-ink-gray-5">From</span>
+						<Button
+							v-for="quotation in order.quotations"
+							:key="quotation"
+							variant="subtle"
+							:label="quotation"
+							:route="{ name: 'QuotationDetail', params: { name: quotation } }"
+						/>
+					</template>
+					<template v-if="order.invoices.length">
+						<span class="text-xs uppercase tracking-wide text-ink-gray-5"
+							>Invoiced on</span
+						>
+						<Button
+							v-for="invoice in order.invoices"
+							:key="invoice"
+							variant="subtle"
+							:label="invoice"
+							:route="{ name: 'SalesInvoiceDetail', params: { name: invoice } }"
+						/>
+					</template>
+				</div>
+
+				<div class="overflow-hidden rounded-6 border">
 					<div
-						v-for="item in order.items"
-						:key="item.name"
-						class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
+						class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
 					>
-						<div class="sm:col-span-4">
-							<p class="text-base font-medium text-ink-gray-8">
-								{{ item.item_name }}
+						<span class="sm:col-span-4">Item</span>
+						<span class="sm:col-span-2">Ordered</span>
+						<span class="sm:col-span-2">Delivered</span>
+						<span class="sm:col-span-2">Still to come</span>
+						<span class="sm:col-span-2 text-right">Amount</span>
+					</div>
+
+					<div class="divide-y">
+						<div
+							v-for="item in order.items"
+							:key="item.name"
+							class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
+						>
+							<div class="sm:col-span-4">
+								<p class="text-base font-medium text-ink-gray-8">
+									{{ item.item_name }}
+								</p>
+								<p
+									v-if="item.description"
+									class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
+								>
+									{{ item.description }}
+								</p>
+							</div>
+
+							<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
+								{{ item.qty }} {{ item.uom }}
+							</p>
+							<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
+								{{ item.delivered_qty }}
 							</p>
 							<p
-								v-if="item.description"
-								class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
+								class="text-p-sm sm:col-span-2"
+								:class="
+									item.outstanding_qty ? 'text-ink-amber-7' : 'text-ink-gray-5'
+								"
 							>
-								{{ item.description }}
+								{{ item.outstanding_qty }}
+							</p>
+							<p
+								class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
+							>
+								{{ money(item.amount, order.currency) }}
 							</p>
 						</div>
+					</div>
 
-						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
-							{{ item.qty }} {{ item.uom }}
-						</p>
-						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
-							{{ item.delivered_qty }}
-						</p>
-						<p
-							class="text-p-sm sm:col-span-2"
-							:class="item.outstanding_qty ? 'text-ink-amber-7' : 'text-ink-gray-5'"
-						>
-							{{ item.outstanding_qty }}
-						</p>
-						<p
-							class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
-						>
-							{{ money(item.amount, order.currency) }}
-						</p>
+					<div
+						class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
+					>
+						<span>Total</span>
+						<span>{{ money(order.grand_total, order.currency) }}</span>
 					</div>
 				</div>
 
-				<div
-					class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
-				>
-					<span>Total</span>
-					<span>{{ money(order.grand_total, order.currency) }}</span>
-				</div>
-			</div>
+				<div v-if="!order.is_draft" class="rounded-6 border p-4">
+					<p class="text-xs uppercase tracking-wide text-ink-gray-5">Deliveries</p>
 
-			<div v-if="!order.is_draft" class="rounded-6 border p-4">
-				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Deliveries</p>
+					<p v-if="!order.deliveries.length" class="mt-1 text-p-sm text-ink-gray-5">
+						Nothing has been dispatched against this order yet.
+					</p>
 
-				<p v-if="!order.deliveries.length" class="mt-1 text-p-sm text-ink-gray-5">
-					Nothing has been dispatched against this order yet.
-				</p>
-
-				<div v-else class="mt-2 divide-y">
-					<RouterLink
-						v-for="delivery in order.deliveries"
-						:key="delivery.name"
-						:to="{ name: 'DeliveryNoteDetail', params: { name: delivery.name } }"
-						class="flex items-center justify-between gap-2 py-2 hover:bg-surface-gray-1"
-					>
-						<span class="text-p-base text-ink-gray-8">{{ delivery.name }}</span>
-						<span class="flex items-center gap-2">
-							<span class="text-p-sm text-ink-gray-5">
-								{{ shortDate(delivery.posting_date) }}
+					<div v-else class="mt-2 divide-y">
+						<RouterLink
+							v-for="delivery in order.deliveries"
+							:key="delivery.name"
+							:to="{ name: 'DeliveryNoteDetail', params: { name: delivery.name } }"
+							class="flex items-center justify-between gap-2 py-2 hover:bg-surface-gray-1"
+						>
+							<span class="text-p-base text-ink-gray-8">{{ delivery.name }}</span>
+							<span class="flex items-center gap-2">
+								<span class="text-p-sm text-ink-gray-5">
+									{{ shortDate(delivery.posting_date) }}
+								</span>
+								<Badge
+									:theme="DELIVERY_NOTE_STATUS_THEME[delivery.status] || 'gray'"
+									variant="subtle"
+									:label="delivery.status"
+								/>
 							</span>
-							<Badge
-								:theme="DELIVERY_NOTE_STATUS_THEME[delivery.status] || 'gray'"
-								variant="subtle"
-								:label="delivery.status"
-							/>
-						</span>
-					</RouterLink>
+						</RouterLink>
+					</div>
+				</div>
+
+				<div v-if="order.terms" class="rounded-6 border p-4">
+					<p class="text-xs uppercase tracking-wide text-ink-gray-5">Terms</p>
+					<RichText class="mt-1" :html="order.terms" />
 				</div>
 			</div>
-
-			<div v-if="order.shipping_address" class="rounded-6 border p-4">
-				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Ship to</p>
-				<RichText class="mt-1" :html="order.shipping_address" />
-			</div>
-
-			<div v-if="order.terms" class="rounded-6 border p-4">
-				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Terms</p>
-				<RichText class="mt-1" :html="order.terms" />
-			</div>
+			<DocumentAddresses :addresses="order.addresses" />
 		</div>
 
 		<Dialog
