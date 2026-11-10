@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from "vue";
+import { computed, h, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
 	Avatar,
@@ -20,6 +20,9 @@ import {
 } from "frappe-ui";
 import { useIsMobile } from "@/composables/useViewport";
 import { usePageTransition } from "@/composables/usePageTransition";
+import { usePortalSettings } from "@/composables/usePortalSettings";
+import { useCreditStatus } from "@/composables/useCreditStatus";
+import CreditLimitCard from "@/components/CreditLimitCard.vue";
 import { usePartySwitch } from "@/composables/usePartySwitch";
 import { ACCENTS, LOOKS } from "@/data/accents";
 import type { DocumentLook } from "@/data/accents";
@@ -60,7 +63,7 @@ const userMenu = computed(() => [
 	{
 		label: "Settings",
 		icon: "lucide-settings",
-		onClick: () => (settingsOpen.value = true),
+		onClick: () => openSettings(),
 	},
 	{
 		label: "Sign out",
@@ -100,7 +103,7 @@ const headerMenu = computed(() => [
 	{
 		label: "Settings",
 		icon: "lucide-settings",
-		onClick: () => (settingsOpen.value = true),
+		onClick: () => openSettings(),
 	},
 	{
 		label: "Sign out",
@@ -117,7 +120,17 @@ const isMobile = useIsMobile();
 const { transitionName, holdLeavingPage } = usePageTransition();
 
 const accountSheet = ref(false);
-const settingsOpen = ref(false);
+const portalSettings = usePortalSettings();
+const settingsOpen = portalSettings.open;
+const credit = useCreditStatus();
+
+function openSettings() {
+	portalSettings.show("profile");
+}
+
+watch(portalSettings.open, (isOpen) => {
+	if (isOpen) accountSheet.value = false;
+});
 
 const canApply = computed(() => portal.canApply && portal.partyTypesToJoin.length > 0);
 
@@ -329,11 +342,18 @@ function runAccountAction(action: () => void) {
 					:route="{ name: 'ApplicationForm' }"
 				/>
 				<MobileNavItem label="You" :active="accountSheet" @click="accountSheet = true">
-					<Avatar
-						:image="portal.user?.image || undefined"
-						:label="portal.user?.full_name || '?'"
-						size="sm"
-					/>
+					<span class="relative inline-flex">
+						<Avatar
+							:image="portal.user?.image || undefined"
+							:label="portal.user?.full_name || '?'"
+							size="sm"
+						/>
+						<span
+							v-if="credit.overRows.value.length"
+							class="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-surface-red-6 shadow-[0_0_0_2px_var(--surface-base)]"
+							aria-label="Over your credit limit"
+						/>
+					</span>
 				</MobileNavItem>
 			</MobileNav>
 		</template>
@@ -372,7 +392,7 @@ function runAccountAction(action: () => void) {
 						description="Profile and preferences"
 						icon="lucide-settings"
 						variant="ghost"
-						@click="settingsOpen = true"
+						@click="openSettings()"
 					/>
 				</div>
 			</SidebarRail>
@@ -451,6 +471,8 @@ function runAccountAction(action: () => void) {
 					</SidebarSection>
 				</div>
 
+				<CreditLimitCard class="mx-2 mb-2" />
+
 				<div class="border-t p-2">
 					<Dropdown :options="userMenu" placement="top-start" class="w-full">
 						<button
@@ -494,6 +516,8 @@ function runAccountAction(action: () => void) {
 					<p class="truncate text-sm text-ink-gray-5">{{ portal.user?.email }}</p>
 				</div>
 			</div>
+
+			<CreditLimitCard class="mt-4" />
 
 			<section v-if="apps.length" class="mt-4" aria-label="Apps">
 				<p class="px-1 pb-1 text-xs uppercase tracking-wide text-ink-gray-5">Apps</p>

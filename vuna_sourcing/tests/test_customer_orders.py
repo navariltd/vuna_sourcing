@@ -1,12 +1,16 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+import io
+
 import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
+from pypdf import PdfWriter
 
 from vuna_sourcing.api.transactions.customer import get_sales_order, get_sales_orders
 from vuna_sourcing.api.transactions.customer_orders import (
+	attach_po_document,
 	clear_order,
 	delete_order,
 	get_order_categories,
@@ -21,9 +25,15 @@ from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
 
 
-class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
-	"""Customers placing Sales Orders from the portal, run as the customer."""
+def blank_pdf() -> bytes:
+	writer = PdfWriter()
+	writer.add_blank_page(width=72, height=72)
+	buffer = io.BytesIO()
+	writer.write(buffer)
+	return buffer.getvalue()
 
+
+class CustomerOrderFixtures(SourcingFixtures):
 	price_list = "_Test Portal Order Prices"
 	other_company = "_Test Portal Order Company"
 
@@ -144,6 +154,10 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 		}
 		with self.set_user(self.user):
 			return save_order(**payload).data
+
+
+class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
+	"""Customers placing Sales Orders from the portal, run as the customer."""
 
 	def test_an_order_is_saved_as_a_hidden_portal_draft(self):
 		draft = self.order(qty=3)
@@ -772,3 +786,147 @@ class TestCustomerOrders(SourcingFixtures, IntegrationTestCase):
 
 		self.assertEqual(sent["grand_total"], 200)
 		self.assertEqual(sent["status"], "Submitted")
+
+	def require_po_document(self, required=1):
+		current = frappe.db.get_single_value("Sourcing Settings", "require_po_document")
+		self.addCleanup(frappe.db.set_single_value, "Sourcing Settings", "require_po_document", current)
+		frappe.db.set_single_value("Sourcing Settings", "require_po_document", required)
+
+	def upload_lpo(self, customer=None, user=None, filename="lpo.pdf"):
+		try:
+			with self.set_user(user or self.user):
+				frappe.local.uploaded_file = blank_pdf()
+				frappe.local.uploaded_filename = filename
+				frappe.form_dict.customer = customer or self.customer
+				return attach_po_document().data
+		finally:
+			frappe.local.uploaded_file = None
+			frappe.local.uploaded_filename = None
+			frappe.form_dict.pop("customer", None)
+
+	def send(self, name, **extra):
+		with self.set_user(self.user):
+			return submit_order(
+				customer=self.customer,
+				name=name,
+				items=[{"item_code": self.item_code, "qty": 1}],
+				**extra,
+			)
+
+	def test_an_order_can_be_sent_without_a_delivery_date(self):
+		"""Leaving the date empty sends the order with the order date as its delivery date."""
+		draft = self.order(delivery_date=None)
+
+		self.send(draft["name"])
+
+		self.assertEqual(str(frappe.db.get_value("Sales Order", draft["name"], "delivery_date")), nowdate())
+
+	def test_a_chosen_delivery_date_is_kept(self):
+		"""A date picked after starting without one is stored on the order."""
+		draft = self.order(delivery_date=None)
+		self.send(draft["name"], delivery_date=add_days(nowdate(), 5))
+
+		self.assertEqual(
+			str(frappe.db.get_value("Sales Order", draft["name"], "delivery_date")), add_days(nowdate(), 5)
+		)
+
+	def test_a_po_number_needs_its_lpo_document_before_sending_when_required(self):
+		"""With the setting on, a PO number needs its LPO file before sending."""
+		self.require_po_document()
+		draft = self.order(po_no="LPO-NEEDS-DOC")
+
+		self.assertRaisesRegex(
+			frappe.ValidationError,
+			"Attach your LPO document",
+			self.send,
+			draft["name"],
+			po_no="LPO-NEEDS-DOC",
+		)
+
+		upload = self.upload_lpo()
+		self.send(draft["name"], po_no="LPO-NEEDS-DOC", po_document=upload["file_url"])
+
+		attached = self.attached_lpo(draft["name"])
+		self.assertEqual(attached.file_name, "LPO-NEEDS-DOC-LPO.pdf")
+		self.assertEqual(
+			(attached.attached_to_doctype, attached.attached_to_name), ("Sales Order", draft["name"])
+		)
+		self.assertFalse(
+			frappe.db.exists("File", {"file_url": upload["file_url"], "attached_to_doctype": "Customer"})
+		)
+
+	def test_the_lpo_document_is_optional_when_the_setting_is_off_or_there_is_no_po_number(self):
+		"""No LPO file is needed with the setting off or without a PO number."""
+		self.require_po_document(0)
+		self.send(self.order(po_no="LPO-OPTIONAL")["name"], po_no="LPO-OPTIONAL")
+
+		self.require_po_document()
+		self.send(self.order()["name"])
+
+	def test_another_users_upload_cannot_be_used_as_the_lpo(self):
+		"""A file uploaded by another customer's user cannot be attached."""
+		other, other_user = self.make_ordering_customer()
+		theirs = self.upload_lpo(customer=other, user=other_user)
+
+		self.assertRaisesRegex(
+			frappe.ValidationError,
+			"not uploaded by you",
+			self.order,
+			po_no="LPO-STOLEN",
+			po_document=theirs["file_url"],
+		)
+
+	def test_an_lpo_upload_is_scoped_to_the_callers_customer_and_file_types(self):
+		"""Uploads are refused for other customers and for disallowed file types."""
+		other, _other_user = self.make_ordering_customer()
+
+		self.assertRaises(frappe.PermissionError, self.upload_lpo, customer=other)
+		self.assertRaisesRegex(frappe.ValidationError, "not accepted", self.upload_lpo, filename="lpo.exe")
+
+	def test_an_lpo_upload_is_refused_when_ordering_is_off(self):
+		"""Uploads are refused while portal ordering is turned off."""
+		frappe.db.set_single_value("Sourcing Settings", "allow_customer_sales_orders", 0)
+		self.assertRaises(frappe.PermissionError, self.upload_lpo)
+
+	def attached_lpo(self, order):
+		file_url = frappe.db.get_value("Sales Order", order, "portal_po_document")
+		return frappe.get_doc(
+			"File",
+			{"file_url": file_url, "attached_to_doctype": "Sales Order", "attached_to_name": order},
+		)
+
+	def test_the_lpo_document_is_renamed_after_the_po_number_when_saved(self):
+		"""The uploaded LPO is stored as the PO number followed by -LPO, keeping its file type."""
+		upload = self.upload_lpo(filename="scan from phone.pdf")
+		draft = self.order(po_no="PO/2026/77", po_document=upload["file_url"])
+
+		attached = self.attached_lpo(draft["name"])
+		self.assertEqual(attached.file_name, "PO-2026-77-LPO.pdf")
+		self.assertIn("PO-2026-77-LPO", attached.file_url)
+		self.assertEqual(draft["po_document"]["file_url"], attached.file_url)
+		self.assertTrue(attached.exists_on_disk())
+
+	def test_changing_the_po_number_renames_the_attached_lpo(self):
+		"""Saving again under a new PO number renames the same document to match."""
+		upload = self.upload_lpo()
+		draft = self.order(po_no="PO-OLD-1", po_document=upload["file_url"])
+		first = self.attached_lpo(draft["name"])
+
+		with self.set_user(self.user):
+			save_order(
+				customer=self.customer,
+				name=draft["name"],
+				items=[{"item_code": self.item_code, "qty": 1}],
+				po_no="PO-NEW-2",
+				po_document=first.file_url,
+			)
+
+		second = self.attached_lpo(draft["name"])
+		self.assertEqual(second.file_name, "PO-NEW-2-LPO.pdf")
+		self.assertFalse(frappe.db.exists("File", first.name))
+		self.assertEqual(
+			frappe.db.count(
+				"File", {"attached_to_doctype": "Sales Order", "attached_to_name": draft["name"]}
+			),
+			1,
+		)

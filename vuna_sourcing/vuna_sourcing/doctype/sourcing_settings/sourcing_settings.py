@@ -42,7 +42,9 @@ class SourcingSettings(Document):
 		notify_reviewers: DF.Check
 		registration_mode: DF.Literal["Invitation Only", "Open to Public"]
 		require_branch_for_branch_customers: DF.Check
+		require_po_document: DF.Check
 		reviewer_role: DF.Link | None
+		show_customer_credit_limits: DF.Check
 	# end: auto-generated types
 
 	def validate(self):

@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
+import DocumentAddresses from "@/components/DocumentAddresses.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
 import PrintButton from "@/components/PrintButton.vue";
@@ -47,6 +48,7 @@ watch([customer, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		wide
 		:look="LOOKS.deliveryNote"
 		:title="delivery?.name || name"
 		:copy="delivery?.name"
@@ -101,148 +103,155 @@ watch([customer, () => props.name], load, { immediate: true });
 			/>
 		</EmptyState>
 
-		<div v-else-if="delivery" class="space-y-6">
-			<dl
-				:class="ACCENTS[LOOKS.deliveryNote.accent].panel"
-				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
-			>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Dispatched</dt>
-					<dd class="text-p-base text-ink-gray-8">
-						{{ shortDate(delivery.posting_date) }}
-					</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Your PO</dt>
-					<dd class="text-p-base text-ink-gray-8">{{ delivery.po_no || "—" }}</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Invoiced</dt>
-					<dd class="text-p-base text-ink-gray-8">{{ delivery.billed }}%</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Value</dt>
-					<dd class="text-p-base text-ink-gray-8">
-						{{ money(delivery.grand_total, delivery.currency) }}
-					</dd>
-				</div>
-			</dl>
-
-			<div
-				v-if="
-					delivery.sales_orders.length ||
-					delivery.invoices.length ||
-					delivery.return_against
-				"
-				class="flex flex-wrap items-center gap-2"
-			>
-				<template v-if="delivery.return_against">
-					<span class="text-xs uppercase tracking-wide text-ink-gray-5">Returns</span>
-					<Button
-						variant="subtle"
-						:label="delivery.return_against"
-						:route="{
-							name: 'DeliveryNoteDetail',
-							params: { name: delivery.return_against },
-						}"
-					/>
-				</template>
-				<template v-if="delivery.sales_orders.length">
-					<span class="text-xs uppercase tracking-wide text-ink-gray-5">Against</span>
-					<Button
-						v-for="order in delivery.sales_orders"
-						:key="order"
-						variant="subtle"
-						:label="order"
-						:route="{ name: 'SalesOrderDetail', params: { name: order } }"
-					/>
-				</template>
-				<template v-if="delivery.invoices.length">
-					<span class="text-xs uppercase tracking-wide text-ink-gray-5"
-						>Invoiced on</span
-					>
-					<Button
-						v-for="invoice in delivery.invoices"
-						:key="invoice"
-						variant="subtle"
-						:label="invoice"
-						:route="{ name: 'SalesInvoiceDetail', params: { name: invoice } }"
-					/>
-				</template>
-			</div>
-
-			<div class="overflow-hidden rounded-6 border">
-				<div
-					class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
+		<div
+			v-else-if="delivery"
+			class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start"
+		>
+			<div class="min-w-0 space-y-6">
+				<dl
+					:class="ACCENTS[LOOKS.deliveryNote.accent].panel"
+					class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-4"
 				>
-					<span class="sm:col-span-6">Item</span>
-					<span class="sm:col-span-2">Quantity</span>
-					<span class="sm:col-span-2">Returned</span>
-					<span class="sm:col-span-2 text-right">Amount</span>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Dispatched</dt>
+						<dd class="text-p-base text-ink-gray-8">
+							{{ shortDate(delivery.posting_date) }}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Your PO</dt>
+						<dd class="text-p-base text-ink-gray-8">{{ delivery.po_no || "—" }}</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Invoiced</dt>
+						<dd class="text-p-base text-ink-gray-8">{{ delivery.billed }}%</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Value</dt>
+						<dd class="text-p-base text-ink-gray-8">
+							{{ money(delivery.grand_total, delivery.currency) }}
+						</dd>
+					</div>
+				</dl>
+
+				<div
+					v-if="
+						delivery.sales_orders.length ||
+						delivery.invoices.length ||
+						delivery.return_against
+					"
+					class="flex flex-wrap items-center gap-2"
+				>
+					<template v-if="delivery.return_against">
+						<span class="text-xs uppercase tracking-wide text-ink-gray-5"
+							>Returns</span
+						>
+						<Button
+							variant="subtle"
+							:label="delivery.return_against"
+							:route="{
+								name: 'DeliveryNoteDetail',
+								params: { name: delivery.return_against },
+							}"
+						/>
+					</template>
+					<template v-if="delivery.sales_orders.length">
+						<span class="text-xs uppercase tracking-wide text-ink-gray-5"
+							>Against</span
+						>
+						<Button
+							v-for="order in delivery.sales_orders"
+							:key="order"
+							variant="subtle"
+							:label="order"
+							:route="{ name: 'SalesOrderDetail', params: { name: order } }"
+						/>
+					</template>
+					<template v-if="delivery.invoices.length">
+						<span class="text-xs uppercase tracking-wide text-ink-gray-5"
+							>Invoiced on</span
+						>
+						<Button
+							v-for="invoice in delivery.invoices"
+							:key="invoice"
+							variant="subtle"
+							:label="invoice"
+							:route="{ name: 'SalesInvoiceDetail', params: { name: invoice } }"
+						/>
+					</template>
 				</div>
 
-				<div class="divide-y">
+				<div class="overflow-hidden rounded-6 border">
 					<div
-						v-for="item in delivery.items"
-						:key="item.name"
-						class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
+						class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
 					>
-						<div class="sm:col-span-6">
-							<p class="text-base font-medium text-ink-gray-8">
-								{{ item.item_name }}
+						<span class="sm:col-span-6">Item</span>
+						<span class="sm:col-span-2">Quantity</span>
+						<span class="sm:col-span-2">Returned</span>
+						<span class="sm:col-span-2 text-right">Amount</span>
+					</div>
+
+					<div class="divide-y">
+						<div
+							v-for="item in delivery.items"
+							:key="item.name"
+							class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
+						>
+							<div class="sm:col-span-6">
+								<p class="text-base font-medium text-ink-gray-8">
+									{{ item.item_name }}
+								</p>
+								<p
+									v-if="item.description"
+									class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
+								>
+									{{ item.description }}
+								</p>
+							</div>
+
+							<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
+								{{ item.qty }} {{ item.uom }}
 							</p>
 							<p
-								v-if="item.description"
-								class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
+								class="text-p-sm sm:col-span-2"
+								:class="item.returned_qty ? 'text-ink-amber-7' : 'text-ink-gray-5'"
 							>
-								{{ item.description }}
+								{{ item.returned_qty }}
+							</p>
+							<p
+								class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
+							>
+								{{ money(item.amount, delivery.currency) }}
 							</p>
 						</div>
+					</div>
 
-						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
-							{{ item.qty }} {{ item.uom }}
-						</p>
-						<p
-							class="text-p-sm sm:col-span-2"
-							:class="item.returned_qty ? 'text-ink-amber-7' : 'text-ink-gray-5'"
-						>
-							{{ item.returned_qty }}
-						</p>
-						<p
-							class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
-						>
-							{{ money(item.amount, delivery.currency) }}
-						</p>
+					<div
+						class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
+					>
+						<span>Total</span>
+						<span>{{ money(delivery.grand_total, delivery.currency) }}</span>
 					</div>
 				</div>
 
-				<div
-					class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
+				<dl
+					v-if="transport.length"
+					class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
 				>
-					<span>Total</span>
-					<span>{{ money(delivery.grand_total, delivery.currency) }}</span>
+					<div v-for="row in transport" :key="row[0] as string">
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">
+							{{ row[0] }}
+						</dt>
+						<dd class="text-p-base text-ink-gray-8">{{ row[1] }}</dd>
+					</div>
+				</dl>
+
+				<div v-if="delivery.terms" class="rounded-6 border p-4">
+					<p class="text-xs uppercase tracking-wide text-ink-gray-5">Terms</p>
+					<RichText class="mt-1" :html="delivery.terms" />
 				</div>
 			</div>
-
-			<dl
-				v-if="transport.length"
-				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
-			>
-				<div v-for="row in transport" :key="row[0] as string">
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">{{ row[0] }}</dt>
-					<dd class="text-p-base text-ink-gray-8">{{ row[1] }}</dd>
-				</div>
-			</dl>
-
-			<div v-if="delivery.shipping_address" class="rounded-6 border p-4">
-				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Shipped to</p>
-				<RichText class="mt-1" :html="delivery.shipping_address" />
-			</div>
-
-			<div v-if="delivery.terms" class="rounded-6 border p-4">
-				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Terms</p>
-				<RichText class="mt-1" :html="delivery.terms" />
-			</div>
+			<DocumentAddresses :addresses="delivery.addresses" />
 		</div>
 	</PageContainer>
 </template>

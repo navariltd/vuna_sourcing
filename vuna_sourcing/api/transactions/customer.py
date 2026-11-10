@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+import re
 from collections import Counter
 from collections.abc import Callable
 
@@ -40,8 +41,10 @@ from vuna_sourcing.api.transactions.customer_orders import (
 	FROM_PORTAL_FIELD,
 	ORDER_PENDING,
 	ORDER_SUBMITTED,
+	PO_DOCUMENT_FIELD,
 	PORTAL_STATUS_FIELD,
 	can_order,
+	po_document_view,
 )
 from vuna_sourcing.utils import CUSTOMER
 
@@ -49,6 +52,10 @@ QUOTATION = "Quotation"
 SALES_ORDER = "Sales Order"
 DELIVERY_NOTE = "Delivery Note"
 SALES_INVOICE = "Sales Invoice"
+
+BILLING_ADDRESS_FIELD = "address_display"
+SHIPPING_ADDRESS_FIELD = "shipping_address"
+TRAILING_BREAKS = re.compile(r"(\s*<br\s*/?>\s*)+$", re.IGNORECASE)
 
 QUOTATION_FIELDS = [
 	"name",
@@ -214,6 +221,17 @@ def get_quotations(
 	)
 
 
+def address_html(value: str | None) -> str | None:
+	return safe_html(TRAILING_BREAKS.sub("", value)) if value else None
+
+
+def addresses_of(doc) -> dict:
+	return {
+		"billing": address_html(doc.get(BILLING_ADDRESS_FIELD)),
+		"shipping": address_html(doc.get(SHIPPING_ADDRESS_FIELD)),
+	}
+
+
 @frappe.whitelist()
 def get_quotation(name: str, customer: str | None = None) -> dict:
 	doc = customer_document(QUOTATION, name, customer)
@@ -228,6 +246,7 @@ def get_quotation(name: str, customer: str | None = None) -> dict:
 		"total": doc.total,
 		"total_taxes": doc.total_taxes_and_charges,
 		"grand_total": doc.grand_total,
+		"addresses": addresses_of(doc),
 		"terms": safe_html(doc.terms),
 		"items": [line_item(item) for item in doc.items],
 		"sales_orders": submitted_parents("Sales Order Item", "prevdoc_docname", doc.name),
@@ -330,12 +349,13 @@ def get_sales_order(name: str, customer: str | None = None) -> dict:
 		"po_date": doc.po_date,
 		"transaction_date": doc.transaction_date,
 		"delivery_date": doc.delivery_date,
+		"po_document": po_document_view(doc.get(PO_DOCUMENT_FIELD)),
 		"currency": doc.currency,
 		"total": doc.total,
 		"grand_total": doc.grand_total,
 		"delivered": flt(doc.per_delivered, 1),
 		"billed": flt(doc.per_billed, 1),
-		"shipping_address": safe_html(doc.shipping_address),
+		"addresses": addresses_of(doc),
 		"terms": safe_html(doc.terms),
 		"quotations": distinct(items, "quotation"),
 		"items": items,
@@ -426,7 +446,7 @@ def get_delivery_note(name: str, customer: str | None = None) -> dict:
 		"lr_date": doc.lr_date,
 		"vehicle_no": doc.vehicle_no,
 		"driver_name": doc.driver_name,
-		"shipping_address": safe_html(doc.shipping_address),
+		"addresses": addresses_of(doc),
 		"terms": safe_html(doc.terms),
 		"sales_orders": distinct(items, "sales_order"),
 		"items": items,
@@ -530,6 +550,7 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 		"total_taxes": doc.total_taxes_and_charges,
 		"grand_total": doc.grand_total,
 		"outstanding_amount": doc.outstanding_amount,
+		"addresses": addresses_of(doc),
 		"terms": safe_html(doc.terms),
 		"sales_orders": distinct(items, "sales_order"),
 		"delivery_notes": distinct(items, "delivery_note"),

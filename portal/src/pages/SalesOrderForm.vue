@@ -22,7 +22,9 @@ import SideSheet from "@/components/SideSheet.vue";
 import OrderItemCard from "@/components/OrderItemCard.vue";
 import { provideOrderDraft, useOrderDraft } from "@/composables/useOrderDraft";
 import { useOrderCategories } from "@/composables/useOrderCategories";
-import { useIsWide } from "@/composables/useViewport";
+import { useIsMobile, useIsWide } from "@/composables/useViewport";
+import { useCreditStatus } from "@/composables/useCreditStatus";
+import { orderCreditImpact } from "@/data/credit";
 import { errorText, fetchOrderableItems } from "@/data/orders";
 import type { OrderableItem } from "@/data/orders";
 import { money } from "@/data/purchase";
@@ -79,6 +81,26 @@ let browseRequest = 0;
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const cartOpen = ref(false);
+const isMobile = useIsMobile();
+const CART_KEY = "vuna-sourcing:cart-expanded";
+
+function storedCartExpanded() {
+	try {
+		return localStorage.getItem(CART_KEY) === "1";
+	} catch {
+		return false;
+	}
+}
+
+const cartExpanded = ref(storedCartExpanded());
+
+watch(cartExpanded, (value) => {
+	try {
+		localStorage.setItem(CART_KEY, value ? "1" : "0");
+	} catch {}
+});
+
+const credit = useCreditStatus();
 const confirmingSend = ref(false);
 const confirmingDelete = ref(false);
 const confirmingClear = ref(false);
@@ -234,6 +256,13 @@ const cartTotal = computed(() =>
 		: null
 );
 
+const sendCreditNote = computed(() => {
+	const row = credit.forCompany(company.value);
+	const impact = orderCreditImpact(row, draft.priced.value?.base_grand_total ?? 0);
+	if (!row || !impact || (!impact.alreadyOver && impact.overAfter <= 0)) return "";
+	return " Your account is over its credit limit, so our team may hold the order until a payment comes in.";
+});
+
 const unitsLabel = computed(() => `${units.value} ${units.value === 1 ? "item" : "items"}`);
 
 async function save() {
@@ -286,6 +315,19 @@ async function clearCart() {
 	await draft.clearCart();
 	confirmingClear.value = false;
 }
+
+const sendActions = [{ label: "Send order", variant: "solid" as const, onClick: send }];
+const clearActions = [
+	{ label: "Clear cart", variant: "solid" as const, theme: "red" as const, onClick: clearCart },
+];
+const deleteActions = [
+	{
+		label: "Delete draft",
+		variant: "solid" as const,
+		theme: "red" as const,
+		onClick: removeDraft,
+	},
+];
 
 const clearMessage = computed(() => {
 	const count = `${lines.value.length} ${lines.value.length === 1 ? "item" : "items"}`;
@@ -803,6 +845,8 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 
 		<SideSheet
 			v-model:open="cartOpen"
+			v-model:expanded="cartExpanded"
+			expandable
 			title="Your order"
 			:description="
 				lines.length
@@ -810,7 +854,13 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 					: 'Add items, then choose when and where we deliver.'
 			"
 		>
-			<OrderCart class="min-h-0 flex-1" @save="save" @send="askToSend" @clear="askToClear" />
+			<OrderCart
+				class="flex-1"
+				:wide="cartExpanded && !isMobile"
+				@save="save"
+				@send="askToSend"
+				@clear="askToClear"
+			/>
 		</SideSheet>
 
 		<Dialog
@@ -819,15 +869,8 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 			icon="lucide-send"
 			:message="`Your order comes to ${
 				cartTotal ?? 'the total shown'
-			}. Once sent you cannot change it. Our team will review and confirm it.`"
-			:actions="[
-				{
-					label: 'Send order',
-					variant: 'solid',
-					loading: busy === 'send',
-					onClick: send,
-				},
-			]"
+			}. Once sent you cannot change it. Our team will review and confirm it.${sendCreditNote}`"
+			:actions="sendActions"
 		/>
 
 		<Dialog
@@ -836,15 +879,7 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 			icon="lucide-trash-2"
 			theme="red"
 			:message="clearMessage"
-			:actions="[
-				{
-					label: 'Clear cart',
-					variant: 'solid',
-					theme: 'red',
-					loading: busy === 'clear',
-					onClick: clearCart,
-				},
-			]"
+			:actions="clearActions"
 		/>
 
 		<Dialog
@@ -853,15 +888,7 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 			icon="lucide-trash-2"
 			theme="red"
 			message="The draft and its items are removed. This cannot be undone."
-			:actions="[
-				{
-					label: 'Delete draft',
-					variant: 'solid',
-					theme: 'red',
-					loading: busy === 'delete',
-					onClick: removeDraft,
-				},
-			]"
+			:actions="deleteActions"
 		/>
 	</PageContainer>
 </template>
