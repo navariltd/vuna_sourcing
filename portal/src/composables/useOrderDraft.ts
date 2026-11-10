@@ -17,6 +17,7 @@ import type {
   OrderView,
   OrderableItem,
   OrderableUom,
+  PoDocument,
 } from "@/data/orders";
 import { isOk } from "@/types/api";
 import type { ApiResponse } from "@/types/api";
@@ -52,6 +53,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
   const address = ref<string | null>(null);
   const deliveryDate = ref<string | null>(null);
   const poNo = ref("");
+  const poDocument = ref<PoDocument | null>(null);
   const lines = ref<CartLine[]>([]);
   const savedSnapshot = ref("");
 
@@ -80,6 +82,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
       address: address.value,
       deliveryDate: deliveryDate.value,
       poNo: poNo.value.trim(),
+      poDocument: poDocument.value?.file_url ?? null,
       lines: orderedItems(),
     });
   }
@@ -106,6 +109,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
       order?.shipping_address ?? (data.addresses.length === 1 ? data.addresses[0]!.name : null);
     deliveryDate.value = order?.delivery_date ?? null;
     poNo.value = order?.po_no ?? "";
+    poDocument.value = order?.po_document ?? null;
     adopt(order);
   }
 
@@ -247,15 +251,31 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     line.uom = uom;
   }
 
+  watch(poNo, (value) => {
+    if (!value.trim()) poDocument.value = null;
+  });
+
+  const poRules = computed(() => form.value?.po_document ?? null);
+  const needsPoDocument = computed(
+    () => !!poRules.value?.required && !!poNo.value.trim() && !poDocument.value,
+  );
+
   const checklist = computed(() => [
-    { label: "Add at least one item", done: lines.value.length > 0 },
-    { label: "Choose a delivery date", done: !!deliveryDate.value },
-    { label: "Choose a delivery address", done: addresses.value.length <= 1 || !!address.value },
-    { label: "Choose the company you are ordering from", done: !!company.value },
+    { label: "Add at least one item", done: lines.value.length > 0, toSave: true },
+    {
+      label: "Choose a delivery address",
+      done: addresses.value.length <= 1 || !!address.value,
+      toSave: true,
+    },
+    { label: "Choose the company you are ordering from", done: !!company.value, toSave: true },
+    { label: "Attach your LPO document", done: !needsPoDocument.value, toSave: false },
   ]);
 
   const missing = computed(() => checklist.value.filter((step) => !step.done));
   const ready = computed(() => !missing.value.length && !busy.value);
+  const savable = computed(
+    () => !missing.value.some((step) => step.toSave) && !busy.value,
+  );
 
   function payload(): OrderPayload {
     return {
@@ -266,6 +286,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
       delivery_date: deliveryDate.value,
       shipping_address: address.value,
       po_no: poNo.value.trim() || null,
+      po_document: poNo.value.trim() ? poDocument.value?.file_url ?? null : null,
     };
   }
 
@@ -293,7 +314,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
   }
 
   async function saveDraft() {
-    if (!ready.value) return null;
+    if (!savable.value) return null;
     const result = await run(
       "draft",
       () => saveOrder(payload()),
@@ -350,6 +371,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
   }
 
   return {
+    customer,
     form,
     loading,
     unavailable,
@@ -360,6 +382,9 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     addresses,
     deliveryDate,
     poNo,
+    poDocument,
+    poRules,
+    needsPoDocument,
     lines,
     units,
     dirty,
@@ -372,6 +397,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     checklist,
     missing,
     ready,
+    savable,
     pricedLine,
     refreshPrices,
     lineFor,

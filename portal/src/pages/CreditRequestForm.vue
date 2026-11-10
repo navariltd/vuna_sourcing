@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-	Alert,
 	Badge,
 	Button,
 	ErrorMessage,
@@ -13,6 +12,7 @@ import {
 	toast,
 } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
+import ExplainerAccordion from "@/components/ExplainerAccordion.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import { money, shortDate } from "@/data/purchase";
 import {
@@ -279,11 +279,9 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 		/>
 
 		<section v-else-if="picking" class="space-y-4" aria-label="Choose an invoice">
-			<Alert
-				theme="blue"
-				icon="lucide-info"
-				:title="CREDIT_REQUEST_EXPLAINER.title"
-				:description="CREDIT_REQUEST_EXPLAINER.description"
+			<ExplainerAccordion
+				:question="CREDIT_REQUEST_EXPLAINER.title"
+				:answer="CREDIT_REQUEST_EXPLAINER.description"
 			/>
 
 			<div>
@@ -395,12 +393,10 @@ const title = computed(() => (props.name ? `Change ${props.name}` : "Request a c
 					</p>
 				</div>
 
-				<Alert
+				<ExplainerAccordion
 					v-else
-					theme="blue"
-					icon="lucide-info"
-					:title="CREDIT_REQUEST_EXPLAINER.title"
-					:description="CREDIT_REQUEST_EXPLAINER.description"
+					:question="CREDIT_REQUEST_EXPLAINER.title"
+					:answer="CREDIT_REQUEST_EXPLAINER.description"
 				/>
 
 				<div

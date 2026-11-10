@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import math
+import re
 
 import frappe
 from frappe import _
@@ -10,6 +11,7 @@ from frappe.query_builder.functions import Count, IfNull
 from frappe.utils import cint, cstr, flt, getdate, nowdate, strip_html
 from pypika.terms import ExistsCriterion
 
+from vuna_sourcing.api.onboarding import validate_upload
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.api.transactions.branches import (
 	BRANCH_FIELD,
@@ -27,6 +29,10 @@ PORTAL_STATUS_FIELD = "portal_submission_status"
 ORDER_PENDING = "Pending"
 ORDER_SUBMITTED = "Submitted"
 
+PO_DOCUMENT_FIELD = "portal_po_document"
+PO_DOCUMENT_TYPES = ("pdf", "png", "jpg", "jpeg")
+PO_DOCUMENT_SUFFIX = "LPO"
+
 PUBLISH_FIELD = "publish_on_portal"
 ITEM_GROUP = "Item Group"
 MAX_ORDER_LINES = 100
@@ -38,6 +44,10 @@ PO_NUMBER_LENGTH = 140
 
 def orders_enabled() -> bool:
 	return bool(cint(frappe.db.get_single_value("Sourcing Settings", "allow_customer_sales_orders")))
+
+
+def po_document_required() -> bool:
+	return bool(cint(frappe.db.get_single_value("Sourcing Settings", "require_po_document")))
 
 
 def ensure_orders_enabled() -> None:
@@ -233,11 +243,9 @@ def order_lines(items) -> dict[tuple[str, str], float]:
 	return merged
 
 
-def delivery_date_of(value: str | None, required: bool = True):
+def delivery_date_of(value: str | None):
 	if not value:
-		if required:
-			frappe.throw(_("Choose the date you need this order delivered by."))
-		return getdate(nowdate())
+		return None
 
 	try:
 		date = getdate(value)
@@ -325,6 +333,105 @@ def validate_po_number(doc) -> None:
 	)
 
 
+def po_document_of(doc, customer: str, file_url: str | None) -> str | None:
+	file_url = cstr(file_url).strip()
+	if not file_url or not doc.po_no:
+		return None
+
+	if file_url == doc.get(PO_DOCUMENT_FIELD):
+		return file_url
+
+	uploaded = frappe.db.exists(
+		"File",
+		{
+			"file_url": file_url,
+			"attached_to_doctype": CUSTOMER,
+			"attached_to_name": customer,
+			"owner": frappe.session.user,
+		},
+	)
+	if not uploaded:
+		frappe.throw(_("That LPO document was not uploaded by you. Please attach it again."))
+
+	return file_url
+
+
+def po_document_name(po_no: str, uploaded_name: str) -> str:
+	extension = uploaded_name.rsplit(".", 1)[-1].lower() if "." in uploaded_name else ""
+	stem = re.sub(r"[^A-Za-z0-9._-]+", "-", po_no).strip("-.") or PO_DOCUMENT_SUFFIX
+	name = f"{stem}-{PO_DOCUMENT_SUFFIX}"
+	return f"{name}.{extension}" if extension else name
+
+
+def po_document_files(doc, file_url: str) -> list:
+	file = frappe.qb.DocType("File")
+	names = (
+		frappe.qb.from_(file)
+		.select(file.name)
+		.where(file.file_url == file_url)
+		.where(
+			((file.attached_to_doctype == SALES_ORDER) & (file.attached_to_name == doc.name))
+			| (
+				(file.attached_to_doctype == CUSTOMER)
+				& (file.attached_to_name == doc.customer)
+				& (file.owner == frappe.session.user)
+			)
+		)
+		.orderby(file.creation)
+	).run(pluck=True)
+	return [frappe.get_doc("File", name) for name in names]
+
+
+def file_po_document(doc) -> None:
+	file_url = doc.get(PO_DOCUMENT_FIELD)
+	if not file_url or not doc.po_no:
+		return
+
+	files = po_document_files(doc, file_url)
+	if not files:
+		return
+
+	wanted = po_document_name(doc.po_no, files[0].file_name or file_url)
+	if all(
+		file.file_name == wanted
+		and file.attached_to_doctype == SALES_ORDER
+		and file.attached_to_name == doc.name
+		for file in files
+	):
+		return
+
+	content = files[0].get_content()
+	renamed = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": wanted,
+			"content": content,
+			"attached_to_doctype": SALES_ORDER,
+			"attached_to_name": doc.name,
+			"attached_to_field": PO_DOCUMENT_FIELD,
+			"is_private": 1,
+			"folder": "Home",
+		}
+	)
+	renamed.flags.new_file = True
+	renamed.save_file(content=content, ignore_existing_file_check=True)
+	renamed.file_name = wanted
+	renamed.flags.copy_from_existing_file = True
+	renamed.insert(ignore_permissions=True)
+
+	for file in files:
+		file.delete(ignore_permissions=True)
+
+	doc.db_set(PO_DOCUMENT_FIELD, renamed.file_url, update_modified=False)
+
+
+def ensure_po_document(doc) -> None:
+	if po_document_required() and doc.po_no and not doc.get(PO_DOCUMENT_FIELD):
+		frappe.throw(
+			_("Attach your LPO document for PO number {0} before sending the order.").format(doc.po_no)
+		)
+
+
 def own_portal_order(name: str, customer: str) -> str:
 	mine = frappe.db.get_value(
 		SALES_ORDER,
@@ -404,6 +511,7 @@ def fill_order(
 	delivery_date,
 	shipping_address: str | None,
 	po_no: str | None,
+	po_document: str | None = None,
 ) -> None:
 	lines = order_lines(items)
 	codes = sorted({item_code for item_code, _uom in lines})
@@ -418,6 +526,8 @@ def fill_order(
 	exchange_rate(
 		currency, frappe.get_cached_value("Company", company, "default_currency"), nowdate(), currency
 	)
+
+	delivery_date = delivery_date or getdate(nowdate())
 
 	doc.update(
 		{
@@ -435,6 +545,7 @@ def fill_order(
 		}
 	)
 	validate_po_number(doc)
+	doc.set(PO_DOCUMENT_FIELD, po_document_of(doc, customer, po_document))
 	doc.set("items", [])
 
 	for (item_code, uom), qty in lines.items():
@@ -496,12 +607,16 @@ def write_order(doc, status: str) -> None:
 	if doc.is_new():
 		doc.owner = frappe.session.user
 
+	if status == ORDER_SUBMITTED:
+		ensure_po_document(doc)
+
 	doc.set(PORTAL_STATUS_FIELD, status)
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_mandatory = True
 	with as_administrator():
 		doc.save()
 		validate_portal_mandatory(doc)
+	file_po_document(doc)
 
 
 def prepared_order(
@@ -512,6 +627,7 @@ def prepared_order(
 	delivery_date: str | None,
 	shipping_address: str | None,
 	po_no: str | None,
+	po_document: str | None = None,
 ):
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
@@ -532,6 +648,7 @@ def prepared_order(
 		delivery_date_of(delivery_date),
 		delivery_address(customer, shipping_address),
 		po_no,
+		po_document,
 	)
 	return doc
 
@@ -552,8 +669,10 @@ def order_view(doc) -> dict:
 		"name": None if doc.is_new() else doc.name,
 		"company": doc.company,
 		"currency": doc.currency,
+		"company_currency": frappe.get_cached_value("Company", doc.company, "default_currency"),
 		"delivery_date": doc.delivery_date,
 		"po_no": doc.po_no,
+		"po_document": po_document_view(doc.get(PO_DOCUMENT_FIELD)),
 		"shipping_address": doc.shipping_address_name,
 		"status": doc.get(PORTAL_STATUS_FIELD),
 		"items": [
@@ -574,6 +693,24 @@ def order_view(doc) -> dict:
 		"net_total": doc.net_total,
 		"total_taxes": doc.total_taxes_and_charges,
 		"grand_total": doc.grand_total,
+		"base_grand_total": doc.base_grand_total,
+	}
+
+
+def po_document_view(file_url: str | None) -> dict | None:
+	if not file_url:
+		return None
+
+	file_name = frappe.db.get_value("File", {"file_url": file_url}, "file_name")
+	return {"file_url": file_url, "file_name": file_name or file_url.rsplit("/", 1)[-1]}
+
+
+def po_document_rules() -> dict:
+	max_size = flt(frappe.get_cached_doc("Sourcing Settings").get_upload_rules(None)["max_file_size_mb"])
+	return {
+		"required": po_document_required(),
+		"file_types": list(PO_DOCUMENT_TYPES),
+		"max_file_size_mb": max_size or None,
 	}
 
 
@@ -599,6 +736,7 @@ def get_order_form(customer: str, name: str | None = None) -> ApiResponse[dict]:
 			"companies": companies,
 			"addresses": [address_option(address) for address in customer_addresses(customer)],
 			"today": nowdate(),
+			"po_document": po_document_rules(),
 			"order": order,
 		}
 	)
@@ -741,7 +879,7 @@ def price_order(
 		customer,
 		order_company(customer, company),
 		items,
-		delivery_date_of(delivery_date, required=False),
+		delivery_date_of(delivery_date),
 		delivery_address(customer, shipping_address) if shipping_address else None,
 		None,
 	)
@@ -757,8 +895,9 @@ def save_order(
 	delivery_date: str | None = None,
 	shipping_address: str | None = None,
 	po_no: str | None = None,
+	po_document: str | None = None,
 ) -> ApiResponse[dict]:
-	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no)
+	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no, po_document)
 	write_order(doc, ORDER_PENDING)
 	return ApiResponse.success(_("Draft saved."), order_view(doc))
 
@@ -772,8 +911,9 @@ def submit_order(
 	delivery_date: str | None = None,
 	shipping_address: str | None = None,
 	po_no: str | None = None,
+	po_document: str | None = None,
 ) -> ApiResponse[dict]:
-	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no)
+	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no, po_document)
 	write_order(doc, ORDER_SUBMITTED)
 	return ApiResponse.success(_("Order sent. We will confirm it shortly."), order_view(doc))
 
@@ -823,3 +963,39 @@ def withdraw_order(customer: str, name: str) -> ApiResponse[dict]:
 		doc.add_comment("Info", _("Withdrawn by the customer on the portal."))
 
 	return ApiResponse.success(_("Order withdrawn. It is back in your drafts."), {"name": doc.name})
+
+
+@frappe.whitelist(methods=["POST"])
+def attach_po_document() -> ApiResponse[dict]:
+	ensure_orders_enabled()
+	customer = ordering_customer(frappe.form_dict.get("customer"))
+	if frappe.get_cached_value(CUSTOMER, customer, "disabled"):
+		frappe.throw(_("This account is disabled, so it cannot place orders. Please contact us."))
+
+	content = getattr(frappe.local, "uploaded_file", None)
+	filename = getattr(frappe.local, "uploaded_filename", None)
+	if content is None or not filename:
+		frappe.throw(_("No file was received."), title=_("Upload failed"))
+
+	validate_upload(filename, content, None, PO_DOCUMENT_TYPES)
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": content,
+			"attached_to_doctype": CUSTOMER,
+			"attached_to_name": customer,
+			"is_private": 1,
+			"folder": "Home",
+		}
+	)
+	file_doc.save(ignore_permissions=True)
+
+	return ApiResponse.success(
+		data={
+			"file_url": file_doc.file_url,
+			"file_name": file_doc.file_name,
+			"file_size": file_doc.file_size,
+		}
+	)

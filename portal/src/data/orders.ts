@@ -19,24 +19,39 @@ export interface OrderLineView {
   amount: number;
 }
 
+export interface PoDocument {
+  file_url: string;
+  file_name: string;
+}
+
+export interface PoDocumentRules {
+  required: boolean;
+  file_types: string[];
+  max_file_size_mb: number | null;
+}
+
 export interface OrderView {
   name: string | null;
   company: string;
   currency: string;
+  company_currency: string;
   delivery_date: string | null;
   po_no: string | null;
+  po_document: PoDocument | null;
   shipping_address: string | null;
   status: "Pending" | "Submitted" | null;
   items: OrderLineView[];
   net_total: number;
   total_taxes: number | null;
   grand_total: number;
+  base_grand_total: number;
 }
 
 export interface OrderForm {
   companies: string[];
   addresses: OrderAddress[];
   today: string;
+  po_document: PoDocumentRules;
   order: OrderView | null;
 }
 
@@ -77,6 +92,7 @@ export interface OrderPayload {
   delivery_date?: string | null;
   shipping_address?: string | null;
   po_no?: string | null;
+  po_document?: string | null;
 }
 
 const ORDERS = "vuna_sourcing.api.transactions.customer_orders";
@@ -129,7 +145,12 @@ export function fetchOrderableItems(params: {
   return createResource({ url: `${ORDERS}.get_orderable_items` }).fetch(params);
 }
 
-export function priceOrder(payload: Omit<OrderPayload, "name" | "po_no">) {
+export function poDocumentEndpoint(customer: string) {
+  const query = new URLSearchParams({ method: `${ORDERS}.attach_po_document`, customer });
+  return `/api/method/upload_file?${query}`;
+}
+
+export function priceOrder(payload: Omit<OrderPayload, "name" | "po_no" | "po_document">) {
   return post<OrderView>("price_order", payload);
 }
 

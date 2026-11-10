@@ -2,8 +2,12 @@
 import { computed } from "vue";
 import { Button, Combobox, ErrorMessage, FormControl, Select, Spinner } from "frappe-ui";
 import QtyStepper from "@/components/QtyStepper.vue";
+import PoDocumentField from "@/components/PoDocumentField.vue";
+import OrderCreditAlert from "@/components/OrderCreditAlert.vue";
 import { injectOrderDraft } from "@/composables/useOrderDraft";
 import { money } from "@/data/purchase";
+
+const props = defineProps<{ wide?: boolean }>();
 
 const emit = defineEmits<{ (e: "save"): void; (e: "send"): void; (e: "clear"): void }>();
 
@@ -38,141 +42,128 @@ const addressMissing = computed(
 	() => choosesAddress.value && !draft.address.value && draft.lines.value.length > 0
 );
 
-const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.value.length > 0);
+const showPoDocument = computed(() => !!draft.poNo.value.trim());
+
+const detailsNeedAttention = computed(
+	() => addressMissing.value || (draft.needsPoDocument.value && draft.lines.value.length > 0)
+);
 </script>
 
 <template>
-	<div class="flex min-h-0 flex-col">
-		<div class="cart-body -mr-2 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-4 pr-2">
-			<section aria-label="Items in your cart" class="min-w-0">
-				<div
-					v-if="!draft.lines.value.length"
-					class="flex flex-col items-center gap-2 rounded-6 border border-dashed border-outline-gray-3 px-4 py-8 text-center"
+	<div class="cart min-h-0" :class="props.wide ? 'cart-wide' : 'cart-narrow'">
+		<section aria-label="Items in your cart" class="cart-items min-w-0">
+			<div
+				v-if="!draft.lines.value.length"
+				class="flex flex-col items-center gap-2 rounded-6 border border-dashed border-outline-gray-3 px-4 py-8 text-center"
+			>
+				<span class="grid size-10 place-items-center rounded-full bg-surface-gray-2">
+					<i class="lucide-shopping-basket size-5 text-ink-gray-6" aria-hidden="true" />
+				</span>
+				<p class="text-base font-medium text-ink-gray-8">Your cart is empty</p>
+				<p class="text-p-sm text-ink-gray-6">Tap Add on an item to start your order.</p>
+			</div>
+
+			<div v-else class="mb-2 flex items-center justify-between gap-2">
+				<p class="text-p-sm text-ink-gray-6">
+					{{ draft.lines.value.length }}
+					{{ draft.lines.value.length === 1 ? "item" : "different items" }}
+				</p>
+				<Button
+					size="sm"
+					variant="subtle"
+					theme="red"
+					icon-left="lucide-trash-2"
+					label="Clear cart"
+					:disabled="!!draft.busy.value"
+					:loading="draft.busy.value === 'clear'"
+					@click="emit('clear')"
+				/>
+			</div>
+
+			<ul v-if="draft.lines.value.length" class="divide-y divide-outline-gray-1">
+				<li
+					v-for="line in draft.lines.value"
+					:key="`${line.item_code}::${line.uom}`"
+					class="flex gap-3 py-3 first:pt-0"
 				>
-					<span class="grid size-10 place-items-center rounded-full bg-surface-gray-2">
+					<span
+						class="grid shrink-0 place-items-center overflow-hidden rounded-6 bg-surface-gray-2"
+						:class="props.wide ? 'size-16' : 'size-12'"
+					>
+						<img
+							v-if="line.image"
+							:src="line.image"
+							alt=""
+							loading="lazy"
+							class="size-full object-cover"
+						/>
 						<i
-							class="lucide-shopping-basket size-5 text-ink-gray-6"
+							v-else
+							class="lucide-package size-5 text-ink-gray-5"
 							aria-hidden="true"
 						/>
 					</span>
-					<p class="text-base font-medium text-ink-gray-8">Your cart is empty</p>
-					<p class="text-p-sm text-ink-gray-6">
-						Tap Add on an item to start your order.
-					</p>
-				</div>
-
-				<div v-else class="mb-2 flex items-center justify-between gap-2">
-					<p class="text-p-sm text-ink-gray-6">
-						{{ draft.lines.value.length }}
-						{{ draft.lines.value.length === 1 ? "item" : "different items" }}
-					</p>
-					<Button
-						size="sm"
-						variant="subtle"
-						theme="red"
-						icon-left="lucide-trash-2"
-						label="Clear cart"
-						:disabled="!!draft.busy.value"
-						:loading="draft.busy.value === 'clear'"
-						@click="emit('clear')"
-					/>
-				</div>
-
-				<ul v-if="draft.lines.value.length" class="divide-y divide-outline-gray-1">
-					<li
-						v-for="line in draft.lines.value"
-						:key="`${line.item_code}::${line.uom}`"
-						class="flex gap-3 py-3 first:pt-0"
-					>
-						<span
-							class="grid size-12 shrink-0 place-items-center overflow-hidden rounded-6 bg-surface-gray-2"
-						>
-							<img
-								v-if="line.image"
-								:src="line.image"
-								alt=""
-								loading="lazy"
-								class="size-full object-cover"
-							/>
-							<i
-								v-else
-								class="lucide-package size-5 text-ink-gray-5"
-								aria-hidden="true"
-							/>
-						</span>
-						<div class="flex min-w-0 flex-1 flex-col gap-2">
-							<div class="flex items-start justify-between gap-3">
-								<p
-									class="min-w-0 text-base font-medium leading-snug text-ink-gray-9"
-								>
-									{{ line.item_name }}
-								</p>
-								<p
-									class="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-ink-gray-9"
-								>
-									<template v-if="draft.pricedLine(line)">
-										{{
-											money(
-												draft.pricedLine(line)!.amount,
-												draft.currency.value
-											)
-										}}
-									</template>
-									<span
-										v-else
-										class="inline-block h-3.5 w-16 animate-pulse rounded bg-surface-gray-2"
-									/>
-								</p>
-							</div>
-							<div class="flex items-center justify-between gap-3">
-								<div
-									class="flex min-w-0 items-center gap-2 text-p-sm text-ink-gray-6"
-								>
-									<Select
-										v-if="line.uoms.length > 1"
-										size="sm"
-										class="w-28"
-										:aria-label="`Unit for ${line.item_name}`"
-										:options="
-											line.uoms.map((option) => ({
-												label: option.uom,
-												value: option.uom,
-											}))
-										"
-										:model-value="line.uom"
-										@update:model-value="draft.changeUom(line, String($event))"
-									/>
-									<span v-else>{{ line.uom }}</span>
-									<span
-										v-if="draft.pricedLine(line)"
-										class="truncate tabular-nums"
-									>
-										×
-										{{
-											money(
-												draft.pricedLine(line)!.rate,
-												draft.currency.value
-											)
-										}}
-									</span>
-								</div>
-								<QtyStepper
-									class="w-32 shrink-0"
-									size="sm"
-									:model-value="line.qty"
-									:label="line.item_name"
-									@update:model-value="draft.setQty(line, $event)"
+					<div class="flex min-w-0 flex-1 flex-col gap-2">
+						<div class="flex items-start justify-between gap-3">
+							<p class="min-w-0 text-base font-medium leading-snug text-ink-gray-9">
+								{{ line.item_name }}
+							</p>
+							<p
+								class="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-ink-gray-9"
+							>
+								<template v-if="draft.pricedLine(line)">
+									{{
+										money(draft.pricedLine(line)!.amount, draft.currency.value)
+									}}
+								</template>
+								<span
+									v-else
+									class="inline-block h-3.5 w-16 animate-pulse rounded bg-surface-gray-2"
 								/>
-							</div>
+							</p>
 						</div>
-					</li>
-				</ul>
-			</section>
+						<div class="flex items-center justify-between gap-3">
+							<div class="flex min-w-0 items-center gap-2 text-p-sm text-ink-gray-6">
+								<Select
+									v-if="line.uoms.length > 1"
+									size="sm"
+									class="w-28"
+									:aria-label="`Unit for ${line.item_name}`"
+									:options="
+										line.uoms.map((option) => ({
+											label: option.uom,
+											value: option.uom,
+										}))
+									"
+									:model-value="line.uom"
+									@update:model-value="draft.changeUom(line, String($event))"
+								/>
+								<span v-else>{{ line.uom }}</span>
+								<span v-if="draft.pricedLine(line)" class="truncate tabular-nums">
+									×
+									{{ money(draft.pricedLine(line)!.rate, draft.currency.value) }}
+								</span>
+							</div>
+							<QtyStepper
+								class="w-32 shrink-0"
+								size="sm"
+								:model-value="line.qty"
+								:label="line.item_name"
+								@update:model-value="draft.setQty(line, $event)"
+							/>
+						</div>
+					</div>
+				</li>
+			</ul>
+		</section>
+
+		<div class="cart-details flex min-w-0 flex-col gap-4">
+			<OrderCreditAlert />
 
 			<section
 				class="flex flex-col gap-4 rounded-8 border p-3"
 				:class="
-					addressMissing || deliveryMissing
+					detailsNeedAttention
 						? 'border-outline-amber-3 bg-surface-amber-1'
 						: 'border-outline-gray-2 bg-surface-gray-1'
 				"
@@ -189,19 +180,25 @@ const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.
 						<h3 id="delivery-heading" class="text-base font-semibold text-ink-gray-9">
 							Delivery details
 						</h3>
-						<p class="text-p-xs text-ink-gray-6">
-							Needed before you can send the order.
-						</p>
+						<p class="text-p-xs text-ink-gray-6">Where and when you would like it.</p>
 					</div>
 				</div>
 
-				<FormControl
-					v-model="draft.deliveryDate.value"
-					type="date"
-					label="Deliver by"
-					:min="draft.form.value?.today"
-					required
-				/>
+				<div>
+					<FormControl
+						v-model="draft.deliveryDate.value"
+						type="date"
+						label="Deliver by (optional)"
+						:min="draft.form.value?.today"
+					/>
+					<p class="mt-1 text-p-xs text-ink-gray-5">
+						{{
+							draft.deliveryDate.value
+								? "We will aim to deliver by this date."
+								: "Leave empty if any date works. We will confirm a date with you."
+						}}
+					</p>
+				</div>
 
 				<div v-if="choosesAddress">
 					<Combobox
@@ -309,16 +306,16 @@ const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.
 				<FormControl
 					v-model="draft.poNo.value"
 					type="text"
-					label="Your reference (optional)"
-					placeholder="e.g. your PO number"
+					label="PO / LPO number (optional)"
+					placeholder="e.g. LPO-2026-0142"
 					maxlength="140"
 				/>
+
+				<PoDocumentField v-if="showPoDocument" />
 			</section>
 		</div>
 
-		<div
-			class="cart-footer sticky bottom-0 flex shrink-0 flex-col gap-3 border-t bg-surface-base pt-3"
-		>
+		<div class="cart-footer flex shrink-0 flex-col gap-3 border-t bg-surface-base pt-3">
 			<div class="flex flex-col gap-1.5 text-p-sm tabular-nums" aria-live="polite">
 				<div class="flex justify-between gap-4 text-ink-gray-6">
 					<span>Subtotal</span>
@@ -375,7 +372,7 @@ const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.
 						? 'lucide-bookmark'
 						: 'lucide-check'
 				"
-				:disabled="!draft.ready.value || (!!draft.orderName.value && !draft.dirty.value)"
+				:disabled="!draft.savable.value || (!!draft.orderName.value && !draft.dirty.value)"
 				:loading="draft.busy.value === 'draft'"
 				@click="emit('save')"
 			/>
@@ -389,7 +386,49 @@ const deliveryMissing = computed(() => !draft.deliveryDate.value && draft.lines.
 	outline-offset: 2px;
 }
 
-.cart-body {
+.cart {
 	scrollbar-width: thin;
+}
+
+.cart-narrow {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+	overflow-y: auto;
+	margin-right: -0.5rem;
+	padding-right: 0.5rem;
+}
+
+.cart-narrow .cart-footer {
+	position: sticky;
+	bottom: 0;
+	z-index: 1;
+	margin-top: auto;
+}
+
+.cart-wide {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+	grid-template-rows: minmax(0, 1fr) auto;
+	grid-template-areas:
+		"items details"
+		"items footer";
+	column-gap: 1.5rem;
+}
+
+.cart-wide .cart-items {
+	grid-area: items;
+	overflow-y: auto;
+	padding-right: 0.5rem;
+}
+
+.cart-wide .cart-details {
+	grid-area: details;
+	overflow-y: auto;
+	padding-bottom: 1rem;
+}
+
+.cart-wide .cart-footer {
+	grid-area: footer;
 }
 </style>
