@@ -154,9 +154,15 @@ export interface Quotation {
   total: number | null;
   total_taxes: number | null;
   grand_total: number | null;
+  addresses: DocumentAddresses;
   terms: string | null;
   items: LineItem[];
   sales_orders: string[];
+}
+
+export interface DocumentAddresses {
+  billing: string | null;
+  shipping: string | null;
 }
 
 export interface SalesOrderItem extends LineItem {
@@ -176,6 +182,7 @@ export interface SalesOrder {
   withdrawable: boolean;
   po_no: string | null;
   po_date: string | null;
+  po_document: { file_url: string; file_name: string } | null;
   transaction_date: string;
   delivery_date: string | null;
   currency: string | null;
@@ -183,7 +190,7 @@ export interface SalesOrder {
   grand_total: number | null;
   delivered: number;
   billed: number;
-  shipping_address: string | null;
+  addresses: DocumentAddresses;
   terms: string | null;
   quotations: string[];
   items: SalesOrderItem[];
@@ -219,7 +226,7 @@ export interface DeliveryNote {
   lr_date: string | null;
   vehicle_no: string | null;
   driver_name: string | null;
-  shipping_address: string | null;
+  addresses: DocumentAddresses;
   terms: string | null;
   sales_orders: string[];
   items: DeliveryNoteItem[];
@@ -247,6 +254,7 @@ export interface SalesInvoice {
   total_taxes: number | null;
   grand_total: number | null;
   outstanding_amount: number | null;
+  addresses: DocumentAddresses;
   terms: string | null;
   sales_orders: string[];
   delivery_notes: string[];

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Alert, Badge, Button, Spinner, TabButtons } from "frappe-ui";
+import { Badge, Button, Spinner, TabButtons } from "frappe-ui";
 import { ListView } from "frappe-ui/experimental";
 import PageContainer from "@/components/PageContainer.vue";
+import ExplainerAccordion from "@/components/ExplainerAccordion.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import FilterFields from "@/components/FilterFields.vue";
 import type { StatusOption } from "@/components/FilterFields.vue";
@@ -128,12 +129,10 @@ function loadMore() {
 		/>
 
 		<template v-else>
-			<Alert
+			<ExplainerAccordion
 				class="mb-4"
-				theme="blue"
-				icon="lucide-info"
-				:title="CREDIT_REQUEST_EXPLAINER.title"
-				:description="CREDIT_REQUEST_EXPLAINER.description"
+				:question="CREDIT_REQUEST_EXPLAINER.title"
+				:answer="CREDIT_REQUEST_EXPLAINER.description"
 			/>
 
 			<FilterFields
