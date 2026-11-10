@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Badge, Button, Spinner } from "frappe-ui";
 import PageContainer from "@/components/PageContainer.vue";
+import DocumentAddresses from "@/components/DocumentAddresses.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import RichText from "@/components/RichText.vue";
 import PrintButton from "@/components/PrintButton.vue";
@@ -35,6 +36,7 @@ watch([customer, () => props.name], load, { immediate: true });
 
 <template>
 	<PageContainer
+		wide
 		:look="LOOKS.quotation"
 		:title="quotation?.name || name"
 		:copy="quotation?.name"
@@ -89,104 +91,115 @@ watch([customer, () => props.name], load, { immediate: true });
 			/>
 		</EmptyState>
 
-		<div v-else-if="quotation" class="space-y-6">
-			<dl
-				:class="ACCENTS[LOOKS.quotation.accent].panel"
-				class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
-			>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Dated</dt>
-					<dd class="text-p-base text-ink-gray-8">
-						{{ shortDate(quotation.transaction_date) }}
-					</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Valid until</dt>
-					<dd class="text-p-base text-ink-gray-8">
-						{{ shortDate(quotation.valid_till) }}
-					</dd>
-				</div>
-				<div>
-					<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Value</dt>
-					<dd class="text-p-base font-medium text-ink-gray-8">
-						{{ money(quotation.grand_total, quotation.currency) }}
-					</dd>
-				</div>
-			</dl>
-
-			<div v-if="quotation.sales_orders.length" class="flex flex-wrap items-center gap-2">
-				<span class="text-xs uppercase tracking-wide text-ink-gray-5">Ordered on</span>
-				<Button
-					v-for="order in quotation.sales_orders"
-					:key="order"
-					variant="subtle"
-					:label="order"
-					:route="{ name: 'SalesOrderDetail', params: { name: order } }"
-				/>
-			</div>
-
-			<div class="overflow-hidden rounded-6 border">
-				<div
-					class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
+		<div
+			v-else-if="quotation"
+			class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start"
+		>
+			<div class="min-w-0 space-y-6">
+				<dl
+					:class="ACCENTS[LOOKS.quotation.accent].panel"
+					class="grid gap-x-6 gap-y-3 rounded-6 border p-4 sm:grid-cols-3"
 				>
-					<span class="sm:col-span-6">Item</span>
-					<span class="sm:col-span-2">Quantity</span>
-					<span class="sm:col-span-2">Rate</span>
-					<span class="sm:col-span-2 text-right">Amount</span>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Dated</dt>
+						<dd class="text-p-base text-ink-gray-8">
+							{{ shortDate(quotation.transaction_date) }}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">
+							Valid until
+						</dt>
+						<dd class="text-p-base text-ink-gray-8">
+							{{ shortDate(quotation.valid_till) }}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">Value</dt>
+						<dd class="text-p-base font-medium text-ink-gray-8">
+							{{ money(quotation.grand_total, quotation.currency) }}
+						</dd>
+					</div>
+				</dl>
+
+				<div
+					v-if="quotation.sales_orders.length"
+					class="flex flex-wrap items-center gap-2"
+				>
+					<span class="text-xs uppercase tracking-wide text-ink-gray-5">Ordered on</span>
+					<Button
+						v-for="order in quotation.sales_orders"
+						:key="order"
+						variant="subtle"
+						:label="order"
+						:route="{ name: 'SalesOrderDetail', params: { name: order } }"
+					/>
 				</div>
 
-				<div class="divide-y">
+				<div class="overflow-hidden rounded-6 border">
 					<div
-						v-for="item in quotation.items"
-						:key="item.name"
-						class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
+						class="hidden bg-surface-gray-1 px-4 py-2 text-xs uppercase tracking-wide text-ink-gray-5 sm:grid sm:grid-cols-12 sm:gap-3"
 					>
-						<div class="sm:col-span-6">
-							<p class="text-base font-medium text-ink-gray-8">
-								{{ item.item_name }}
+						<span class="sm:col-span-6">Item</span>
+						<span class="sm:col-span-2">Quantity</span>
+						<span class="sm:col-span-2">Rate</span>
+						<span class="sm:col-span-2 text-right">Amount</span>
+					</div>
+
+					<div class="divide-y">
+						<div
+							v-for="item in quotation.items"
+							:key="item.name"
+							class="grid gap-1 px-4 py-3 sm:grid-cols-12 sm:items-center sm:gap-3"
+						>
+							<div class="sm:col-span-6">
+								<p class="text-base font-medium text-ink-gray-8">
+									{{ item.item_name }}
+								</p>
+								<p
+									v-if="item.description"
+									class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
+								>
+									{{ item.description }}
+								</p>
+							</div>
+
+							<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
+								{{ item.qty }} {{ item.uom }}
+							</p>
+							<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
+								{{ money(item.rate, quotation.currency) }}
 							</p>
 							<p
-								v-if="item.description"
-								class="mt-0.5 line-clamp-2 text-p-sm text-ink-gray-5"
+								class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
 							>
-								{{ item.description }}
+								{{ money(item.amount, quotation.currency) }}
 							</p>
 						</div>
+					</div>
 
-						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
-							{{ item.qty }} {{ item.uom }}
-						</p>
-						<p class="text-p-sm text-ink-gray-7 sm:col-span-2">
-							{{ money(item.rate, quotation.currency) }}
-						</p>
-						<p
-							class="text-p-sm font-medium text-ink-gray-8 sm:col-span-2 sm:text-right"
-						>
-							{{ money(item.amount, quotation.currency) }}
-						</p>
+					<div
+						v-if="quotation.total_taxes"
+						class="flex items-center justify-between border-t px-4 py-2 text-base text-ink-gray-7"
+					>
+						<span>Taxes and charges</span>
+						<span>{{ money(quotation.total_taxes, quotation.currency) }}</span>
+					</div>
+
+					<div
+						class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
+					>
+						<span>Total</span>
+						<span>{{ money(quotation.grand_total, quotation.currency) }}</span>
 					</div>
 				</div>
 
-				<div
-					v-if="quotation.total_taxes"
-					class="flex items-center justify-between border-t px-4 py-2 text-base text-ink-gray-7"
-				>
-					<span>Taxes and charges</span>
-					<span>{{ money(quotation.total_taxes, quotation.currency) }}</span>
-				</div>
-
-				<div
-					class="flex items-center justify-between border-t bg-surface-gray-1 px-4 py-2 text-base font-medium text-ink-gray-8"
-				>
-					<span>Total</span>
-					<span>{{ money(quotation.grand_total, quotation.currency) }}</span>
+				<div v-if="quotation.terms" class="rounded-6 border p-4">
+					<p class="text-xs uppercase tracking-wide text-ink-gray-5">Terms</p>
+					<RichText class="mt-1" :html="quotation.terms" />
 				</div>
 			</div>
-
-			<div v-if="quotation.terms" class="rounded-6 border p-4">
-				<p class="text-xs uppercase tracking-wide text-ink-gray-5">Terms</p>
-				<RichText class="mt-1" :html="quotation.terms" />
-			</div>
+			<DocumentAddresses :addresses="quotation.addresses" />
 		</div>
 	</PageContainer>
 </template>

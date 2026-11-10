@@ -14,6 +14,9 @@ import {
 import { ThemeSwitcher } from "frappe-ui/experimental";
 import ProfileSettings from "@/components/ProfileSettings.vue";
 import TeamSettings from "@/components/TeamSettings.vue";
+import CreditSettings from "@/components/CreditSettings.vue";
+import { useCreditStatus } from "@/composables/useCreditStatus";
+import { usePortalSettings } from "@/composables/usePortalSettings";
 import { useIsMobile } from "@/composables/useViewport";
 import { usePortalStore } from "@/stores/portal";
 
@@ -22,7 +25,8 @@ const open = defineModel<boolean>("open", { default: false });
 const isMobile = useIsMobile();
 const portal = usePortalStore();
 
-const tab = ref("profile");
+const { tab } = usePortalSettings();
+const credit = useCreditStatus();
 
 const tabs = computed(() => [
 	{ value: "profile", label: "Profile", icon: "lucide-user", hint: "Your details and accounts" },
@@ -33,6 +37,16 @@ const tabs = computed(() => [
 					label: "Team",
 					icon: "lucide-users",
 					hint: "Invite people and choose their branches",
+				},
+		  ]
+		: []),
+	...(credit.enabled.value
+		? [
+				{
+					value: "credit",
+					label: "Credit",
+					icon: "lucide-wallet",
+					hint: "Your credit limit and what you owe",
 				},
 		  ]
 		: []),
@@ -51,8 +65,16 @@ const mobileTitle = computed(
 );
 
 watch(open, (isOpen) => {
-	if (!isOpen) mobileSection.value = null;
+	mobileSection.value = isOpen && tab.value !== "profile" ? tab.value : null;
 });
+
+watch(
+	() => credit.enabled.value,
+	(enabled) => {
+		if (!enabled && tab.value === "credit") tab.value = "profile";
+		if (!enabled && mobileSection.value === "credit") mobileSection.value = null;
+	}
+);
 
 watch(
 	() => portal.canManageTeam,
@@ -108,6 +130,7 @@ watch(
 				</button>
 				<ProfileSettings v-if="mobileSection === 'profile'" />
 				<TeamSettings v-else-if="mobileSection === 'team'" />
+				<CreditSettings v-else-if="mobileSection === 'credit'" />
 				<div v-else class="flex flex-col gap-2">
 					<p class="text-p-sm text-ink-gray-6">
 						Choose how the portal looks on this device.
@@ -127,10 +150,19 @@ watch(
 				</SettingsNavItem>
 			</SettingsNavGroup>
 			<SettingsNavGroup
-				v-if="portal.canManageTeam"
+				v-if="portal.canManageTeam || credit.enabled.value"
 				:label="portal.activeParty?.title || 'Company'"
 			>
-				<SettingsNavItem :value="'team'" icon="lucide-users">Team</SettingsNavItem>
+				<SettingsNavItem v-if="portal.canManageTeam" :value="'team'" icon="lucide-users">
+					Team
+				</SettingsNavItem>
+				<SettingsNavItem
+					v-if="credit.enabled.value"
+					:value="'credit'"
+					icon="lucide-wallet"
+				>
+					Credit
+				</SettingsNavItem>
 			</SettingsNavGroup>
 		</SettingsSidebar>
 
@@ -150,6 +182,17 @@ watch(
 				<SettingsHeader class="mb-2" title="Team" />
 				<SettingsBody>
 					<TeamSettings />
+				</SettingsBody>
+			</SettingsPanel>
+
+			<SettingsPanel v-if="credit.enabled.value" :value="'credit'">
+				<SettingsHeader
+					class="mb-2"
+					title="Credit"
+					description="Your credit limit, what you owe and what is left."
+				/>
+				<SettingsBody>
+					<CreditSettings />
 				</SettingsBody>
 			</SettingsPanel>
 

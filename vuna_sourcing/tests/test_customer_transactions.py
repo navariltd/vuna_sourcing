@@ -165,6 +165,37 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 		self.assertEqual(billed["outstanding_amount"], 500)
 		self.assertEqual(billed["payments"], [], "nothing paid yet")
 
+	def test_a_customer_sees_the_billing_and_shipping_address_on_each_document(self):
+		"""Quotations, orders, deliveries and invoices show where the customer is billed and where goods go."""
+		customer, user = self.make_customer()
+		billing = "Jane Doe<br>\n12 Market Street<br>\nNakuru<br>\n<br>\n"
+		shipping = "Greenfield Store<br>\nMoi Avenue<script>alert(1)</script><br>\n"
+		quotation = self.make_quotation(customer)
+		order = self.make_order(customer)
+		delivery = self.deliver(order)
+		invoice = self.invoice(order)
+		for doctype, name in (
+			("Quotation", quotation.name),
+			("Sales Order", order.name),
+			("Delivery Note", delivery.name),
+			("Sales Invoice", invoice.name),
+		):
+			frappe.db.set_value(doctype, name, {"address_display": billing, "shipping_address": shipping})
+
+		with self.set_user(user):
+			documents = [
+				get_quotation(quotation.name),
+				get_sales_order(order.name),
+				get_delivery_note(delivery.name),
+				get_sales_invoice(invoice.name),
+			]
+
+		for document in documents:
+			addresses = document["addresses"]
+			self.assertEqual(addresses["billing"], "Jane Doe<br>\n12 Market Street<br>\nNakuru")
+			self.assertIn("Moi Avenue", addresses["shipping"])
+			self.assertNotIn("<script", addresses["shipping"])
+
 	def test_a_customer_finds_an_order_by_their_own_po_number(self):
 		customer, user = self.make_customer()
 		order = self.make_order(customer, po_no="PO-" + frappe.generate_hash(length=6))
