@@ -6,11 +6,14 @@ import {
   deleteOrder,
   errorText,
   fetchOrderForm,
+  isBlankDetail,
   priceOrder,
   saveOrder,
   submitOrder,
 } from "@/data/orders";
 import type {
+  OrderDetails,
+  OrderField,
   OrderForm,
   OrderLineView,
   OrderPayload,
@@ -54,6 +57,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
   const deliveryDate = ref<string | null>(null);
   const poNo = ref("");
   const poDocument = ref<PoDocument | null>(null);
+  const details = ref<OrderDetails>({});
   const lines = ref<CartLine[]>([]);
   const savedSnapshot = ref("");
 
@@ -69,11 +73,21 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
 
   const companies = computed(() => form.value?.companies ?? []);
   const addresses = computed(() => form.value?.addresses ?? []);
+  const fields = computed<OrderField[]>(() => form.value?.fields ?? []);
   const currency = computed(() => priced.value?.currency ?? null);
   const units = computed(() => lines.value.reduce((total, line) => total + line.qty, 0));
 
   function orderedItems() {
     return lines.value.map(({ item_code, uom, qty }) => ({ item_code, uom, qty }));
+  }
+
+  function detailValues(): OrderDetails {
+    return Object.fromEntries(
+      fields.value.map((field) => {
+        const value = details.value[field.fieldname];
+        return [field.fieldname, isBlankDetail(value) ? null : (value ?? null)];
+      }),
+    );
   }
 
   function snapshot() {
@@ -83,6 +97,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
       deliveryDate: deliveryDate.value,
       poNo: poNo.value.trim(),
       poDocument: poDocument.value?.file_url ?? null,
+      details: detailValues(),
       lines: orderedItems(),
     });
   }
@@ -95,6 +110,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
 
   function adopt(order: OrderView | null) {
     orderName.value = order?.name ?? null;
+    if (order?.details) details.value = { ...details.value, ...order.details };
     lines.value = cartLinesFrom(order?.items ?? []);
     priced.value = order;
     pricedKey.value = priceKey();
@@ -110,6 +126,9 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     deliveryDate.value = order?.delivery_date ?? null;
     poNo.value = order?.po_no ?? "";
     poDocument.value = order?.po_document ?? null;
+    details.value = Object.fromEntries(
+      data.fields.map((field) => [field.fieldname, order?.details?.[field.fieldname] ?? null]),
+    );
     adopt(order);
   }
 
@@ -260,6 +279,10 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     () => !!poRules.value?.required && !!poNo.value.trim() && !poDocument.value,
   );
 
+  const missingFields = computed(() =>
+    fields.value.filter((field) => field.mandatory && isBlankDetail(details.value[field.fieldname])),
+  );
+
   const checklist = computed(() => [
     { label: "Add at least one item", done: lines.value.length > 0, toSave: true },
     {
@@ -269,6 +292,11 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     },
     { label: "Choose the company you are ordering from", done: !!company.value, toSave: true },
     { label: "Attach your LPO document", done: !needsPoDocument.value, toSave: false },
+    ...missingFields.value.map((field) => ({
+      label: `Fill in ${field.label}`,
+      done: false,
+      toSave: false,
+    })),
   ]);
 
   const missing = computed(() => checklist.value.filter((step) => !step.done));
@@ -287,6 +315,7 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
       shipping_address: address.value,
       po_no: poNo.value.trim() || null,
       po_document: poNo.value.trim() ? poDocument.value?.file_url ?? null : null,
+      details: detailValues(),
     };
   }
 
@@ -385,6 +414,9 @@ export function useOrderDraft(customer: Ref<string | null>, name: Ref<string | u
     poDocument,
     poRules,
     needsPoDocument,
+    fields,
+    details,
+    missingFields,
     lines,
     units,
     dirty,

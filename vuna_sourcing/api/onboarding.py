@@ -10,6 +10,7 @@ from frappe.utils.pdf import get_pdf
 
 from vuna_sourcing.api.portal import get_current_user
 from vuna_sourcing.api.response import ApiResponse
+from vuna_sourcing.dynamic_fields import choices_of
 from vuna_sourcing.utils import CUSTOMER, PARTY_TYPES, get_open_party_types, tax_id_formats
 from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
 	DOCTYPE,
@@ -67,6 +68,9 @@ DOCUMENT_FIELDS = (
 
 LINK_OPTION_DOCTYPES = ("Country",)
 
+SCREENING_QUESTION_DOCTYPE = "Party Onboarding Screening Question"
+MAX_SCREENING_ANSWERS = 200
+
 
 def get_own_application(name: str, *, for_write: bool = False):
 	user = get_current_user()
@@ -115,6 +119,42 @@ def apply_applicant_values(doc, values: dict):
 	shape_contacts_and_addresses(doc)
 
 	_apply_documents(doc, values.get("documents"))
+	_apply_screening_answers(doc, values.get("screening"))
+
+
+def _apply_screening_answers(doc, answers):
+	if answers is None:
+		return
+
+	if isinstance(answers, str):
+		answers = frappe.parse_json(answers)
+
+	if (
+		not isinstance(answers, list)
+		or len(answers) > MAX_SCREENING_ANSWERS
+		or not all(isinstance(row, dict) for row in answers)
+	):
+		frappe.throw(_("Your answers could not be read. Refresh the page and try again."))
+
+	supplied = {row.get("question_id"): row.get("answer") for row in answers if row.get("question_id")}
+	for row in doc.screening_answers:
+		if row.question_id in supplied:
+			row.answer = supplied[row.question_id]
+
+
+def screening_view(doc) -> list[dict]:
+	return [
+		{
+			"question_id": row.question_id,
+			"question": row.question,
+			"field_type": row.field_type,
+			"choices": choices_of(row.field_type, row.options),
+			"mandatory": bool(row.is_mandatory),
+			"description": row.description or None,
+			"answer": row.answer,
+		}
+		for row in doc.screening_answers
+	]
 
 
 def check_party_type_is_open(doc, party_type: str | None):
@@ -209,7 +249,28 @@ def get_onboarding_types() -> list[dict]:
 
 	usable = {party_type: set(get_document_types_for(party_type)) for party_type in open_party_types}
 
+	questions = {}
+	for row in frappe.get_all(
+		SCREENING_QUESTION_DOCTYPE,
+		filters={
+			"parenttype": TEMPLATE_DOCTYPE,
+			"parent": ("in", [template.name for template in templates] or [""]),
+		},
+		fields=["parent", "question", "field_type", "options", "is_mandatory", "description"],
+		order_by="idx asc",
+	):
+		questions.setdefault(row.parent, []).append(
+			{
+				"question": row.question,
+				"field_type": row.field_type,
+				"choices": choices_of(row.field_type, row.options),
+				"mandatory": bool(row.is_mandatory),
+				"description": row.description or None,
+			}
+		)
+
 	for template in templates:
+		template["questions"] = questions.get(template.name, [])
 		rows = frappe.get_all(
 			"Party Onboarding Document Requirement",
 			filters={"parent": template.name, "parenttype": TEMPLATE_DOCTYPE},
@@ -329,6 +390,7 @@ def get_application(name: str | None = None) -> dict | None:
 			}
 			for row in doc.required_documents
 		],
+		"screening": screening_view(doc),
 	}
 
 
@@ -396,6 +458,7 @@ def resubmit_application(name: str, values: dict | str | None = None) -> dict:
 	_save(doc)
 
 	doc.validate_mandatory_documents()
+	doc.validate_screening_answers()
 
 	doc.db_set(
 		{
@@ -562,14 +625,16 @@ def get_application_progress(name: str) -> dict:
 
 	required_documents = [row for row in doc.required_documents if row.is_mandatory]
 	missing_documents = doc.get_outstanding_documents()
+	missing_answers = doc.get_outstanding_answers()
 	attached = [row for row in required_documents if row.attachment]
 
 	return {
 		"missing_details": always + by_type,
 		"missing_documents": missing_documents,
+		"missing_answers": missing_answers,
 		"documents_attached": len(attached),
 		"documents_required": len(required_documents),
-		"can_submit": not (always or by_type or missing_documents),
+		"can_submit": not (always or by_type or missing_documents or missing_answers),
 	}
 
 

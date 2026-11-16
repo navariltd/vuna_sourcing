@@ -215,6 +215,31 @@ async function withdraw() {
 					</div>
 				</dl>
 
+				<section v-if="order.details?.length" aria-labelledby="order-details-heading">
+					<h3
+						id="order-details-heading"
+						class="mb-2 text-xs uppercase tracking-wide text-ink-gray-5"
+					>
+						Order details
+					</h3>
+					<dl
+						class="grid gap-x-6 gap-y-3 rounded-6 border border-outline-gray-2 p-4 sm:grid-cols-2"
+					>
+						<div v-for="detail in order.details" :key="detail.label" class="min-w-0">
+							<dt class="text-xs text-ink-gray-5">{{ detail.label }}</dt>
+							<dd
+								class="whitespace-pre-line break-words text-p-base text-ink-gray-8"
+							>
+								{{
+									detail.field_type === "Date"
+										? shortDate(String(detail.value))
+										: detail.value
+								}}
+							</dd>
+						</div>
+					</dl>
+				</section>
+
 				<div
 					v-if="order.quotations.length || order.invoices.length"
 					class="flex flex-wrap items-center gap-2"

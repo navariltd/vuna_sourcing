@@ -47,6 +47,7 @@ from vuna_sourcing.api.transactions.customer_orders import (
 	po_document_view,
 )
 from vuna_sourcing.utils import CUSTOMER
+from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import portal_order_fields
 
 QUOTATION = "Quotation"
 SALES_ORDER = "Sales Order"
@@ -350,6 +351,11 @@ def get_sales_order(name: str, customer: str | None = None) -> dict:
 		"transaction_date": doc.transaction_date,
 		"delivery_date": doc.delivery_date,
 		"po_document": po_document_view(doc.get(PO_DOCUMENT_FIELD)),
+		"details": [
+			{"label": field["label"], "field_type": field["field_type"], "value": doc.get(field["fieldname"])}
+			for field in portal_order_fields()
+			if doc.get(field["fieldname"]) not in (None, "")
+		],
 		"currency": doc.currency,
 		"total": doc.total,
 		"grand_total": doc.grand_total,

@@ -37,6 +37,8 @@
   "addresses",
   "documents_tab",
   "required_documents",
+  "screening_tab",
+  "screening_answers",
   "review_tab",
   "section_review",
   "reviewed_by",
@@ -250,6 +252,17 @@
    "options": "Party Onboarding Request Document"
   },
   {
+   "fieldname": "screening_tab",
+   "fieldtype": "Tab Break",
+   "label": "Screening"
+  },
+  {
+   "fieldname": "screening_answers",
+   "fieldtype": "Table",
+   "label": "Screening Answers",
+   "options": "Party Onboarding Screening Answer"
+  },
+  {
    "fieldname": "review_tab",
    "fieldtype": "Tab Break",
    "label": "Review"
@@ -317,7 +330,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-07 18:00:00.000000",
+ "modified": "2026-11-16 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Party Onboarding Request",

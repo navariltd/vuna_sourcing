@@ -4,7 +4,7 @@ import { Avatar, Badge, Button } from "frappe-ui";
 import { fullName } from "@/data/application";
 import type { Application, ApplicationAddress, ApplicationContact } from "@/data/application";
 
-export type SummarySection = "type" | "business" | "people" | "documents";
+export type SummarySection = "type" | "business" | "people" | "documents" | "questions";
 
 const props = defineProps<{
 	application: Partial<Application>;
@@ -28,6 +28,8 @@ const addresses = computed(() =>
 );
 
 const documents = computed(() => props.application.documents ?? []);
+
+const screening = computed(() => props.application.screening ?? []);
 
 const business = computed(() => [
 	[props.individual ? "Full name" : "Business name", props.application.party_name],
@@ -238,6 +240,38 @@ function fullAddress(address: ApplicationAddress) {
 					/>
 				</div>
 			</div>
+		</section>
+
+		<section v-if="screening.length" class="summary-card">
+			<header class="summary-head">
+				<h3>Screening questions</h3>
+				<Button
+					v-if="editable"
+					size="sm"
+					variant="subtle"
+					icon-left="lucide-pencil"
+					label="Edit"
+					@click="emit('edit', 'questions')"
+				/>
+			</header>
+			<dl class="divide-y divide-outline-gray-1">
+				<div
+					v-for="item in screening"
+					:key="item.question_id"
+					class="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0"
+				>
+					<dt class="text-p-sm text-ink-gray-6">
+						{{ item.question }}
+						<span v-if="item.mandatory" class="text-ink-gray-5">· required</span>
+					</dt>
+					<dd
+						class="whitespace-pre-line text-base font-medium [overflow-wrap:anywhere]"
+						:class="item.answer ? 'text-ink-gray-8' : 'text-ink-gray-5'"
+					>
+						{{ item.answer || "Not answered" }}
+					</dd>
+				</div>
+			</dl>
 		</section>
 	</div>
 </template>

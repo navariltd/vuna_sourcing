@@ -41,6 +41,7 @@ class TestCreditLimits(CustomerOrderFixtures, IntegrationTestCase):
 			)
 		doc = frappe.get_doc("Sales Order", draft["name"])
 		doc.flags.ignore_permissions = True
+		doc.flags.ignore_mandatory = True
 		doc.submit()
 		return doc
 
