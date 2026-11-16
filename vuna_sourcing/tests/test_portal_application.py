@@ -56,9 +56,7 @@ def leaf(doctype):
 	return frappe.get_all(doctype, filters={"is_group": 0}, limit=1, pluck="name")[0]
 
 
-class TestPortalApplication(IntegrationTestCase):
-	"""The applicant's own journey, run as the applicant — as a supplier and as a customer."""
-
+class ApplicationFixtures(IntegrationTestCase):
 	@classmethod
 	def setUpClass(cls):
 		super().setUpClass()
@@ -222,6 +220,10 @@ class TestPortalApplication(IntegrationTestCase):
 		saved = self.complete(applicant, party_type, extra)
 		with self.set_user(applicant):
 			return submit_application(saved["name"])
+
+
+class TestPortalApplication(ApplicationFixtures):
+	"""The applicant's own journey, run as the applicant — as a supplier and as a customer."""
 
 	def test_drafts_stay_off_the_desk_until_submitted(self):
 		applicant = self.make_applicant()
@@ -1021,3 +1023,134 @@ class TestPortalApplication(IntegrationTestCase):
 
 		self.assertFalse(saved["addresses"][0]["is_shipping_address"])
 		self.assertIn("A delivery address", progress["missing_details"])
+
+
+SCREENED_TEMPLATE = "_Portal Screened Supplier"
+TRADE_QUESTION = "How many years have you traded?"
+CATEGORY_QUESTION = "Which category do you supply?"
+NOTES_QUESTION = "Anything else we should know?"
+
+
+class TestScreeningQuestions(ApplicationFixtures):
+	"""Screening questions set on the onboarding type and answered on the portal."""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		questions = [
+			{"question": TRADE_QUESTION, "field_type": "Whole Number", "is_mandatory": 1},
+			{
+				"question": CATEGORY_QUESTION,
+				"field_type": "Multiple Choice",
+				"options": "Stationery\nFurniture\n\nStationery",
+				"is_mandatory": 1,
+			},
+			{"question": NOTES_QUESTION, "field_type": "Long Text", "is_mandatory": 0},
+		]
+		if frappe.db.exists("Party Onboarding Template", SCREENED_TEMPLATE):
+			template = frappe.get_doc("Party Onboarding Template", SCREENED_TEMPLATE)
+		else:
+			template = frappe.get_doc(
+				{
+					"doctype": "Party Onboarding Template",
+					"template_name": SCREENED_TEMPLATE,
+					"party_type": "Supplier",
+					"entity_type": "Company",
+					"required_documents": [{"document_type": DOC_OPTIONAL, "is_mandatory": 0}],
+				}
+			)
+		template.require_registration_number = 0
+		template.disabled = 0
+		template.set("screening_questions", questions)
+		template.save()
+		frappe.db.commit()
+
+	def screened_values(self):
+		return {**self.base_values(), "onboarding_template": SCREENED_TEMPLATE}
+
+	def answers(self, saved, **by_question):
+		return [
+			{"question_id": row["question_id"], "answer": by_question.get(row["question"])}
+			for row in saved["screening"]
+		]
+
+	def test_screening_questions_come_with_their_onboarding_type(self):
+		"""Each onboarding type lists its questions, and choices are tidied into a clean list."""
+		with self.set_user(self.make_applicant()):
+			types = {row.name: row for row in get_onboarding_types()}
+
+		questions = types[SCREENED_TEMPLATE]["questions"]
+		self.assertEqual(
+			[row["question"] for row in questions], [TRADE_QUESTION, CATEGORY_QUESTION, NOTES_QUESTION]
+		)
+		self.assertEqual(questions[1]["choices"], ["Stationery", "Furniture"])
+		self.assertEqual(types[SUPPLIER_TEMPLATE]["questions"], [])
+
+	def test_answers_are_saved_on_the_application(self):
+		"""Answers the applicant gives are cleaned, stored and returned with the application."""
+		with self.set_user(self.make_applicant()):
+			saved = save_application(self.screened_values())
+			saved = save_application(
+				{"screening": self.answers(saved, **{TRADE_QUESTION: "12", CATEGORY_QUESTION: "Furniture"})},
+				saved["name"],
+			)
+
+		answers = {row["question"]: row["answer"] for row in saved["screening"]}
+		self.assertEqual(answers[TRADE_QUESTION], "12")
+		self.assertEqual(answers[CATEGORY_QUESTION], "Furniture")
+		self.assertIsNone(answers[NOTES_QUESTION])
+
+	def test_an_answer_outside_the_choices_or_type_is_refused(self):
+		"""A choice that is not offered, or text for a number, is refused."""
+		with self.set_user(self.make_applicant()):
+			saved = save_application(self.screened_values())
+			for answers in (
+				{CATEGORY_QUESTION: "Vehicles"},
+				{TRADE_QUESTION: "many"},
+				{TRADE_QUESTION: "2.5"},
+			):
+				self.assertRaises(
+					frappe.ValidationError,
+					save_application,
+					{"screening": self.answers(saved, **answers)},
+					saved["name"],
+				)
+
+	def test_unanswered_mandatory_questions_block_submission(self):
+		"""Progress lists the open questions and submit waits until they are answered."""
+		with self.set_user(self.make_applicant()):
+			saved = save_application(self.screened_values())
+			progress = get_application_progress(saved["name"])
+			self.assertRaises(frappe.ValidationError, submit_application, saved["name"])
+
+			save_application(
+				{"screening": self.answers(saved, **{TRADE_QUESTION: "3", CATEGORY_QUESTION: "Stationery"})},
+				saved["name"],
+			)
+			submitted = submit_application(saved["name"])
+
+		self.assertFalse(progress["can_submit"])
+		self.assertEqual(progress["missing_answers"], [TRADE_QUESTION, CATEGORY_QUESTION])
+		self.assertEqual(submitted["onboarding_status"], "Pending Review")
+
+	def test_another_applicant_cannot_answer_for_someone_else(self):
+		"""Answers can only be written to the applicant's own application."""
+		with self.set_user(self.make_applicant()):
+			saved = save_application(self.screened_values())
+
+		with self.set_user(self.make_applicant()):
+			self.assertRaises(
+				frappe.PermissionError,
+				save_application,
+				{"screening": self.answers(saved, **{TRADE_QUESTION: "1"})},
+				saved["name"],
+			)
+
+	def test_a_multiple_choice_question_needs_choices(self):
+		"""A multiple choice question with fewer than two choices cannot be saved on the template."""
+		template = frappe.get_doc("Party Onboarding Template", SCREENED_TEMPLATE)
+		template.append(
+			"screening_questions",
+			{"question": "Pick one", "field_type": "Multiple Choice", "options": "Only"},
+		)
+		self.assertRaisesRegex(frappe.ValidationError, "at least 2 choices", template.save)

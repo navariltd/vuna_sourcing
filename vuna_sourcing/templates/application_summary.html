@@ -114,6 +114,22 @@
 		{% endfor %}
 	</table>
 
+	{% if doc.screening_answers %}
+	<h2>{{ _("Screening questions") }}</h2>
+	<table class="grid">
+		<tr>
+			<th>{{ _("Question") }}</th>
+			<th>{{ _("Answer") }}</th>
+		</tr>
+		{% for row in doc.screening_answers %}
+		<tr>
+			<td>{{ row.question }}{% if row.is_mandatory %} <span class="muted">({{ _("required") }})</span>{% endif %}</td>
+			<td>{{ (frappe.format(row.answer, {"fieldtype": "Date"}) if row.field_type == "Date" else row.answer) if row.answer else "—" }}</td>
+		</tr>
+		{% endfor %}
+	</table>
+	{% endif %}
+
 	<p class="footer">{{ _("Downloaded on {0}").format(frappe.format(frappe.utils.now_datetime(), {"fieldtype": "Datetime"})) }}</p>
 </body>
 </html>

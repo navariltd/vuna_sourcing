@@ -11,6 +11,8 @@
   "allow_customer_sales_orders",
   "column_break_customer_orders",
   "require_po_document",
+  "section_order_fields",
+  "portal_order_fields",
   "section_credit_limits",
   "show_customer_credit_limits",
   "section_credit_requests",
@@ -382,6 +384,21 @@
    "label": "Require the LPO Document When a PO Number Is Given"
   },
   {
+   "collapsible": 0,
+   "description": "Extra details customers fill in when they order on the portal. First add a custom field to Sales Order (Customize Form), then pick it here. Removing a row stops the portal asking for it; values already on orders stay.",
+   "fieldname": "section_order_fields",
+   "fieldtype": "Section Break",
+   "label": "Order Fields",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "portal_order_fields",
+   "fieldtype": "Table",
+   "label": "Order Fields",
+   "options": "Sourcing Order Field",
+   "permlevel": 1
+  },
+  {
    "fieldname": "section_credit_limits",
    "fieldtype": "Section Break",
    "label": "Credit Limits"
@@ -397,7 +414,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-10 09:00:00.000000",
+ "modified": "2026-11-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",
@@ -431,6 +448,14 @@
    "read": 1,
    "role": "Sales Master Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
    "write": 1
   }
  ],

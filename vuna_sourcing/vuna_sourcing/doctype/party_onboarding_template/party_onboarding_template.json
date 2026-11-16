@@ -3,7 +3,7 @@
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:template_name",
- "creation": "2026-09-18 16:00:00.000000",
+ "creation": "2026-09-18 16:00:00",
  "doctype": "DocType",
  "document_type": "Setup",
  "editable_grid": 1,
@@ -26,7 +26,10 @@
   "require_tax_id",
   "require_registration_number",
   "section_documents",
-  "required_documents"
+  "required_documents",
+  "screening_questions_tab",
+  "section_screening",
+  "screening_questions"
  ],
  "fields": [
   {
@@ -49,7 +52,7 @@
    "reqd": 1
   },
   {
-   "description": "Company, Individual or Partnership — the Supplier's or Customer's own type.",
+   "description": "Company, Individual or Partnership \u2014 the Supplier's or Customer's own type.",
    "fieldname": "entity_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -146,6 +149,22 @@
    "fieldtype": "Table",
    "label": "Required Supporting Documents",
    "options": "Party Onboarding Document Requirement"
+  },
+  {
+   "description": "Questions applicants answer on the portal before they submit. Each request keeps the questions as they were when the applicant answered.",
+   "fieldname": "section_screening",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "screening_questions",
+   "fieldtype": "Table",
+   "label": "Screening Questions",
+   "options": "Party Onboarding Screening Question"
+  },
+  {
+   "fieldname": "screening_questions_tab",
+   "fieldtype": "Tab Break",
+   "label": "Screening Questions"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -155,7 +174,7 @@
    "link_fieldname": "onboarding_template"
   }
  ],
- "modified": "2026-11-07 12:00:00.000000",
+ "modified": "2026-11-16 11:19:31.556504",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Party Onboarding Template",
@@ -199,26 +218,22 @@
    "write": 1
   },
   {
-   "create": 0,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Purchase User",
-   "share": 1,
-   "write": 0
+   "share": 1
   },
   {
-   "create": 0,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Sales User",
-   "share": 1,
-   "write": 0
+   "share": 1
   }
  ],
  "row_format": "Dynamic",
