@@ -1,3 +1,3 @@
-__version__ = "16.2.0"
+__version__ = "16.3.0"
 
 APP_NAME = "vuna_sourcing"
