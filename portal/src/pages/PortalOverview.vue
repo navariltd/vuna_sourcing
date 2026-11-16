@@ -43,11 +43,40 @@ const compact = new Intl.NumberFormat(undefined, {
 	maximumFractionDigits: 1,
 });
 
-function amount(value: number) {
-	return money(value, data.value?.balance?.currency ?? data.value?.currency);
+const COMPACT_FROM = 100_000;
+
+const compactAmount = new Intl.NumberFormat(undefined, {
+	notation: "compact",
+	maximumFractionDigits: 2,
+});
+
+function cardCurrency(): string | undefined {
+	return data.value?.balance?.currency ?? data.value?.currency;
 }
 
-const cards = computed(() => {
+function amount(value: number) {
+	return money(value, cardCurrency());
+}
+
+function cardAmount(value: number) {
+	if (Math.abs(value) < COMPACT_FROM) return amount(value);
+	const short = compactAmount.format(value);
+	const currency = cardCurrency();
+	return currency ? `${currency} ${short}` : short;
+}
+
+interface OverviewCard {
+	title: string;
+	value: number;
+	route: string;
+	format?: (value: number) => string;
+}
+
+function cardLabel(card: OverviewCard) {
+	return `${card.title}: ${card.format ? amount(card.value) : card.value}`;
+}
+
+const cards = computed<OverviewCard[]>(() => {
 	const d = data.value;
 	if (!d) return [];
 	if (isSupplier.value) {
@@ -57,13 +86,13 @@ const cards = computed(() => {
 			{
 				title: "Outstanding",
 				value: d.balance.outstanding,
-				format: amount,
+				format: cardAmount,
 				route: "SupplierStatement",
 			},
 			{
 				title: "Paid (12 months)",
 				value: d.paid_last_year,
-				format: amount,
+				format: cardAmount,
 				route: "PurchaseInvoiceList",
 			},
 		];
@@ -78,10 +107,15 @@ const cards = computed(() => {
 		{
 			title: "Outstanding",
 			value: d.balance.outstanding,
-			format: amount,
+			format: cardAmount,
 			route: "CustomerStatement",
 		},
-		{ title: "Overdue", value: d.balance.overdue, format: amount, route: "CustomerStatement" },
+		{
+			title: "Overdue",
+			value: d.balance.overdue,
+			format: cardAmount,
+			route: "CustomerStatement",
+		},
 	];
 });
 
@@ -193,7 +227,10 @@ const details = computed(() => {
 						v-for="card in cards"
 						:key="card.title"
 						:to="{ name: card.route }"
-						class="rounded-6 transition-shadow hover:shadow-sm"
+						:title="cardLabel(card)"
+						:aria-label="cardLabel(card)"
+						class="overview-card min-w-0 rounded-6 transition-shadow hover:shadow-sm"
+						:class="{ 'col-span-2 lg:col-span-1': card.format }"
 					>
 						<NumberCard
 							:title="card.title"
@@ -203,12 +240,14 @@ const details = computed(() => {
 					</RouterLink>
 				</template>
 				<template v-else>
-					<NumberCard v-for="index in 4" :key="index" title="" :value="null" loading />
+					<div v-for="index in 4" :key="index" class="overview-card min-w-0">
+						<NumberCard title="" :value="null" loading />
+					</div>
 				</template>
 			</div>
 
 			<div class="grid gap-3 lg:grid-cols-3">
-				<div class="h-80 lg:col-span-2">
+				<div class="h-80 min-w-0 lg:col-span-2">
 					<BarChart
 						:title="isSupplier ? 'Purchase Orders' : 'Sales Invoices'"
 						subtitle="Last 12 months"
@@ -220,7 +259,7 @@ const details = computed(() => {
 						:loading="dashboard.loading && !data"
 					/>
 				</div>
-				<div class="h-80">
+				<div class="h-80 min-w-0">
 					<DonutChart
 						title="Invoices by Status"
 						:data="invoiceStatuses"
@@ -233,7 +272,7 @@ const details = computed(() => {
 			</div>
 
 			<div class="grid gap-3 lg:grid-cols-2">
-				<section v-for="list in lists" :key="list.title" class="rounded-6 border">
+				<section v-for="list in lists" :key="list.title" class="min-w-0 rounded-6 border">
 					<header class="flex items-center justify-between border-b px-4 py-3">
 						<h2 class="text-base font-semibold text-ink-gray-8">{{ list.title }}</h2>
 						<RouterLink
@@ -264,7 +303,7 @@ const details = computed(() => {
 									{{ row.detail }}
 								</span>
 							</span>
-							<span class="shrink-0 text-p-sm text-ink-gray-7">{{
+							<span class="shrink-0 text-p-sm tabular-nums text-ink-gray-7">{{
 								row.trailing
 							}}</span>
 						</RouterLink>
@@ -275,14 +314,34 @@ const details = computed(() => {
 			<section v-if="details.length" class="rounded-6 border p-4">
 				<h2 class="mb-3 text-base font-semibold text-ink-gray-8">Account Details</h2>
 				<dl class="grid gap-x-6 gap-y-3 sm:grid-cols-3">
-					<div v-for="row in details" :key="row[0] as string">
+					<div v-for="row in details" :key="row[0] as string" class="min-w-0">
 						<dt class="text-xs uppercase tracking-wide text-ink-gray-5">
 							{{ row[0] }}
 						</dt>
-						<dd class="text-p-base text-ink-gray-8">{{ row[1] || "—" }}</dd>
+						<dd class="text-p-base text-ink-gray-8 [overflow-wrap:anywhere]">
+							{{ row[1] || "—" }}
+						</dd>
 					</div>
 				</dl>
 			</section>
 		</div>
 	</PageContainer>
 </template>
+
+<style scoped>
+.overview-card {
+	container-type: inline-size;
+}
+
+.overview-card :deep(.text-3xl-semibold) {
+	flex-wrap: wrap;
+	font-size: clamp(1.25rem, 11cqi, 1.875rem);
+	line-height: 1.2;
+}
+
+.overview-card :deep(.text-3xl-semibold > span) {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+</style>

@@ -5,8 +5,43 @@ frappe.ui.form.on("Sourcing Settings", {
 	refresh(frm) {
 		frm.add_custom_button(__("Portal Signup Link"), () => show_signup_link(frm));
 		frm.add_custom_button(__("Invite User"), () => show_invite_user());
+		load_order_field_choices(frm);
 	},
 });
+
+frappe.ui.form.on("Sourcing Order Field", {
+	fieldname(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		const field = (frm.order_field_choices || []).find((f) => f.fieldname === row.fieldname);
+		frappe.model.set_value(cdt, cdn, {
+			label: field?.label || null,
+			field_type: field?.field_type || null,
+		});
+	},
+});
+
+function load_order_field_choices(frm) {
+	if (!frm.perm[1]?.write) return;
+	frappe
+		.call({
+			method: "vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field.get_sales_order_fields",
+		})
+		.then(({ message: fields }) => {
+			frm.order_field_choices = fields || [];
+			const options = [
+				"",
+				...frm.order_field_choices.map((field) => ({
+					value: field.fieldname,
+					label: `${__(field.label)} (${field.fieldname})`,
+				})),
+			];
+			frm.fields_dict.portal_order_fields.grid.update_docfield_property(
+				"fieldname",
+				"options",
+				options
+			);
+		});
+}
 
 function show_invite_user() {
 	frappe

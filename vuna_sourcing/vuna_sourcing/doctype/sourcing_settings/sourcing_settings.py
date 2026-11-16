@@ -6,6 +6,10 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt
 
+from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import (
+	validate_order_fields,
+)
+
 
 class SourcingSettings(Document):
 	# begin: auto-generated types
@@ -15,6 +19,10 @@ class SourcingSettings(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+
+		from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import (
+			SourcingOrderField,
+		)
 
 		accept_customer_applications: DF.Check
 		accept_supplier_applications: DF.Check
@@ -40,6 +48,7 @@ class SourcingSettings(Document):
 		notify_applicant: DF.Check
 		notify_customer_of_credit_decisions: DF.Check
 		notify_reviewers: DF.Check
+		portal_order_fields: DF.Table[SourcingOrderField]
 		registration_mode: DF.Literal["Invitation Only", "Open to Public"]
 		require_branch_for_branch_customers: DF.Check
 		require_po_document: DF.Check
@@ -48,6 +57,8 @@ class SourcingSettings(Document):
 	# end: auto-generated types
 
 	def validate(self):
+		validate_order_fields(self)
+
 		if flt(self.max_file_size_mb) < 0:
 			frappe.throw(_("Maximum File Size (MB) cannot be negative."))
 
