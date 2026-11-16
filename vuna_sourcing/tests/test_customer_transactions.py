@@ -380,6 +380,7 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 			found = self.search(mine, "-")
 
 		self.assertNotIn("Credit Note Request", found)
+<<<<<<< HEAD
 
 	def pay(self, invoice):
 		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
@@ -447,3 +448,5 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 		with self.set_user(user):
 			self.assertEqual(self.invoice_names(status="Unpaid", from_date=add_days(nowdate(), -1)), set())
 			self.assertRaises(frappe.PermissionError, get_sales_invoices, customer=theirs, status="Unpaid")
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)

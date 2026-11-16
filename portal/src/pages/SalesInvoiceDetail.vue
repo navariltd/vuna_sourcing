@@ -134,6 +134,7 @@ watch([customer, () => props.name], load, { immediate: true });
 					</div>
 				</dl>
 
+<<<<<<< HEAD
 				<div
 					v-if="portal.features.credit_requests && invoice.credit_request?.open_request"
 					class="flex flex-wrap items-center justify-between gap-3 rounded-6 border p-4"
@@ -154,6 +155,65 @@ watch([customer, () => props.name], load, { immediate: true });
 							"
 						/>
 					</div>
+=======
+			<div
+				v-if="portal.features.credit_requests && invoice.credit_request?.open_request"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border p-4"
+			>
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<span class="text-base text-ink-gray-8">
+						Credit note request {{ invoice.credit_request.open_request.name }}
+					</span>
+					<Badge
+						:theme="
+							CREDIT_REQUEST_STATUS_THEME[
+								invoice.credit_request.open_request.request_status
+							] || 'gray'
+						"
+						variant="subtle"
+						:label="statusLabel(invoice.credit_request.open_request.request_status)"
+					/>
+				</div>
+				<Button
+					variant="subtle"
+					label="View request"
+					:route="{
+						name: 'CreditRequestDetail',
+						params: { name: invoice.credit_request.open_request.name },
+					}"
+				/>
+			</div>
+
+			<div
+				v-else-if="invoice.credit_request?.can_request"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-6 border border-dashed p-4"
+			>
+				<div class="min-w-0">
+					<p class="text-base font-medium text-ink-gray-8">Charged more than agreed?</p>
+					<p class="mt-0.5 text-p-sm text-ink-gray-5">
+						Ask us to lower the price of items on this invoice. Approved changes come
+						back as a credit note.
+					</p>
+				</div>
+				<Button
+					variant="solid"
+					:icon-left="LOOKS.creditRequest.icon"
+					label="Request a credit note"
+					:route="{ name: 'CreditRequestNew', query: { invoice: invoice.name } }"
+				/>
+			</div>
+
+			<div
+				v-if="
+					invoice.sales_orders.length ||
+					invoice.delivery_notes.length ||
+					invoice.return_against
+				"
+				class="flex flex-wrap items-center gap-2"
+			>
+				<template v-if="invoice.return_against">
+					<span class="text-xs uppercase tracking-wide text-ink-gray-5">Credits</span>
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 					<Button
 						variant="subtle"
 						label="View request"

@@ -370,6 +370,7 @@
    "fieldname": "brand_logo",
    "fieldtype": "Attach Image",
    "label": "Brand Logo"
+<<<<<<< HEAD
   },
   {
    "fieldname": "column_break_customer_orders",
@@ -409,12 +410,18 @@
    "fieldname": "show_customer_credit_limits",
    "fieldtype": "Check",
    "label": "Show Credit Limits on the Portal"
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
+<<<<<<< HEAD
  "modified": "2026-11-16 12:00:00.000000",
+=======
+ "modified": "2026-11-07 12:00:00.000000",
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",

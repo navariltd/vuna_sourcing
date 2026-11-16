@@ -115,6 +115,7 @@ class CustomerOrderFixtures(SourcingFixtures):
 		return customer, user
 
 	def make_item(self, company=None, **fields):
+<<<<<<< HEAD
 		item = frappe.get_doc(
 			{
 				"doctype": "Item",
@@ -129,6 +130,34 @@ class CustomerOrderFixtures(SourcingFixtures):
 		if company:
 			restrict_to(item, [company])
 		return item.name
+=======
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Item",
+					"item_code": "_Test Portal Order Item " + frappe.generate_hash(length=6),
+					"item_group": self.item_group,
+					"publish_on_portal": 1,
+					"stock_uom": "Nos",
+					"is_stock_item": 0,
+					"item_defaults": [
+						{
+							"company": company or self.company,
+							"default_warehouse": frappe.get_all(
+								"Warehouse",
+								filters={"is_group": 0, "company": company or self.company},
+								limit=1,
+								pluck="name",
+							)[0],
+						}
+					],
+					**fields,
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 
 	def add_price(self, item_code, rate, customer=None, valid_from=None):
 		frappe.get_doc(

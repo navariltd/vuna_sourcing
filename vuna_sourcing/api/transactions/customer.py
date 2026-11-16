@@ -1,8 +1,11 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+<<<<<<< HEAD
 import re
 from collections import Counter
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 from collections.abc import Callable
 
 import frappe

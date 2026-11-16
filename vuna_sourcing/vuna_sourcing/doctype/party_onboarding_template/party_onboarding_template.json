@@ -52,7 +52,7 @@
    "reqd": 1
   },
   {
-   "description": "Company, Individual or Partnership \u2014 the Supplier's or Customer's own type.",
+   "description": "Company, Individual or Partnership — the Supplier's or Customer's own type.",
    "fieldname": "entity_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -174,7 +174,11 @@
    "link_fieldname": "onboarding_template"
   }
  ],
+<<<<<<< HEAD
  "modified": "2026-11-16 11:19:31.556504",
+=======
+ "modified": "2026-11-07 12:00:00.000000",
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Party Onboarding Template",

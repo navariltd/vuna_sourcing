@@ -4,7 +4,11 @@ import { Avatar, Badge, Button } from "frappe-ui";
 import { fullName } from "@/data/application";
 import type { Application, ApplicationAddress, ApplicationContact } from "@/data/application";
 
+<<<<<<< HEAD
 export type SummarySection = "type" | "business" | "people" | "documents" | "questions";
+=======
+export type SummarySection = "type" | "business" | "people" | "documents";
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 
 const props = defineProps<{
 	application: Partial<Application>;

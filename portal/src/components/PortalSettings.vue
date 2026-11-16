@@ -40,6 +40,7 @@ const tabs = computed(() => [
 				},
 		  ]
 		: []),
+<<<<<<< HEAD
 	...(credit.enabled.value
 		? [
 				{
@@ -50,6 +51,8 @@ const tabs = computed(() => [
 				},
 		  ]
 		: []),
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 	{
 		value: "preferences",
 		label: "Preferences",
@@ -65,6 +68,7 @@ const mobileTitle = computed(
 );
 
 watch(open, (isOpen) => {
+<<<<<<< HEAD
 	mobileSection.value = isOpen && tab.value !== "profile" ? tab.value : null;
 });
 
@@ -76,6 +80,11 @@ watch(
 	}
 );
 
+=======
+	if (!isOpen) mobileSection.value = null;
+});
+
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 watch(
 	() => portal.canManageTeam,
 	(canManage) => {
@@ -130,7 +139,10 @@ watch(
 				</button>
 				<ProfileSettings v-if="mobileSection === 'profile'" />
 				<TeamSettings v-else-if="mobileSection === 'team'" />
+<<<<<<< HEAD
 				<CreditSettings v-else-if="mobileSection === 'credit'" />
+=======
+>>>>>>> 8e796ba (fix(sourcing): portal UX and operations fixes — search, ordering catalogue, statements, onboarding, branding)
 				<div v-else class="flex flex-col gap-2">
 					<p class="text-p-sm text-ink-gray-6">
 						Choose how the portal looks on this device.
