@@ -9,8 +9,11 @@ import {
 	ErrorMessage,
 	FormControl,
 	Spinner,
+<<<<<<< HEAD
 	TextInput,
 	debounce,
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 	toast,
 } from "frappe-ui";
 import BranchPicker from "@/components/BranchPicker.vue";
@@ -52,6 +55,7 @@ const loadError = computed(() =>
 );
 const othersCount = computed(() => members.value.filter((member) => !member.is_you).length);
 
+<<<<<<< HEAD
 const SEARCH_FROM = 6;
 const PAGE = 25;
 
@@ -77,6 +81,8 @@ const matchingMembers = computed(() => {
 
 const visibleMembers = computed(() => matchingMembers.value.slice(0, shown.value));
 
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 function showMembers(updated: TeamMember[] | undefined) {
 	if (!team.value || !customer.value || !updated) return;
 	team.value.setData({
@@ -237,14 +243,20 @@ function actionsFor(member: TeamMember) {
 				each one sees.
 			</p>
 			<Button
+<<<<<<< HEAD
 				class="shrink-0 whitespace-nowrap"
 				variant="solid"
 				label="Invite"
+=======
+				variant="solid"
+				label="Invite someone"
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 				icon-left="lucide-user-plus"
 				@click="openInvite"
 			/>
 		</div>
 
+<<<<<<< HEAD
 		<TextInput
 			v-if="members.length >= SEARCH_FROM"
 			v-model="memberQuery"
@@ -258,6 +270,8 @@ function actionsFor(member: TeamMember) {
 			</template>
 		</TextInput>
 
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		<div v-if="loading" class="flex justify-center py-10">
 			<Spinner class="size-5" />
 		</div>
@@ -266,7 +280,11 @@ function actionsFor(member: TeamMember) {
 
 		<div v-else class="divide-y rounded-6 border">
 			<div
+<<<<<<< HEAD
 				v-for="member in visibleMembers"
+=======
+				v-for="member in members"
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 				:key="member.user"
 				class="flex items-center gap-3 px-3 py-2.5"
 			>
@@ -323,6 +341,7 @@ function actionsFor(member: TeamMember) {
 				<span v-else class="size-7 shrink-0" aria-hidden="true" />
 			</div>
 
+<<<<<<< HEAD
 			<div v-if="memberTerm && !matchingMembers.length" class="px-3 py-6 text-center">
 				<p class="text-base font-medium text-ink-gray-7">
 					No one matches “{{ memberQuery.trim() }}”
@@ -343,6 +362,8 @@ function actionsFor(member: TeamMember) {
 				/>
 			</div>
 
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			<div v-if="!othersCount" class="px-3 py-6 text-center">
 				<p class="text-base font-medium text-ink-gray-7">Just you so far</p>
 				<p class="mt-1 text-p-sm text-ink-gray-5">
@@ -357,7 +378,11 @@ function actionsFor(member: TeamMember) {
 
 		<Dialog
 			v-model:open="inviting"
+<<<<<<< HEAD
 			title="Invite"
+=======
+			title="Invite someone"
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			message="They get an email with a link to set a password, then they can sign in."
 			icon="lucide-user-plus"
 			:actions="[

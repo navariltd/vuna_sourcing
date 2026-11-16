@@ -74,9 +74,12 @@ def check_party_access(party_type: str, party: str, user: str | None = None):
 @frappe.whitelist()
 def get_session() -> dict:
 	from vuna_sourcing.api.transactions.branches import branch_restrictions
+<<<<<<< HEAD
 	from vuna_sourcing.api.transactions.credit_limits import credit_limits_enabled
 	from vuna_sourcing.api.transactions.credit_requests import credit_requests_enabled
 	from vuna_sourcing.api.transactions.customer_orders import orders_enabled
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 	from vuna_sourcing.api.transactions.team import admin_customers, team_management_enabled
 
 	user = get_current_user()

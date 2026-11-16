@@ -14,9 +14,12 @@ import {
 import { ThemeSwitcher } from "frappe-ui/experimental";
 import ProfileSettings from "@/components/ProfileSettings.vue";
 import TeamSettings from "@/components/TeamSettings.vue";
+<<<<<<< HEAD
 import CreditSettings from "@/components/CreditSettings.vue";
 import { useCreditStatus } from "@/composables/useCreditStatus";
 import { usePortalSettings } from "@/composables/usePortalSettings";
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 import { useIsMobile } from "@/composables/useViewport";
 import { usePortalStore } from "@/stores/portal";
 
@@ -29,6 +32,7 @@ const { tab } = usePortalSettings();
 const credit = useCreditStatus();
 
 const tabs = computed(() => [
+<<<<<<< HEAD
 	{ value: "profile", label: "Profile", icon: "lucide-user", hint: "Your details and accounts" },
 	...(portal.canManageTeam
 		? [
@@ -76,11 +80,21 @@ watch(
 	}
 );
 
+=======
+	{ value: "profile", label: "Profile", icon: "lucide-user" },
+	...(portal.canManageTeam ? [{ value: "team", label: "Team", icon: "lucide-users" }] : []),
+	{ value: "preferences", label: "Preferences", icon: "lucide-settings-2" },
+]);
+
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 watch(
 	() => portal.canManageTeam,
 	(canManage) => {
 		if (!canManage && tab.value === "team") tab.value = "profile";
+<<<<<<< HEAD
 		if (!canManage && mobileSection.value === "team") mobileSection.value = null;
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 	}
 );
 </script>
@@ -88,6 +102,7 @@ watch(
 <template>
 	<BottomSheet v-if="isMobile" v-model:open="open" :title="mobileTitle">
 		<div class="flex flex-col gap-4 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+<<<<<<< HEAD
 			<nav v-if="!mobileSection" aria-label="Settings sections">
 				<ul class="divide-y divide-outline-gray-1 overflow-hidden rounded-8 border">
 					<li v-for="option in tabs" :key="option.value">
@@ -138,6 +153,40 @@ watch(
 					<ThemeSwitcher />
 				</div>
 			</template>
+=======
+			<div
+				class="grid rounded-8 bg-surface-gray-2 p-1"
+				:class="tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'"
+				role="tablist"
+			>
+				<button
+					v-for="option in tabs"
+					:key="option.value"
+					type="button"
+					role="tab"
+					class="flex h-9 items-center justify-center gap-1.5 rounded-6 text-base font-medium transition-colors"
+					:class="
+						tab === option.value
+							? 'bg-surface-base text-ink-gray-9 shadow-sm'
+							: 'text-ink-gray-6'
+					"
+					:aria-selected="tab === option.value"
+					@click="tab = option.value"
+				>
+					<i :class="option.icon" class="size-4" aria-hidden="true" />
+					{{ option.label }}
+				</button>
+			</div>
+
+			<ProfileSettings v-if="tab === 'profile'" />
+			<TeamSettings v-else-if="tab === 'team'" />
+			<div v-else class="flex flex-col gap-2">
+				<p class="text-p-sm text-ink-gray-6">
+					Choose how the portal looks on this device.
+				</p>
+				<ThemeSwitcher />
+			</div>
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		</div>
 	</BottomSheet>
 
@@ -150,6 +199,7 @@ watch(
 				</SettingsNavItem>
 			</SettingsNavGroup>
 			<SettingsNavGroup
+<<<<<<< HEAD
 				v-if="portal.canManageTeam || credit.enabled.value"
 				:label="portal.activeParty?.title || 'Company'"
 			>
@@ -163,6 +213,12 @@ watch(
 				>
 					Credit
 				</SettingsNavItem>
+=======
+				v-if="portal.canManageTeam"
+				:label="portal.activeParty?.title || 'Company'"
+			>
+				<SettingsNavItem :value="'team'" icon="lucide-users">Team</SettingsNavItem>
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			</SettingsNavGroup>
 		</SettingsSidebar>
 
@@ -185,6 +241,7 @@ watch(
 				</SettingsBody>
 			</SettingsPanel>
 
+<<<<<<< HEAD
 			<SettingsPanel v-if="credit.enabled.value" :value="'credit'">
 				<SettingsHeader
 					class="mb-2"
@@ -196,6 +253,8 @@ watch(
 				</SettingsBody>
 			</SettingsPanel>
 
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 			<SettingsPanel :value="'preferences'">
 				<SettingsHeader title="Preferences" />
 				<SettingsBody>

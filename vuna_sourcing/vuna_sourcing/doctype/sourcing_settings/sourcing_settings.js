@@ -5,6 +5,7 @@ frappe.ui.form.on("Sourcing Settings", {
 	refresh(frm) {
 		frm.add_custom_button(__("Portal Signup Link"), () => show_signup_link(frm));
 		frm.add_custom_button(__("Invite User"), () => show_invite_user());
+<<<<<<< HEAD
 		load_order_field_choices(frm);
 	},
 });
@@ -43,6 +44,11 @@ function load_order_field_choices(frm) {
 		});
 }
 
+=======
+	},
+});
+
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 function show_invite_user() {
 	frappe
 		.call({ method: "vuna_sourcing.api.signup.get_signup_context" })

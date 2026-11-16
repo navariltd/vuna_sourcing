@@ -334,6 +334,7 @@ def validate_po_number(doc) -> None:
 	if not is_in_branch_scope(doc.customer, frappe.db.get_value(SALES_ORDER, used_on, BRANCH_FIELD)):
 		frappe.throw(
 			_("PO number {0} is already used on another order. Use a different PO number.").format(doc.po_no)
+<<<<<<< HEAD
 		)
 
 	frappe.throw(
@@ -386,6 +387,8 @@ def po_document_files(doc, file_url: str) -> list:
 				& (file.attached_to_name == doc.customer)
 				& (file.owner == frappe.session.user)
 			)
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 		)
 		.orderby(file.creation)
 	).run(pluck=True)
@@ -447,6 +450,12 @@ def ensure_po_document(doc) -> None:
 			_("Attach your LPO document for PO number {0} before sending the order.").format(doc.po_no)
 		)
 
+	frappe.throw(
+		_("You already used PO number {0} on order {1}. Use a different PO number.").format(
+			doc.po_no, used_on
+		)
+	)
+
 
 def own_portal_order(name: str, customer: str) -> str:
 	mine = frappe.db.get_value(
@@ -460,6 +469,21 @@ def own_portal_order(name: str, customer: str) -> str:
 	return mine
 
 
+<<<<<<< HEAD
+def own_portal_order(name: str, customer: str) -> str:
+	mine = frappe.db.get_value(
+		SALES_ORDER,
+		all_of(customer_scope_filters(SALES_ORDER, [customer]), {"name": name, FROM_PORTAL_FIELD: 1}),
+		"name",
+	)
+	if not mine:
+		frappe.throw(_("This order does not belong to you."), frappe.PermissionError)
+
+	return mine
+
+
+=======
+>>>>>>> 8cb49e9 (feat(sourcing): customer branches and account-admin team management on the portal)
 def locked_portal_order(name: str, customer: str):
 	doc = frappe.get_doc(SALES_ORDER, own_portal_order(name, customer), for_update=True)
 	if (
