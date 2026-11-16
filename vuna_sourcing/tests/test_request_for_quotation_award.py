@@ -593,6 +593,25 @@ class TestRequestForQuotationAward(SourcingFixtures, IntegrationTestCase):
 		order.insert()
 		self.assertEqual(order.docstatus, 0)
 
+	def test_picking_only_unawarded_items_does_not_fall_back_to_every_item(self):
+		"""Choosing only items that were not awarded is refused instead of ordering the whole quotation."""
+		rfq, _, quotes = self.standard_rfq()
+		first, second = self.lines(rfq)
+		self.partial_award(rfq, [(first, {"supplier_quotation": quotes[1]})]).submit()
+		unawarded = next(
+			row.name
+			for row in frappe.get_doc("Supplier Quotation", quotes[1]).items
+			if row.request_for_quotation_item == second
+		)
+
+		self.assertRaisesRegex(
+			frappe.ValidationError,
+			"nothing to order",
+			make_purchase_order,
+			quotes[1],
+			args={"filtered_children": [unawarded]},
+		)
+
 	def test_the_order_is_never_required_before_today(self):
 		rfq, _, quotes = self.standard_rfq()
 		frappe.db.set_value(RFQ, rfq.name, "schedule_date", None)
