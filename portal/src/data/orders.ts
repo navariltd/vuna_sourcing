@@ -1,5 +1,7 @@
 import { createResource } from "frappe-ui";
 import type { ApiResponse } from "@/types/api";
+import { isBlankValue } from "@/data/dynamicFields";
+import type { DynamicFieldDefinition, DynamicFieldValue } from "@/data/dynamicFields";
 
 export interface OrderAddress {
   name: string;
@@ -30,6 +32,14 @@ export interface PoDocumentRules {
   max_file_size_mb: number | null;
 }
 
+export type OrderFieldValue = DynamicFieldValue;
+
+export type OrderDetails = Record<string, OrderFieldValue>;
+
+export interface OrderField extends DynamicFieldDefinition {
+  fieldname: string;
+}
+
 export interface OrderView {
   name: string | null;
   company: string;
@@ -40,6 +50,7 @@ export interface OrderView {
   po_document: PoDocument | null;
   shipping_address: string | null;
   status: "Pending" | "Submitted" | null;
+  details: OrderDetails;
   items: OrderLineView[];
   net_total: number;
   total_taxes: number | null;
@@ -52,6 +63,7 @@ export interface OrderForm {
   addresses: OrderAddress[];
   today: string;
   po_document: PoDocumentRules;
+  fields: OrderField[];
   order: OrderView | null;
 }
 
@@ -93,6 +105,7 @@ export interface OrderPayload {
   shipping_address?: string | null;
   po_no?: string | null;
   po_document?: string | null;
+  details?: OrderDetails;
 }
 
 const ORDERS = "vuna_sourcing.api.transactions.customer_orders";
@@ -150,7 +163,11 @@ export function poDocumentEndpoint(customer: string) {
   return `/api/method/upload_file?${query}`;
 }
 
-export function priceOrder(payload: Omit<OrderPayload, "name" | "po_no" | "po_document">) {
+export const isBlankDetail = isBlankValue;
+
+export function priceOrder(
+  payload: Omit<OrderPayload, "name" | "po_no" | "po_document" | "details">,
+) {
   return post<OrderView>("price_order", payload);
 }
 

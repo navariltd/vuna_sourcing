@@ -2,6 +2,7 @@ import { createResource } from "frappe-ui";
 import type { PartyType } from "@/data/parties";
 import { isOk } from "@/types/api";
 import type { ApiResponse } from "@/types/api";
+import type { DynamicFieldDefinition, DynamicFieldValue } from "@/data/dynamicFields";
 
 export interface RequiredDocument {
   document_type: string;
@@ -41,6 +42,26 @@ export interface ApplicationAddress {
   is_shipping_address: number;
 }
 
+export interface ScreeningQuestion extends DynamicFieldDefinition {
+  question: string;
+}
+
+export interface ScreeningAnswer extends DynamicFieldDefinition {
+  question_id: string;
+  question: string;
+  answer: DynamicFieldValue;
+}
+
+export function screeningField(row: ScreeningAnswer): DynamicFieldDefinition {
+  return {
+    label: row.question,
+    field_type: row.field_type,
+    mandatory: row.mandatory,
+    description: row.description,
+    choices: row.choices,
+  };
+}
+
 export interface OnboardingType {
   name: string;
   party_type: PartyType;
@@ -50,6 +71,7 @@ export interface OnboardingType {
   require_tax_id: number;
   require_registration_number: number;
   documents: RequiredDocument[];
+  questions: Omit<ScreeningQuestion, "label">[];
 }
 
 export interface Application {
@@ -70,6 +92,7 @@ export interface Application {
   contacts: ApplicationContact[];
   addresses: ApplicationAddress[];
   documents: RequiredDocument[];
+  screening: ScreeningAnswer[];
   can_edit: boolean;
   is_correction: boolean;
 }
@@ -77,6 +100,7 @@ export interface Application {
 export interface ApplicationProgress {
   missing_details: string[];
   missing_documents: string[];
+  missing_answers: string[];
   documents_attached: number;
   documents_required: number;
   can_submit: boolean;

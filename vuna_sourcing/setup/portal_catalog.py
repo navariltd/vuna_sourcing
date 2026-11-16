@@ -4,14 +4,18 @@
 import frappe
 from frappe.utils import cint, flt, nowdate
 
-from vuna_sourcing.api.transactions.customer_orders import ITEM_GROUP, PUBLISH_FIELD
+from vuna_sourcing.api.transactions.customer_orders import (
+	ALLOWED_COMPANIES_FIELD,
+	COMPANY_RESTRICTION,
+	ITEM,
+	ITEM_GROUP,
+	PUBLISH_FIELD,
+	RESTRICTED_FIELD,
+)
 from vuna_sourcing.utils import CUSTOMER
 
-ITEM = "Item"
-ITEM_DEFAULT = "Item Default"
 ITEM_PRICE = "Item Price"
 PRICE_LIST = "Price List"
-PARTY_ACCOUNT = "Party Account"
 COMPANY = "Company"
 SOURCING_SETTINGS = "Sourcing Settings"
 SELLING_SETTINGS = "Selling Settings"
@@ -27,7 +31,6 @@ def setup_portal_catalog(
 	items: list[str] | None = None,
 	price_list: str | None = None,
 	default_rate: float | None = None,
-	link_customers: int = 0,
 	dry_run: int = 1,
 ) -> dict:
 	dry_run = cint(dry_run)
@@ -38,10 +41,9 @@ def setup_portal_catalog(
 		"settings": [],
 		"groups_published": [],
 		"items_published": [],
-		"item_defaults_added": [],
+		"restricted_items": [],
 		"prices_created": [],
 		"unpriced_items": [],
-		"customers_linked": [],
 	}
 
 	price_list = ensure_settings(price_list, report, dry_run)
@@ -52,11 +54,8 @@ def setup_portal_catalog(
 
 	rows = eligible_items(groups, items)
 	publish_items(rows, report, dry_run)
-	ensure_item_defaults(rows, company, report, dry_run)
+	report_restricted_items(rows, company, report)
 	ensure_prices(rows, price_list, default_rate, report, dry_run)
-
-	if cint(link_customers):
-		link_customers_to_company(company, report, dry_run)
 
 	if not dry_run:
 		frappe.db.commit()  # nosemgrep
@@ -141,7 +140,15 @@ def eligible_items(groups: list[str], items: list[str] | None) -> list:
 	rows = frappe.get_all(
 		ITEM,
 		filters=filters,
-		fields=["name", "stock_uom", "standard_rate", "valuation_rate", "end_of_life", PUBLISH_FIELD],
+		fields=[
+			"name",
+			"stock_uom",
+			"standard_rate",
+			"valuation_rate",
+			"end_of_life",
+			PUBLISH_FIELD,
+			RESTRICTED_FIELD,
+		],
 		order_by="name asc",
 	)
 	today = nowdate()
@@ -160,34 +167,21 @@ def mark_published(doctype: str, names: list[str]) -> None:
 	frappe.qb.update(table).set(table[PUBLISH_FIELD], 1).where(table.name.isin(names)).run()
 
 
-def ensure_item_defaults(rows: list, company: str, report: dict, dry_run: int) -> None:
-	codes = [row.name for row in rows]
-	existing = frappe.get_all(
-		ITEM_DEFAULT,
-		filters={"parenttype": ITEM, "parent": ("in", codes or [""])},
-		fields=["parent", "company", "idx"],
-	)
-	covered = {row.parent for row in existing if row.company == company}
-	last_idx = {}
-	for row in existing:
-		last_idx[row.parent] = max(last_idx.get(row.parent, 0), cint(row.idx))
-
-	missing = [code for code in codes if code not in covered]
-	report["item_defaults_added"] = missing
-	if dry_run:
-		return
-
-	for code in missing:
-		frappe.get_doc(
-			{
-				"doctype": ITEM_DEFAULT,
+def report_restricted_items(rows: list, company: str, report: dict) -> None:
+	restricted = [row.name for row in rows if cint(row.get(RESTRICTED_FIELD))]
+	allowed = set(
+		frappe.get_all(
+			COMPANY_RESTRICTION,
+			filters={
 				"parenttype": ITEM,
-				"parentfield": "item_defaults",
-				"parent": code,
+				"parentfield": ALLOWED_COMPANIES_FIELD,
+				"parent": ("in", restricted or [""]),
 				"company": company,
-				"idx": last_idx.get(code, 0) + 1,
-			}
-		).db_insert()
+			},
+			pluck="parent",
+		)
+	)
+	report["restricted_items"] = [name for name in restricted if name not in allowed]
 
 
 def ensure_prices(rows: list, price_list: str, default_rate, report: dict, dry_run: int) -> None:
@@ -227,44 +221,6 @@ def ensure_prices(rows: list, price_list: str, default_rate, report: dict, dry_r
 			).insert(ignore_permissions=True)
 
 
-def link_customers_to_company(company: str, report: dict, dry_run: int) -> None:
-	account = frappe.get_cached_value(COMPANY, company, "default_receivable_account")
-	if not account:
-		frappe.throw(f"Company {company!r} has no Default Receivable Account, so customers cannot be linked.")
-
-	accounts = frappe.get_all(
-		PARTY_ACCOUNT,
-		filters={"parenttype": CUSTOMER, "parentfield": "accounts"},
-		fields=["parent", "company", "idx"],
-	)
-	linked = {row.parent for row in accounts if row.company == company}
-	last_idx = {}
-	for row in accounts:
-		last_idx[row.parent] = max(last_idx.get(row.parent, 0), cint(row.idx))
-
-	missing = [
-		name
-		for name in frappe.get_all(CUSTOMER, filters={"disabled": 0}, pluck="name", order_by="name asc")
-		if name not in linked
-	]
-	report["customers_linked"] = missing
-	if dry_run:
-		return
-
-	for customer in missing:
-		frappe.get_doc(
-			{
-				"doctype": PARTY_ACCOUNT,
-				"parenttype": CUSTOMER,
-				"parentfield": "accounts",
-				"parent": customer,
-				"company": company,
-				"account": account,
-				"idx": last_idx.get(customer, 0) + 1,
-			}
-		).db_insert()
-
-
 def print_summary(report: dict) -> None:
 	mode = "DRY RUN (nothing written)" if report["dry_run"] else "APPLIED"
 	print(f"\nPortal catalog setup - {mode}")
@@ -274,9 +230,8 @@ def print_summary(report: dict) -> None:
 	for key in (
 		"groups_published",
 		"items_published",
-		"item_defaults_added",
+		"restricted_items",
 		"prices_created",
-		"customers_linked",
 		"unpriced_items",
 	):
 		values = report[key]
@@ -287,3 +242,8 @@ def print_summary(report: dict) -> None:
 			print(f"    ... and {len(values) - PREVIEW_LIMIT} more")
 	if report["unpriced_items"]:
 		print("\nUnpriced items stay hidden. Pass default_rate=... or set standard_rate on them.")
+	if report["restricted_items"]:
+		print(
+			f"\nRestricted items stay hidden. Add {report['company']} to their Allowed Companies, "
+			"or untick Restrict to Companies."
+		)

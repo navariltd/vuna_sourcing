@@ -4,6 +4,7 @@
 import io
 
 import frappe
+from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, nowdate
 from pypdf import PdfWriter
@@ -23,6 +24,9 @@ from vuna_sourcing.api.transactions.customer_orders import (
 )
 from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.tests.sourcing_fixtures import SourcingFixtures
+from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import (
+	get_sales_order_fields,
+)
 
 
 def blank_pdf() -> bytes:
@@ -31,6 +35,12 @@ def blank_pdf() -> bytes:
 	buffer = io.BytesIO()
 	writer.write(buffer)
 	return buffer.getvalue()
+
+
+def restrict_to(doc, companies):
+	doc.restrict_to_companies = 1
+	doc.set("allowed_companies", [{"company": company} for company in companies])
+	doc.save(ignore_permissions=True)
 
 
 class CustomerOrderFixtures(SourcingFixtures):
@@ -66,6 +76,8 @@ class CustomerOrderFixtures(SourcingFixtures):
 			).insert(ignore_permissions=True)
 		frappe.db.commit()
 
+	_order_fields_saved = False
+
 	def setUp(self):
 		current = frappe.db.get_single_value("Sourcing Settings", "allow_customer_sales_orders")
 		self.addCleanup(
@@ -75,45 +87,48 @@ class CustomerOrderFixtures(SourcingFixtures):
 		selling_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
 		self.addCleanup(frappe.db.set_single_value, "Selling Settings", "selling_price_list", selling_list)
 		frappe.db.set_single_value("Selling Settings", "selling_price_list", self.price_list)
+		self.use_order_fields()
 
 		self.customer, self.user = self.make_ordering_customer()
 		self.item_code = self.make_item()
 		self.add_price(self.item_code, 100)
 
-	def make_ordering_customer(self):
+	def use_order_fields(self, *rows):
+		settings = frappe.get_single("Sourcing Settings")
+		if not self._order_fields_saved:
+			previous = [row.as_dict() for row in settings.portal_order_fields]
+			self.addCleanup(self.restore_order_fields, previous)
+			self._order_fields_saved = True
+		settings.set("portal_order_fields", list(rows))
+		settings.save()
+		return settings
+
+	def restore_order_fields(self, previous):
+		self._order_fields_saved = False
+		settings = frappe.get_single("Sourcing Settings")
+		settings.set("portal_order_fields", previous)
+		settings.save()
+
+	def make_ordering_customer(self, companies=None):
 		customer, user = self.make_customer()
-		doc = frappe.get_doc("Customer", customer)
-		doc.append("accounts", {"company": self.company})
-		doc.save(ignore_permissions=True)
+		restrict_to(frappe.get_doc("Customer", customer), companies or [self.company])
 		return customer, user
 
 	def make_item(self, company=None, **fields):
-		return (
-			frappe.get_doc(
-				{
-					"doctype": "Item",
-					"item_code": "_Test Portal Order Item " + frappe.generate_hash(length=6),
-					"item_group": self.item_group,
-					"publish_on_portal": 1,
-					"stock_uom": "Nos",
-					"is_stock_item": 0,
-					"item_defaults": [
-						{
-							"company": company or self.company,
-							"default_warehouse": frappe.get_all(
-								"Warehouse",
-								filters={"is_group": 0, "company": company or self.company},
-								limit=1,
-								pluck="name",
-							)[0],
-						}
-					],
-					**fields,
-				}
-			)
-			.insert(ignore_permissions=True)
-			.name
-		)
+		item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": "_Test Portal Order Item " + frappe.generate_hash(length=6),
+				"item_group": self.item_group,
+				"publish_on_portal": 1,
+				"stock_uom": "Nos",
+				"is_stock_item": 0,
+				**fields,
+			}
+		).insert(ignore_permissions=True)
+		if company:
+			restrict_to(item, [company])
+		return item.name
 
 	def add_price(self, item_code, rate, customer=None, valid_from=None):
 		frappe.get_doc(
@@ -273,15 +288,34 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 			self.item_code = item_code
 			self.assertRaisesRegex(frappe.ValidationError, "cannot be ordered", self.order)
 
-	def test_a_customer_orders_only_from_companies_on_their_accounts(self):
-		other_company = self.other_company
+	def test_a_customer_orders_only_from_their_allowed_companies(self):
+		"""A customer restricted to some companies cannot order from any other company."""
+		self.assertRaises(frappe.ValidationError, self.order, company=self.other_company)
 
-		self.assertRaises(frappe.ValidationError, self.order, company=other_company)
-
-		customer, user = self.make_customer()
+		customer, user = self.make_ordering_customer([self.other_company])
 		with self.set_user(user):
-			self.assertFalse(get_order_form(customer).ok)
-			self.assertFalse(get_sales_orders(customer=customer)["can_order"])
+			form = get_order_form(customer).data
+			self.assertTrue(get_sales_orders(customer=customer)["can_order"])
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"company you can order from",
+				save_order,
+				customer=customer,
+				company=self.company,
+				items=[{"item_code": self.item_code, "qty": 1}],
+			)
+
+		self.assertEqual(form["companies"], [self.other_company])
+
+	def test_an_unrestricted_customer_can_order_from_every_company(self):
+		"""A customer without Restrict to Companies may order from any company, as in ERPNext."""
+		customer, user = self.make_customer()
+
+		with self.set_user(user):
+			form = get_order_form(customer).data
+
+		self.assertIn(self.company, form["companies"])
+		self.assertIn(self.other_company, form["companies"])
 
 	def test_the_only_configured_company_is_used_without_asking(self):
 		with self.set_user(self.user):
@@ -340,9 +374,10 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 
 	def test_a_desk_order_stays_visible_on_the_desk(self):
 		staff = make_test_user(["Sales User"], first_name="Sales").name
-		doc = frappe.get_doc(
+		doc = frappe.new_doc("Sales Order")
+		doc.flags.ignore_mandatory = True
+		doc.update(
 			{
-				"doctype": "Sales Order",
 				"customer": self.customer,
 				"company": self.company,
 				"delivery_date": add_days(nowdate(), 7),
@@ -453,6 +488,19 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 		doc.flags.ignore_permissions = True
 		self.assertRaises(frappe.MandatoryError, doc.submit)
 
+	def test_a_missing_standard_field_stops_the_order_before_it_is_saved(self):
+		"""Required ERPNext fields are checked before the save, so nothing is written when one is empty."""
+		from vuna_sourcing.api.transactions.customer_orders import ORDER_PENDING, write_order
+
+		doc = frappe.new_doc("Sales Order")
+		doc.update({"company": self.company, "transaction_date": nowdate()})
+		doc.append("items", {"item_code": self.item_code, "qty": 1})
+		before = frappe.db.count("Sales Order")
+
+		self.assertRaisesRegex(frappe.MandatoryError, "Customer", write_order, doc, ORDER_PENDING)
+		self.assertTrue(doc.is_new())
+		self.assertEqual(frappe.db.count("Sales Order"), before)
+
 	def test_a_past_delivery_date_or_bad_quantity_is_refused(self):
 		self.assertRaisesRegex(
 			frappe.ValidationError, "cannot be in the past", self.order, delivery_date=add_days(nowdate(), -1)
@@ -550,6 +598,7 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 
 		doc = frappe.get_doc("Sales Order", draft["name"])
 		doc.flags.ignore_permissions = True
+		doc.flags.ignore_mandatory = True
 		doc.submit()
 
 		with self.set_user(self.user):
@@ -930,3 +979,182 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 			),
 			1,
 		)
+
+
+class TestPortalOrderFields(CustomerOrderFixtures, IntegrationTestCase):
+	"""Custom Sales Order fields picked in Sourcing Settings and filled in by the customer on the portal."""
+
+	cost_centre = "test_portal_cost_centre_code"
+	channel = "test_portal_sales_channel"
+	cost_centre_label = "_Test Cost Centre Code"
+	channel_label = "_Test Sales Channel"
+	desk_reference = "test_portal_desk_reference"
+	desk_line_note = "test_portal_desk_line_note"
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		create_custom_fields(
+			{
+				"Sales Order": [
+					{
+						"fieldname": cls.cost_centre,
+						"label": cls.cost_centre_label,
+						"fieldtype": "Data",
+						"insert_after": "po_no",
+					},
+					{
+						"fieldname": cls.channel,
+						"label": cls.channel_label,
+						"fieldtype": "Select",
+						"options": "\nRetail\nWholesale",
+						"description": "Where the goods will be sold.",
+						"insert_after": cls.cost_centre,
+					},
+					{
+						"fieldname": cls.desk_reference,
+						"label": "_Test Desk Reference",
+						"fieldtype": "Data",
+						"insert_after": cls.channel,
+					},
+				],
+				"Sales Order Item": [
+					{
+						"fieldname": cls.desk_line_note,
+						"label": "_Test Desk Line Note",
+						"fieldtype": "Data",
+						"insert_after": "item_name",
+					},
+				],
+			},
+			update=True,
+		)
+		frappe.db.commit()  # nosemgrep
+
+	def setUp(self):
+		super().setUp()
+		self.use_order_fields({"fieldname": self.cost_centre, "mandatory": 1}, {"fieldname": self.channel})
+
+	def test_the_portal_uses_the_sales_order_fields_as_they_are(self):
+		"""Label, type, choices and help text come from the Sales Order field itself."""
+		settings = frappe.get_single("Sourcing Settings")
+		with self.set_user(self.user):
+			form = get_order_form(self.customer).data
+
+		self.assertEqual(
+			[(row.label, row.field_type) for row in settings.portal_order_fields],
+			[(self.cost_centre_label, "Short Text"), (self.channel_label, "Multiple Choice")],
+		)
+		self.assertEqual(
+			[(field["label"], field["field_type"], field["mandatory"]) for field in form["fields"]],
+			[(self.cost_centre_label, "Short Text", True), (self.channel_label, "Multiple Choice", False)],
+		)
+		self.assertEqual(form["fields"][1]["choices"], ["Retail", "Wholesale"])
+		self.assertEqual(form["fields"][1]["description"], "Where the goods will be sold.")
+
+	def test_only_custom_fields_the_portal_can_fill_are_accepted(self):
+		"""Standard fields and the portal's own fields cannot be picked."""
+		for fieldname in ("po_no", "created_from_portal", "_test_missing_field"):
+			with self.subTest(fieldname=fieldname):
+				self.assertRaisesRegex(
+					frappe.ValidationError,
+					"not a custom Sales Order field",
+					self.use_order_fields,
+					{"fieldname": fieldname},
+				)
+
+	def test_a_field_cannot_be_picked_twice(self):
+		"""The same Sales Order field cannot appear in two rows."""
+		self.assertRaisesRegex(
+			frappe.ValidationError,
+			"already in the list",
+			self.use_order_fields,
+			{"fieldname": self.channel},
+			{"fieldname": self.channel},
+		)
+
+	def test_a_mandatory_order_field_is_needed_to_send_but_not_to_save(self):
+		"""A draft saves without the mandatory field; sending waits until it is filled in."""
+		draft = self.order(details={self.channel: "Retail"})
+		self.assertIsNone(draft["details"][self.cost_centre])
+		self.assertEqual(draft["details"][self.channel], "Retail")
+
+		with self.set_user(self.user):
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"before sending",
+				submit_order,
+				customer=self.customer,
+				name=draft["name"],
+				company=self.company,
+				items=[{"item_code": self.item_code, "qty": 2, "uom": "Nos"}],
+				details={self.channel: "Retail"},
+			)
+			submit_order(
+				customer=self.customer,
+				name=draft["name"],
+				company=self.company,
+				items=[{"item_code": self.item_code, "qty": 2, "uom": "Nos"}],
+				details={self.cost_centre: " CC-104 ", self.channel: "Retail"},
+			)
+			shown = get_sales_order(draft["name"], self.customer)
+
+		self.assertEqual(frappe.db.get_value("Sales Order", draft["name"], self.cost_centre), "CC-104")
+		self.assertIn(
+			{"label": self.cost_centre_label, "field_type": "Short Text", "value": "CC-104"}, shown["details"]
+		)
+
+	def make_mandatory(self, doctype, fieldname):
+		name = frappe.db.get_value("Custom Field", {"dt": doctype, "fieldname": fieldname})
+		frappe.db.set_value("Custom Field", name, "reqd", 1)
+		frappe.clear_cache(doctype=doctype)
+		self.addCleanup(frappe.clear_cache, doctype=doctype)
+		self.addCleanup(frappe.db.set_value, "Custom Field", name, "reqd", 0)
+
+	def test_a_mandatory_custom_field_left_out_of_the_order_fields_does_not_block_the_portal(self):
+		"""Custom mandatory fields on Sales Order or its items that the portal does not ask for are left to the desk."""
+		self.make_mandatory("Sales Order", self.desk_reference)
+		self.make_mandatory("Sales Order Item", self.desk_line_note)
+		self.assertTrue(frappe.get_meta("Sales Order").get_field(self.desk_reference).reqd)
+		self.assertTrue(frappe.get_meta("Sales Order Item").get_field(self.desk_line_note).reqd)
+
+		draft = self.order(details={self.cost_centre: "CC-104"})
+		with self.set_user(self.user):
+			submit_order(
+				customer=self.customer,
+				name=draft["name"],
+				company=self.company,
+				items=[{"item_code": self.item_code, "qty": 2, "uom": "Nos"}],
+				details={self.cost_centre: "CC-104"},
+			)
+
+		doc = frappe.get_doc("Sales Order", draft["name"])
+		self.assertEqual(doc.portal_submission_status, "Submitted")
+		self.assertFalse(doc.get(self.desk_reference))
+		self.assertFalse(doc.items[0].get(self.desk_line_note))
+
+	def test_a_value_outside_the_choices_is_refused(self):
+		"""A choice the Sales Order field does not offer cannot be saved on an order."""
+		self.assertRaisesRegex(
+			frappe.ValidationError, "Choose one of the options", self.order, details={self.channel: "Export"}
+		)
+
+	def test_only_system_managers_can_list_or_change_order_fields(self):
+		"""Listing the Sales Order fields and editing the table both need the System Manager role."""
+		meta = frappe.get_meta("Sourcing Settings")
+		sales_manager = make_test_user(["Sales Master Manager"], first_name="Sales").name
+		system_manager = make_test_user(["System Manager"], first_name="System").name
+
+		self.assertEqual(meta.get_field("portal_order_fields").permlevel, 1)
+		self.assertNotIn(1, meta.get_permlevel_access("write", user=sales_manager))
+		self.assertIn(1, meta.get_permlevel_access("write", user=system_manager))
+
+		with self.set_user(sales_manager):
+			self.assertRaises(frappe.PermissionError, get_sales_order_fields)
+		with self.set_user(system_manager):
+			listed = [field["fieldname"] for field in get_sales_order_fields()]
+
+		self.assertIn(self.cost_centre, listed)
+		self.assertIn(self.channel, listed)
+		self.assertNotIn("po_no", listed)
+		self.assertNotIn("created_from_portal", listed)

@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from vuna_sourcing.dynamic_fields import validate_choices
 from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type
 from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
 	get_document_types_for,
@@ -23,6 +24,9 @@ class PartyOnboardingTemplate(Document):
 		from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_document_requirement.party_onboarding_document_requirement import (
 			PartyOnboardingDocumentRequirement,
 		)
+		from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_screening_question.party_onboarding_screening_question import (
+			PartyOnboardingScreeningQuestion,
+		)
 
 		customer_group: DF.Link | None
 		default_currency: DF.Link | None
@@ -35,6 +39,7 @@ class PartyOnboardingTemplate(Document):
 		require_registration_number: DF.Check
 		require_tax_id: DF.Check
 		required_documents: DF.Table[PartyOnboardingDocumentRequirement]
+		screening_questions: DF.Table[PartyOnboardingScreeningQuestion]
 		supplier_group: DF.Link | None
 		template_name: DF.Data
 		territory: DF.Link | None
@@ -45,6 +50,7 @@ class PartyOnboardingTemplate(Document):
 		validate_entity_type(self.party_type, self.entity_type, self.meta.get_label("entity_type"))
 		self.clear_other_party_fields()
 		self.validate_documents()
+		self.validate_screening_questions()
 		self.validate_single_default()
 
 	def clear_other_party_fields(self):
@@ -77,6 +83,18 @@ class PartyOnboardingTemplate(Document):
 					),
 					title=_("Document Not Applicable"),
 				)
+
+	def validate_screening_questions(self):
+		seen = set()
+		for row in self.screening_questions:
+			row.question = (row.question or "").strip()
+			if row.question.casefold() in seen:
+				frappe.throw(
+					_("Row #{0}: this screening question is asked more than once.").format(row.idx),
+					title=_("Duplicate Question"),
+				)
+			seen.add(row.question.casefold())
+			validate_choices(row, _("this question"))
 
 	def validate_single_default(self):
 		if not self.is_default:

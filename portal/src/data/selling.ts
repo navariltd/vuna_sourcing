@@ -2,6 +2,7 @@ import { createResource } from "frappe-ui";
 import type { BadgeTheme } from "@/data/application";
 import type { ReturnNote } from "@/data/purchase";
 import type { InvoiceCreditState } from "@/data/creditRequests";
+import type { DynamicFieldType } from "@/data/dynamicFields";
 
 export interface QuotationRow {
   name: string;
@@ -172,6 +173,12 @@ export interface SalesOrderItem extends LineItem {
   quotation: string | null;
 }
 
+export interface SalesOrderDetailValue {
+  label: string;
+  field_type: DynamicFieldType;
+  value: string | number;
+}
+
 export interface SalesOrder {
   name: string;
   customer: string;
@@ -183,6 +190,7 @@ export interface SalesOrder {
   po_no: string | null;
   po_date: string | null;
   po_document: { file_url: string; file_name: string } | null;
+  details: SalesOrderDetailValue[];
   transaction_date: string;
   delivery_date: string | null;
   currency: string | null;

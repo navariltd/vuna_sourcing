@@ -94,7 +94,6 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 					"publish_on_portal": 1,
 					"stock_uom": "Nos",
 					"is_stock_item": 0,
-					"item_defaults": [{"company": self.company, "default_warehouse": self.warehouse}],
 				}
 			)
 			.insert(ignore_permissions=True)
@@ -131,6 +130,7 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 			}
 		)
 		doc.flags.ignore_permissions = True
+		doc.flags.ignore_mandatory = True
 		doc.insert()
 		if submit:
 			doc.submit()
@@ -385,7 +385,8 @@ class TestCustomerBranches(SourcingFixtures, IntegrationTestCase):
 		self.addCleanup(frappe.db.set_single_value, "Selling Settings", "selling_price_list", selling_list)
 		frappe.db.set_single_value("Selling Settings", "selling_price_list", self.price_list)
 		doc = frappe.get_doc("Customer", self.customer)
-		doc.append("accounts", {"company": self.company})
+		doc.restrict_to_companies = 1
+		doc.append("allowed_companies", {"company": self.company})
 		doc.save(ignore_permissions=True)
 		item = self.make_orderable_item()
 		frappe.get_doc(
