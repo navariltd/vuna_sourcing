@@ -19,6 +19,7 @@ import type { SummarySection } from "@/components/ApplicationSummary.vue";
 import DownloadApplicationButton from "@/components/DownloadApplicationButton.vue";
 import ContactFields from "@/components/ContactFields.vue";
 import DocumentRequirementRow from "@/components/DocumentRequirementRow.vue";
+import DynamicField from "@/components/DynamicField.vue";
 import LinkSelect from "@/components/LinkSelect.vue";
 import PageContainer from "@/components/PageContainer.vue";
 import {
@@ -32,6 +33,7 @@ import {
 	onboardingTypes,
 	resubmitApplication,
 	saveApplication,
+	screeningField,
 	submitApplication,
 	taxIdFormats,
 	taxIdProblem,
@@ -45,8 +47,10 @@ import type {
 	ApplicationProgress,
 	OnboardingType,
 	RequiredDocument,
+	ScreeningAnswer,
 	TaxIdFormat,
 } from "@/data/application";
+import { isBlankValue } from "@/data/dynamicFields";
 import { PARTY_COPY, PARTY_TYPES, partyCopy } from "@/data/parties";
 import type { PartyType } from "@/data/parties";
 import { usePortalStore } from "@/stores/portal";
@@ -65,6 +69,7 @@ const form = reactive<Partial<Application>>({});
 const contacts = ref<ApplicationContact[]>([]);
 const addresses = ref<ApplicationAddress[]>([]);
 const documents = ref<RequiredDocument[]>([]);
+const screening = ref<ScreeningAnswer[]>([]);
 
 const isCorrection = computed(() => !!application.data?.is_correction);
 const reviewRemarks = computed<string | null>(() => application.data?.review_remarks ?? null);
@@ -100,11 +105,16 @@ function choosePartyType(partyType: PartyType) {
 	shapeForParty();
 }
 
+const asksQuestions = computed(
+	() => !!selectedType.value?.questions.length || screening.value.length > 0
+);
+
 const steps = computed(() => [
 	{ key: "type", label: "Applying as" },
 	{ key: "business", label: isIndividual.value ? "About you" : "Business" },
 	{ key: "people", label: "Contacts & addresses" },
 	{ key: "documents", label: "Documents" },
+	...(asksQuestions.value ? [{ key: "questions", label: "Questions" }] : []),
 	{ key: "review", label: "Review" },
 ]);
 
@@ -229,6 +239,7 @@ function hydrate(data: Application | null) {
 	contacts.value = (data.contacts ?? []).map((c) => ({ ...c }));
 	addresses.value = (data.addresses ?? []).map((a) => ({ ...a }));
 	documents.value = (data.documents ?? []).map((d) => ({ ...d }));
+	screening.value = (data.screening ?? []).map((row) => ({ ...row }));
 	if (data.party_type) shapeForParty();
 	else ensureShape();
 }
@@ -283,6 +294,7 @@ function payload(): Partial<Application> {
 		contacts: contacts.value,
 		addresses: addresses.value,
 		documents: documents.value,
+		screening: screening.value,
 	};
 }
 
@@ -350,6 +362,13 @@ const stepIssues = computed<string[]>(() => {
 				missing.push("A delivery address");
 			break;
 		}
+
+		case "questions":
+			screening.value.forEach((row) => {
+				if (row.mandatory && isBlankValue(row.answer))
+					missing.push(`Answer: ${row.question}`);
+			});
+			break;
 
 		case "documents": {
 			const today = localToday();
@@ -918,6 +937,22 @@ const title = computed(() => {
 				</template>
 			</section>
 
+			<section v-else-if="currentStep.key === 'questions'" class="space-y-5">
+				<p class="text-p-base text-ink-gray-6">
+					A few questions from our team. Your answers help us review your application.
+				</p>
+				<p v-if="!screening.length" class="text-p-base text-ink-gray-6">
+					Save your details first to see the questions.
+				</p>
+				<div
+					v-for="row in screening"
+					:key="row.question_id"
+					class="rounded-6 border border-outline-gray-2 p-4"
+				>
+					<DynamicField v-model="row.answer" :field="screeningField(row)" />
+				</div>
+			</section>
+
 			<section v-else class="space-y-4">
 				<div
 					v-if="progress && !progress.can_submit"
@@ -926,6 +961,9 @@ const title = computed(() => {
 					<p class="mb-2 text-base font-medium text-ink-gray-8">Still outstanding</p>
 					<ul class="list-inside list-disc space-y-1 text-p-sm text-ink-gray-7">
 						<li v-for="item in progress.missing_details" :key="item">{{ item }}</li>
+						<li v-for="item in progress.missing_answers ?? []" :key="`answer-${item}`">
+							Answer: {{ item }}
+						</li>
 						<li v-for="item in progress.missing_documents" :key="item">
 							{{ item }}
 						</li>

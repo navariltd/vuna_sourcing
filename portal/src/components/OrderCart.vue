@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { Button, Combobox, ErrorMessage, FormControl, Select, Spinner } from "frappe-ui";
 import QtyStepper from "@/components/QtyStepper.vue";
 import PoDocumentField from "@/components/PoDocumentField.vue";
+import DynamicField from "@/components/DynamicField.vue";
 import OrderCreditAlert from "@/components/OrderCreditAlert.vue";
 import { injectOrderDraft } from "@/composables/useOrderDraft";
 import { money } from "@/data/purchase";
@@ -43,6 +44,10 @@ const addressMissing = computed(
 );
 
 const showPoDocument = computed(() => !!draft.poNo.value.trim());
+
+const orderFieldsNeedAttention = computed(
+	() => draft.missingFields.value.length > 0 && draft.lines.value.length > 0
+);
 
 const detailsNeedAttention = computed(
 	() => addressMissing.value || (draft.needsPoDocument.value && draft.lines.value.length > 0)
@@ -312,6 +317,44 @@ const detailsNeedAttention = computed(
 				/>
 
 				<PoDocumentField v-if="showPoDocument" />
+			</section>
+
+			<section
+				v-if="draft.fields.value.length"
+				class="flex flex-col gap-4 rounded-8 border p-3"
+				:class="
+					orderFieldsNeedAttention
+						? 'border-outline-amber-3 bg-surface-amber-1'
+						: 'border-outline-gray-2 bg-surface-gray-1'
+				"
+				aria-labelledby="order-fields-heading"
+			>
+				<div class="flex items-center gap-2">
+					<span
+						class="grid size-7 shrink-0 place-items-center rounded-full bg-surface-gray-10 text-ink-base"
+						aria-hidden="true"
+					>
+						<i class="lucide-clipboard-list size-4" />
+					</span>
+					<div class="min-w-0">
+						<h3
+							id="order-fields-heading"
+							class="text-base font-semibold text-ink-gray-9"
+						>
+							Order details
+						</h3>
+						<p class="text-p-xs text-ink-gray-6">
+							A few more things we need for this order.
+						</p>
+					</div>
+				</div>
+
+				<DynamicField
+					v-for="field in draft.fields.value"
+					:key="field.fieldname"
+					v-model="draft.details.value[field.fieldname]"
+					:field="field"
+				/>
 			</section>
 		</div>
 

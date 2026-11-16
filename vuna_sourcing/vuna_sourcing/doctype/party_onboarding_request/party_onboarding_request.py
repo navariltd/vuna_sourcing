@@ -5,9 +5,10 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.query_builder.functions import IfNull
-from frappe.utils import get_link_to_form, getdate, now_datetime, today
+from frappe.utils import escape_html, get_link_to_form, getdate, now_datetime, today
 
 from vuna_sourcing.api.transactions.branches import ACCOUNT_ADMIN_FIELD
+from vuna_sourcing.dynamic_fields import choices_of, clean_value, is_blank
 from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type, validate_tax_id
 
 PENDING_REVIEW = "Pending Review"
@@ -38,6 +39,9 @@ class PartyOnboardingRequest(Document):
 		from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request_document.party_onboarding_request_document import (
 			PartyOnboardingRequestDocument,
 		)
+		from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_screening_answer.party_onboarding_screening_answer import (
+			PartyOnboardingScreeningAnswer,
+		)
 
 		addresses: DF.Table[PartyOnboardingAddress]
 		amended_from: DF.Link | None
@@ -61,6 +65,7 @@ class PartyOnboardingRequest(Document):
 		review_remarks: DF.SmallText | None
 		reviewed_by: DF.Link | None
 		reviewed_on: DF.Datetime | None
+		screening_answers: DF.Table[PartyOnboardingScreeningAnswer]
 		supplier_group: DF.Link | None
 		tax_id: DF.Data | None
 		territory: DF.Link | None
@@ -83,6 +88,8 @@ class PartyOnboardingRequest(Document):
 	def validate(self):
 		self.validate_party_type()
 		self.sync_documents_from_template()
+		self.sync_screening_from_template()
+		self.clean_screening_answers()
 		self.apply_template_defaults()
 		self.normalise_contacts_and_addresses()
 		self.validate_tax_id()
@@ -96,6 +103,7 @@ class PartyOnboardingRequest(Document):
 
 	def before_submit(self):
 		self.validate_mandatory_documents()
+		self.validate_screening_answers()
 		self.onboarding_status = PENDING_REVIEW
 		self.reviewed_by = None
 		self.reviewed_on = None
@@ -103,6 +111,7 @@ class PartyOnboardingRequest(Document):
 
 	def before_update_after_submit(self):
 		self.validate_locked_after_submit()
+		self.clean_screening_answers()
 		self.normalise_contacts_and_addresses()
 		self.validate_tax_id()
 		self.validate_document_dates()
@@ -203,6 +212,47 @@ class PartyOnboardingRequest(Document):
 		self.required_documents = []
 		for row in rows:
 			self.append("required_documents", row)
+
+	def sync_screening_from_template(self):
+		if self.docstatus != 0 or not self.onboarding_template:
+			return
+
+		answers = {row.question_id: row.answer for row in self.screening_answers if row.question_id}
+		self.screening_answers = []
+		for question in self.template.screening_questions:
+			self.append(
+				"screening_answers",
+				{
+					"question_id": question.name,
+					"question": question.question,
+					"field_type": question.field_type,
+					"options": question.options,
+					"is_mandatory": question.is_mandatory,
+					"description": question.description,
+					"answer": answers.get(question.name),
+				},
+			)
+
+	def clean_screening_answers(self):
+		for row in self.screening_answers:
+			value = clean_value(
+				row.field_type, row.question, choices_of(row.field_type, row.options), row.answer
+			)
+			row.answer = None if value is None else str(value)
+
+	def get_outstanding_answers(self) -> list[str]:
+		return [row.question for row in self.screening_answers if row.is_mandatory and is_blank(row.answer)]
+
+	def validate_screening_answers(self):
+		outstanding = self.get_outstanding_answers()
+		if outstanding:
+			frappe.throw(
+				_("Answer these screening questions before this request can be submitted:")
+				+ "<br><ul><li>"
+				+ "</li><li>".join(frappe.bold(escape_html(item)) for item in outstanding)
+				+ "</li></ul>",
+				title=_("Screening Questions Unanswered"),
+			)
 
 	def apply_template_defaults(self):
 		if not self.party_type:
