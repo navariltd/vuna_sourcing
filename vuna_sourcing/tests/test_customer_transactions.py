@@ -42,6 +42,7 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 
 	def save(self, doc, submit):
 		doc.flags.ignore_permissions = True
+		doc.flags.ignore_mandatory = True
 		doc.insert()
 		if submit:
 			doc.submit()

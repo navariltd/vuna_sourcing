@@ -5,6 +5,7 @@ import math
 import re
 
 import frappe
+from erpnext.stock.doctype.company_restriction.company_restriction import get_restriction_criterion
 from frappe import _
 from frappe.query_builder import Order
 from frappe.query_builder.functions import Count, IfNull
@@ -22,6 +23,11 @@ from vuna_sourcing.api.transactions.branches import (
 )
 from vuna_sourcing.api.transactions.common import all_of, as_administrator, party_scope
 from vuna_sourcing.utils import CUSTOMER
+from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import (
+	missing_order_fields,
+	order_field_values,
+	portal_order_fields,
+)
 
 SALES_ORDER = "Sales Order"
 FROM_PORTAL_FIELD = "created_from_portal"
@@ -34,12 +40,17 @@ PO_DOCUMENT_TYPES = ("pdf", "png", "jpg", "jpeg")
 PO_DOCUMENT_SUFFIX = "LPO"
 
 PUBLISH_FIELD = "publish_on_portal"
+ITEM = "Item"
 ITEM_GROUP = "Item Group"
+COMPANY_RESTRICTION = "Company Restriction"
+RESTRICTED_FIELD = "restrict_to_companies"
+ALLOWED_COMPANIES_FIELD = "allowed_companies"
 MAX_ORDER_LINES = 100
 CATEGORY_PAGE = 24
 MAX_CATEGORY_PAGE = 100
 SEARCH_LENGTH = 140
 PO_NUMBER_LENGTH = 140
+SET_ON_SAVE = frozenset({"parent", "parenttype"})
 
 
 def orders_enabled() -> bool:
@@ -68,20 +79,21 @@ def order_companies(customer: str) -> list[str]:
 	if len(companies) == 1:
 		return companies
 
-	return sorted(
-		set(
-			frappe.get_all(
-				"Party Account",
-				filters={
-					"parenttype": CUSTOMER,
-					"parentfield": "accounts",
-					"parent": customer,
-					"company": ("in", companies or [""]),
-				},
-				pluck="company",
-			)
+	if not cint(frappe.db.get_value(CUSTOMER, customer, RESTRICTED_FIELD)):
+		return companies
+
+	allowed = set(
+		frappe.get_all(
+			COMPANY_RESTRICTION,
+			filters={
+				"parenttype": CUSTOMER,
+				"parentfield": ALLOWED_COMPANIES_FIELD,
+				"parent": customer,
+			},
+			pluck="company",
 		)
 	)
+	return [company for company in companies if company in allowed]
 
 
 def can_order(customer: str | None) -> bool:
@@ -103,17 +115,15 @@ def order_company(customer: str, company: str | None) -> str:
 
 
 def orderable_items_query(company: str):
-	item = frappe.qb.DocType("Item")
-	default = frappe.qb.DocType("Item Default")
+	item = frappe.qb.DocType(ITEM)
 	group = frappe.qb.DocType(ITEM_GROUP)
 
 	return (
 		frappe.qb.from_(item)
-		.join(default)
-		.on((default.parent == item.name) & (default.parenttype == "Item") & (default.company == company))
 		.join(group)
 		.on((group.name == item.item_group) & (group[PUBLISH_FIELD] == 1))
 		.where(item[PUBLISH_FIELD] == 1)
+		.where(get_restriction_criterion(ITEM, [company]))
 		.where(item.is_sales_item == 1)
 		.where(item.disabled == 0)
 		.where(item.has_variants == 0)
@@ -137,7 +147,7 @@ def item_uoms(items: dict[str, dict]) -> dict[str, dict[str, float]]:
 
 	for row in frappe.get_all(
 		"UOM Conversion Detail",
-		filters={"parenttype": "Item", "parent": ("in", list(items) or [""])},
+		filters={"parenttype": ITEM, "parent": ("in", list(items) or [""])},
 		fields=["parent", "uom", "conversion_factor"],
 	):
 		if flt(row.conversion_factor) > 0:
@@ -425,6 +435,12 @@ def file_po_document(doc) -> None:
 	doc.db_set(PO_DOCUMENT_FIELD, renamed.file_url, update_modified=False)
 
 
+def ensure_order_details(doc) -> None:
+	missing = missing_order_fields(portal_order_fields(), doc)
+	if missing:
+		frappe.throw(_("Fill in {0} before sending the order.").format(", ".join(missing)))
+
+
 def ensure_po_document(doc) -> None:
 	if po_document_required() and doc.po_no and not doc.get(PO_DOCUMENT_FIELD):
 		frappe.throw(
@@ -591,7 +607,7 @@ def validate_portal_mandatory(doc) -> None:
 
 	for row in (doc, *doc.get_all_children()):
 		if row.doctype not in skipped:
-			skipped[row.doctype] = customised_requirements(row.doctype)
+			skipped[row.doctype] = customised_requirements(row.doctype) | SET_ON_SAVE
 
 		missing.extend(
 			strip_html(message)
@@ -609,13 +625,14 @@ def write_order(doc, status: str) -> None:
 
 	if status == ORDER_SUBMITTED:
 		ensure_po_document(doc)
+		ensure_order_details(doc)
 
 	doc.set(PORTAL_STATUS_FIELD, status)
+	validate_portal_mandatory(doc)
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_mandatory = True
 	with as_administrator():
 		doc.save()
-		validate_portal_mandatory(doc)
 	file_po_document(doc)
 
 
@@ -628,6 +645,7 @@ def prepared_order(
 	shipping_address: str | None,
 	po_no: str | None,
 	po_document: str | None = None,
+	details: dict | str | None = None,
 ):
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
@@ -650,13 +668,15 @@ def prepared_order(
 		po_no,
 		po_document,
 	)
+	if details is not None:
+		doc.update(order_field_values(portal_order_fields(), details))
 	return doc
 
 
 def order_view(doc) -> dict:
 	images = dict(
 		frappe.get_all(
-			"Item",
+			ITEM,
 			filters={"name": ("in", [row.item_code for row in doc.items] or [""])},
 			fields=["name", "image"],
 			as_list=True,
@@ -675,6 +695,7 @@ def order_view(doc) -> dict:
 		"po_document": po_document_view(doc.get(PO_DOCUMENT_FIELD)),
 		"shipping_address": doc.shipping_address_name,
 		"status": doc.get(PORTAL_STATUS_FIELD),
+		"details": {field["fieldname"]: doc.get(field["fieldname"]) for field in portal_order_fields()},
 		"items": [
 			{
 				"item_code": row.item_code,
@@ -737,6 +758,7 @@ def get_order_form(customer: str, name: str | None = None) -> ApiResponse[dict]:
 			"addresses": [address_option(address) for address in customer_addresses(customer)],
 			"today": nowdate(),
 			"po_document": po_document_rules(),
+			"fields": portal_order_fields(),
 			"order": order,
 		}
 	)
@@ -896,8 +918,11 @@ def save_order(
 	shipping_address: str | None = None,
 	po_no: str | None = None,
 	po_document: str | None = None,
+	details: dict | str | None = None,
 ) -> ApiResponse[dict]:
-	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no, po_document)
+	doc = prepared_order(
+		customer, items, company, name, delivery_date, shipping_address, po_no, po_document, details
+	)
 	write_order(doc, ORDER_PENDING)
 	return ApiResponse.success(_("Draft saved."), order_view(doc))
 
@@ -912,8 +937,11 @@ def submit_order(
 	shipping_address: str | None = None,
 	po_no: str | None = None,
 	po_document: str | None = None,
+	details: dict | str | None = None,
 ) -> ApiResponse[dict]:
-	doc = prepared_order(customer, items, company, name, delivery_date, shipping_address, po_no, po_document)
+	doc = prepared_order(
+		customer, items, company, name, delivery_date, shipping_address, po_no, po_document, details
+	)
 	write_order(doc, ORDER_SUBMITTED)
 	return ApiResponse.success(_("Order sent. We will confirm it shortly."), order_view(doc))
 
