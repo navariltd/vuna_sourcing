@@ -491,6 +491,13 @@ def make_purchase_order(
 		allowed = (set(every) - set(sourced)) | awarded
 		chosen = args.get("filtered_children") or every
 		args["filtered_children"] = [name for name in chosen if name in allowed]
+		if not args["filtered_children"]:
+			frappe.throw(
+				_("None of the items you picked on {0} were awarded, so there is nothing to order.").format(
+					frappe.bold(source_name)
+				),
+				title=_("Items not awarded"),
+			)
 
 	order = make_standard_purchase_order(source_name, target_doc, args)
 	required_by(order)
