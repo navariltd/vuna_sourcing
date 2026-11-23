@@ -3,15 +3,21 @@
 
 import re
 from dataclasses import dataclass
+from email.utils import formataddr
 
 import frappe
-from frappe import _
+from frappe import _, get_installed_apps
 
 from vuna_sourcing import APP_NAME
 
 SUPPLIER = "Supplier"
 CUSTOMER = "Customer"
 PARTY_TYPES = (SUPPLIER, CUSTOMER)
+SOURCING_SETTINGS = "Sourcing Settings"
+EMAIL_ACCOUNT = "Email Account"
+NOTIFICATION_ACCOUNT_FIELD = "notification_email_account"
+HELPDESK_APP = "helpdesk"
+HELPDESK_NEW_TICKET = "/helpdesk/my-tickets/new"
 
 
 @dataclass(frozen=True)
@@ -100,6 +106,24 @@ def get_app_branding() -> dict:
 		"logo": entry.get("logo"),
 		"publisher": first("app_publisher"),
 	}
+
+
+def notification_sender() -> str | None:
+	account = frappe.db.get_single_value(SOURCING_SETTINGS, NOTIFICATION_ACCOUNT_FIELD)
+	if not account:
+		return None
+
+	details = frappe.db.get_value(
+		EMAIL_ACCOUNT, account, ["email_id", "email_account_name", "enable_outgoing"], as_dict=True
+	)
+	if not details or not details.enable_outgoing or not details.email_id:
+		return None
+
+	return formataddr((details.email_account_name or "", details.email_id))
+
+
+def help_desk_url() -> str | None:
+	return HELPDESK_NEW_TICKET if HELPDESK_APP in get_installed_apps() else None
 
 
 def get_portal_branding() -> dict:

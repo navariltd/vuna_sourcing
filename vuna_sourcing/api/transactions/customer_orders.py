@@ -39,6 +39,9 @@ PO_DOCUMENT_FIELD = "portal_po_document"
 PO_DOCUMENT_TYPES = ("pdf", "png", "jpg", "jpeg")
 PO_DOCUMENT_SUFFIX = "LPO"
 
+SETTINGS = "Sourcing Settings"
+DEFAULT_COMPANY_FIELD = "default_ordering_company"
+COMPANY = "Company"
 PUBLISH_FIELD = "publish_on_portal"
 ITEM = "Item"
 ITEM_GROUP = "Item Group"
@@ -74,26 +77,33 @@ def ordering_customer(customer: str | None) -> str:
 	return customer
 
 
+def default_ordering_company() -> str | None:
+	company = frappe.db.get_single_value(SETTINGS, DEFAULT_COMPANY_FIELD)
+	return company if company and frappe.db.exists(COMPANY, company) else None
+
+
+def allowed_companies(customer: str) -> list[str]:
+	restriction = frappe.qb.DocType(COMPANY_RESTRICTION)
+	company = frappe.qb.DocType(COMPANY)
+	return (
+		frappe.qb.from_(restriction)
+		.join(company)
+		.on(company.name == restriction.company)
+		.select(restriction.company)
+		.where(restriction.parenttype == CUSTOMER)
+		.where(restriction.parentfield == ALLOWED_COMPANIES_FIELD)
+		.where(restriction.parent == customer)
+		.distinct()
+		.orderby(restriction.company)
+	).run(pluck=True)
+
+
 def order_companies(customer: str) -> list[str]:
-	companies = frappe.get_all("Company", pluck="name", order_by="name asc")
-	if len(companies) == 1:
-		return companies
+	if cint(frappe.db.get_value(CUSTOMER, customer, RESTRICTED_FIELD)):
+		return allowed_companies(customer)
 
-	if not cint(frappe.db.get_value(CUSTOMER, customer, RESTRICTED_FIELD)):
-		return companies
-
-	allowed = set(
-		frappe.get_all(
-			COMPANY_RESTRICTION,
-			filters={
-				"parenttype": CUSTOMER,
-				"parentfield": ALLOWED_COMPANIES_FIELD,
-				"parent": customer,
-			},
-			pluck="company",
-		)
-	)
-	return [company for company in companies if company in allowed]
+	default = default_ordering_company()
+	return [default] if default else []
 
 
 def can_order(customer: str | None) -> bool:
