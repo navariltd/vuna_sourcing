@@ -84,6 +84,7 @@ class CustomerOrderFixtures(SourcingFixtures):
 			frappe.db.set_single_value, "Sourcing Settings", "allow_customer_sales_orders", current
 		)
 		frappe.db.set_single_value("Sourcing Settings", "allow_customer_sales_orders", 1)
+		self.use_default_company(None)
 		selling_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
 		self.addCleanup(frappe.db.set_single_value, "Selling Settings", "selling_price_list", selling_list)
 		frappe.db.set_single_value("Selling Settings", "selling_price_list", self.price_list)
@@ -92,6 +93,11 @@ class CustomerOrderFixtures(SourcingFixtures):
 		self.customer, self.user = self.make_ordering_customer()
 		self.item_code = self.make_item()
 		self.add_price(self.item_code, 100)
+
+	def use_default_company(self, company):
+		current = frappe.db.get_single_value("Sourcing Settings", "default_ordering_company")
+		self.addCleanup(frappe.db.set_single_value, "Sourcing Settings", "default_ordering_company", current)
+		frappe.db.set_single_value("Sourcing Settings", "default_ordering_company", company)
 
 	def use_order_fields(self, *rows):
 		settings = frappe.get_single("Sourcing Settings")
@@ -307,15 +313,191 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 
 		self.assertEqual(form["companies"], [self.other_company])
 
-	def test_an_unrestricted_customer_can_order_from_every_company(self):
-		"""A customer without Restrict to Companies may order from any company, as in ERPNext."""
+	def test_an_unrestricted_customer_cannot_order_without_a_default_ordering_company(self):
+		"""Without Restrict to Companies or a default ordering company, a customer sees no company and cannot order."""
+		self.use_default_company(None)
+		customer, user = self.make_customer()
+
+		with self.set_user(user):
+			form = get_order_form(customer)
+			self.assertFalse(get_sales_orders(customer=customer)["can_order"])
+			for company in (None, self.company, self.other_company):
+				self.assertRaisesRegex(
+					frappe.ValidationError,
+					"not set up for ordering",
+					save_order,
+					customer=customer,
+					company=company,
+					items=[{"item_code": self.item_code, "qty": 1}],
+				)
+
+		self.assertFalse(form.ok)
+		self.assertIsNone(form.data)
+
+	def test_an_unrestricted_customer_orders_only_from_the_default_ordering_company(self):
+		"""A customer without Restrict to Companies sees and orders from the default ordering company only."""
+		self.use_default_company(self.company)
 		customer, user = self.make_customer()
 
 		with self.set_user(user):
 			form = get_order_form(customer).data
+			draft = save_order(
+				customer=customer,
+				items=[{"item_code": self.item_code, "qty": 1}],
+				delivery_date=add_days(nowdate(), 7),
+			).data
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"company you can order from",
+				save_order,
+				customer=customer,
+				company=self.other_company,
+				items=[{"item_code": self.item_code, "qty": 1}],
+			)
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"company you can order from",
+				get_orderable_items,
+				customer,
+				self.other_company,
+			)
 
-		self.assertIn(self.company, form["companies"])
-		self.assertIn(self.other_company, form["companies"])
+		self.assertEqual(form["companies"], [self.company])
+		self.assertEqual(draft["company"], self.company)
+
+	def test_restricted_companies_on_the_customer_win_over_the_default_ordering_company(self):
+		"""A customer's Allowed Companies replace the default ordering company, not add to it."""
+		self.use_default_company(self.company)
+		customer, user = self.make_ordering_customer([self.other_company])
+
+		with self.set_user(user):
+			form = get_order_form(customer).data
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"company you can order from",
+				save_order,
+				customer=customer,
+				company=self.company,
+				items=[{"item_code": self.item_code, "qty": 1}],
+			)
+
+		self.assertEqual(form["companies"], [self.other_company])
+
+	def test_a_restricted_customer_without_allowed_companies_cannot_order(self):
+		"""Restrict to Companies with no Allowed Companies blocks ordering, even with a default ordering company."""
+		self.use_default_company(self.company)
+		customer, user = self.make_customer()
+		frappe.db.set_value("Customer", customer, "restrict_to_companies", 1)
+
+		with self.set_user(user):
+			self.assertFalse(get_order_form(customer).ok)
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"not set up for ordering",
+				save_order,
+				customer=customer,
+				company=self.company,
+				items=[{"item_code": self.item_code, "qty": 1}],
+			)
+
+	def test_a_draft_cannot_be_sent_once_its_company_is_no_longer_allowed(self):
+		"""Taking a company off a customer's Allowed Companies stops their drafts for it being saved or sent."""
+		with self.set_user(self.user):
+			draft = save_order(
+				customer=self.customer,
+				items=[{"item_code": self.item_code, "qty": 1}],
+				delivery_date=add_days(nowdate(), 7),
+			).data
+
+		restrict_to(frappe.get_doc("Customer", self.customer), [self.other_company])
+
+		with self.set_user(self.user):
+			for action in (save_order, submit_order):
+				self.assertRaisesRegex(
+					frappe.ValidationError,
+					"company you can order from",
+					action,
+					customer=self.customer,
+					name=draft["name"],
+					items=[{"item_code": self.item_code, "qty": 1}],
+					delivery_date=add_days(nowdate(), 7),
+				)
+
+		self.assertEqual(frappe.db.get_value("Sales Order", draft["name"], "docstatus"), 0)
+
+	def test_another_customers_user_cannot_read_the_ordering_companies(self):
+		"""A portal user cannot see which companies another customer may order from."""
+		_other, intruder = self.make_ordering_customer([self.other_company])
+
+		with self.set_user(intruder):
+			self.assertRaises(frappe.PermissionError, get_order_form, self.customer)
+			self.assertRaises(frappe.PermissionError, get_orderable_items, self.customer, self.company)
+
+	def test_items_restricted_to_another_company_are_hidden_and_refused_for_the_default_company(self):
+		"""Items limited to other companies cannot be browsed, priced or ordered through the default ordering company."""
+		self.use_default_company(self.company)
+		customer, user = self.make_customer()
+		elsewhere = self.make_item(company=self.other_company)
+		here = self.make_item(company=self.company)
+		for item_code in (elsewhere, here):
+			self.add_price(item_code, 50)
+
+		with self.set_user(user):
+			listed = {
+				row["item_code"]
+				for code in (self.item_code, elsewhere, here)
+				for row in get_orderable_items(customer, search=code).data["rows"]
+			}
+			counted = get_order_categories(customer).data["all_items"]
+			for action in (price_order, save_order, submit_order):
+				self.assertRaisesRegex(
+					frappe.ValidationError,
+					"cannot be ordered",
+					action,
+					customer=customer,
+					items=[{"item_code": elsewhere, "qty": 1}],
+					delivery_date=add_days(nowdate(), 7),
+				)
+			priced = price_order(customer=customer, items=[{"item_code": here, "qty": 1}]).data
+
+		self.assertEqual(listed, {self.item_code, here})
+		self.assertNotIn(elsewhere, {row["item_code"] for row in priced["items"]})
+		self.assertGreaterEqual(counted, 2)
+		self.assertFalse(frappe.db.exists("Sales Order Item", {"item_code": elsewhere}))
+
+	def test_items_are_offered_only_for_the_customers_allowed_companies(self):
+		"""A restricted customer sees an item only under a company both the customer and the item allow."""
+		elsewhere = self.make_item(company=self.other_company)
+		self.add_price(elsewhere, 50)
+		customer, user = self.make_ordering_customer([self.company, self.other_company])
+
+		with self.set_user(user):
+			here = {
+				row["item_code"]
+				for row in get_orderable_items(customer, self.company, search=elsewhere).data["rows"]
+			}
+			there = {
+				row["item_code"]
+				for row in get_orderable_items(customer, self.other_company, search=elsewhere).data["rows"]
+			}
+			draft = save_order(
+				customer=customer,
+				company=self.other_company,
+				items=[{"item_code": elsewhere, "qty": 1}],
+				delivery_date=add_days(nowdate(), 7),
+			).data
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"cannot be ordered",
+				save_order,
+				customer=customer,
+				company=self.company,
+				items=[{"item_code": elsewhere, "qty": 1}],
+			)
+
+		self.assertEqual(here, set())
+		self.assertEqual(there, {elsewhere})
+		self.assertEqual(draft["company"], self.other_company)
 
 	def test_the_only_configured_company_is_used_without_asking(self):
 		with self.set_user(self.user):

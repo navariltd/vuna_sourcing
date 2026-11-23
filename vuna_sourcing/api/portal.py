@@ -4,7 +4,14 @@
 import frappe
 from frappe import _
 
-from vuna_sourcing.utils import CUSTOMER, PARTY_TYPES, SUPPLIER, get_open_party_types, get_portal_branding
+from vuna_sourcing.utils import (
+	CUSTOMER,
+	PARTY_TYPES,
+	SUPPLIER,
+	get_open_party_types,
+	get_portal_branding,
+	help_desk_url,
+)
 
 PARTY_ROLE = {SUPPLIER: "Supplier", CUSTOMER: "Customer"}
 
@@ -113,6 +120,7 @@ def get_session() -> dict:
 			"credit_limits": credit_limits_enabled(),
 		},
 		"branding": get_portal_branding(),
+		"help_url": help_desk_url(),
 	}
 
 

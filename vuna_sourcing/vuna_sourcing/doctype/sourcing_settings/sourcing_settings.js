@@ -2,6 +2,9 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Sourcing Settings", {
+	setup(frm) {
+		frm.set_query("notification_email_account", () => ({ filters: { enable_outgoing: 1 } }));
+	},
 	refresh(frm) {
 		frm.add_custom_button(__("Portal Signup Link"), () => show_signup_link(frm));
 		frm.add_custom_button(__("Invite User"), () => show_invite_user());
@@ -44,8 +47,8 @@ function load_order_field_choices(frm) {
 }
 
 function show_invite_user() {
-	frappe
-		.call({ method: "vuna_sourcing.api.signup.get_signup_context" })
+	return frappe
+		.call({ method: "vuna_sourcing.api.signup.get_signup_context", freeze: true })
 		.then(({ message: context }) => {
 			const branding = context?.data || {};
 
@@ -78,12 +81,16 @@ function show_invite_user() {
 				],
 				primary_action_label: __("Send Invitation"),
 				primary_action(values) {
+					if (dialog.sending) return;
+					dialog.sending = true;
 					dialog.disable_primary_action();
 					frappe
 						.call({
 							method: "vuna_sourcing.api.signup.sign_up",
 							type: "POST",
 							args: values,
+							freeze: true,
+							freeze_message: __("Sending invitation..."),
 						})
 						.then(({ message: response }) => {
 							if (!response?.ok) {
@@ -112,7 +119,10 @@ function show_invite_user() {
 								});
 							}
 						})
-						.always(() => dialog.enable_primary_action());
+						.always(() => {
+							dialog.sending = false;
+							dialog.enable_primary_action();
+						});
 				},
 			});
 
