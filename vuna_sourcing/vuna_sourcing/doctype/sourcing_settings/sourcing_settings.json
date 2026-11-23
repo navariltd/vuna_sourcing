@@ -9,6 +9,7 @@
   "portal_transactions_tab",
   "section_customer_orders",
   "allow_customer_sales_orders",
+  "default_ordering_company",
   "column_break_customer_orders",
   "require_po_document",
   "section_order_fields",
@@ -55,6 +56,7 @@
   "create_purchase_orders_on_award",
   "notifications_tab",
   "section_notifications",
+  "notification_email_account",
   "notify_applicant",
   "column_break_notifications",
   "notify_reviewers",
@@ -274,6 +276,14 @@
    "label": "Allow Customers to Create Sales Orders"
   },
   {
+   "depends_on": "allow_customer_sales_orders",
+   "description": "The company customers order from when Restrict to Companies is off on their customer record. Customers with Restrict to Companies on order only from their Allowed Companies. Leave empty and only those restricted customers can order.",
+   "fieldname": "default_ordering_company",
+   "fieldtype": "Link",
+   "label": "Default Ordering Company",
+   "options": "Company"
+  },
+  {
    "fieldname": "section_credit_requests",
    "fieldtype": "Section Break",
    "label": "Credit Note Requests"
@@ -306,6 +316,13 @@
    "fieldname": "section_notifications",
    "fieldtype": "Section Break",
    "label": "Email"
+  },
+  {
+   "description": "Portal emails (award results, credit request decisions and application updates) are sent from this account. It must be an Email Account with Enable Outgoing on. Leave empty to use the site's default outgoing account.",
+   "fieldname": "notification_email_account",
+   "fieldtype": "Link",
+   "label": "Send Notifications From",
+   "options": "Email Account"
   },
   {
    "default": "1",
@@ -414,7 +431,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-16 12:00:00.000000",
+ "modified": "2026-11-23 09:15:30.058667",
  "modified_by": "Administrator",
  "module": "Vuna Sourcing",
  "name": "Sourcing Settings",
