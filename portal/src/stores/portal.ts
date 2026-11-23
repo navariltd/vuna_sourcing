@@ -79,6 +79,7 @@ export interface PortalSession {
   is_applicant: boolean
   features: PortalFeatures
   branding: PortalBranding
+  help_url: string | null
 }
 
 export function partyKey(party: Pick<Party, 'party_type' | 'name'>) {
@@ -199,6 +200,8 @@ export const usePortalStore = defineStore('portal', () => {
     () => session.data?.branding ?? { title: null, logo: null, is_custom: false },
   )
 
+  const helpUrl = computed<string | null>(() => session.data?.help_url ?? null)
+
   const isApplicant = computed(() => !!session.data?.is_applicant)
   const canApply = computed(() => !!session.data?.can_apply)
   const openPartyTypes = computed<PartyType[]>(() => session.data?.open_party_types ?? [])
@@ -277,5 +280,6 @@ export const usePortalStore = defineStore('portal', () => {
     canManageTeam,
     features,
     branding,
+    helpUrl,
   }
 })

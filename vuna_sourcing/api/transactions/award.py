@@ -31,6 +31,7 @@ from vuna_sourcing.api.transactions.supplier import (
 	SUPPLIER_QUOTATION,
 	SUPPLIER_QUOTATION_ITEM,
 )
+from vuna_sourcing.utils import notification_sender
 
 OPEN_STATUSES = (PENDING_SELECTION, PARTIALLY_AWARDED)
 FINAL_STATUSES = (AWARDED, NOT_AWARDED)
@@ -309,6 +310,7 @@ def notify_supplier(request: str, supplier: str, subject: str, message: str) -> 
 	try:
 		frappe.sendmail(
 			recipients=recipients,
+			sender=notification_sender(),
 			subject=subject,
 			message=message,
 			reference_doctype=RFQ,

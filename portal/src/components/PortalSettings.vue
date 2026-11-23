@@ -15,6 +15,7 @@ import { ThemeSwitcher } from "frappe-ui/experimental";
 import ProfileSettings from "@/components/ProfileSettings.vue";
 import TeamSettings from "@/components/TeamSettings.vue";
 import CreditSettings from "@/components/CreditSettings.vue";
+import HelpSettings from "@/components/HelpSettings.vue";
 import { useCreditStatus } from "@/composables/useCreditStatus";
 import { usePortalSettings } from "@/composables/usePortalSettings";
 import { useIsMobile } from "@/composables/useViewport";
@@ -56,6 +57,16 @@ const tabs = computed(() => [
 		icon: "lucide-settings-2",
 		hint: "Light or dark theme",
 	},
+	...(portal.helpUrl
+		? [
+				{
+					value: "help",
+					label: "Help",
+					icon: "lucide-life-buoy",
+					hint: "Raise a ticket with our support team",
+				},
+		  ]
+		: []),
 ]);
 
 const mobileSection = ref<string | null>(null);
@@ -73,6 +84,14 @@ watch(
 	(enabled) => {
 		if (!enabled && tab.value === "credit") tab.value = "profile";
 		if (!enabled && mobileSection.value === "credit") mobileSection.value = null;
+	}
+);
+
+watch(
+	() => portal.helpUrl,
+	(helpUrl) => {
+		if (!helpUrl && tab.value === "help") tab.value = "profile";
+		if (!helpUrl && mobileSection.value === "help") mobileSection.value = null;
 	}
 );
 
@@ -131,6 +150,7 @@ watch(
 				<ProfileSettings v-if="mobileSection === 'profile'" />
 				<TeamSettings v-else-if="mobileSection === 'team'" />
 				<CreditSettings v-else-if="mobileSection === 'credit'" />
+				<HelpSettings v-else-if="mobileSection === 'help'" />
 				<div v-else class="flex flex-col gap-2">
 					<p class="text-p-sm text-ink-gray-6">
 						Choose how the portal looks on this device.
@@ -163,6 +183,9 @@ watch(
 				>
 					Credit
 				</SettingsNavItem>
+			</SettingsNavGroup>
+			<SettingsNavGroup v-if="portal.helpUrl" label="Support">
+				<SettingsNavItem :value="'help'" icon="lucide-life-buoy">Help</SettingsNavItem>
 			</SettingsNavGroup>
 		</SettingsSidebar>
 
@@ -200,6 +223,13 @@ watch(
 				<SettingsHeader title="Preferences" />
 				<SettingsBody>
 					<ThemeSwitcher />
+				</SettingsBody>
+			</SettingsPanel>
+
+			<SettingsPanel v-if="portal.helpUrl" :value="'help'">
+				<SettingsHeader class="mb-2" title="Help" />
+				<SettingsBody>
+					<HelpSettings />
 				</SettingsBody>
 			</SettingsPanel>
 		</SettingsContent>

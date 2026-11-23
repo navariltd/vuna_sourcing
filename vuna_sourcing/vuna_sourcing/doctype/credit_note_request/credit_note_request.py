@@ -8,6 +8,7 @@ from frappe.query_builder.functions import Abs, IfNull, Sum
 from frappe.utils import cint, escape_html, flt, get_link_to_form, now_datetime
 
 from vuna_sourcing.api.transactions.branches import BRANCH_FIELD
+from vuna_sourcing.utils import notification_sender
 
 DOCTYPE = "Credit Note Request"
 SALES_INVOICE = "Sales Invoice"
@@ -357,6 +358,7 @@ class CreditNoteRequest(Document):
 		try:
 			frappe.sendmail(
 				recipients=[recipient],
+				sender=notification_sender(),
 				subject=subject,
 				message=message,
 				reference_doctype=self.doctype,
