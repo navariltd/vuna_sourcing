@@ -9,7 +9,14 @@ from frappe.utils import escape_html, get_link_to_form, getdate, now_datetime, t
 
 from vuna_sourcing.api.transactions.branches import ACCOUNT_ADMIN_FIELD
 from vuna_sourcing.dynamic_fields import choices_of, clean_value, is_blank
-from vuna_sourcing.utils import CUSTOMER, SUPPLIER, get_party_spec, validate_entity_type, validate_tax_id
+from vuna_sourcing.utils import (
+	CUSTOMER,
+	SUPPLIER,
+	get_party_spec,
+	notification_sender,
+	validate_entity_type,
+	validate_tax_id,
+)
 
 PENDING_REVIEW = "Pending Review"
 APPROVED = "Approved"
@@ -808,6 +815,7 @@ class PartyOnboardingRequest(Document):
 		try:
 			frappe.sendmail(
 				recipients=[recipient],
+				sender=notification_sender(),
 				subject=subject,
 				message=message,
 				reference_doctype=self.doctype,

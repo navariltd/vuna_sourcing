@@ -1,6 +1,6 @@
 import { ref } from "vue";
 
-export type SettingsTab = "profile" | "team" | "credit" | "preferences";
+export type SettingsTab = "profile" | "team" | "credit" | "preferences" | "help";
 
 const open = ref(false);
 const tab = ref<SettingsTab>("profile");

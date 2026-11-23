@@ -125,7 +125,7 @@ function openInvite() {
 }
 
 async function sendInvite() {
-	if (!customer.value || !inviteReady.value) return;
+	if (!customer.value || !inviteReady.value || sendingInvite.value) return;
 	sendingInvite.value = true;
 	const sent = await run(
 		() =>
@@ -161,7 +161,7 @@ function openEdit(member: TeamMember) {
 }
 
 async function saveBranches() {
-	if (!customer.value || !editing.value) return;
+	if (!customer.value || !editing.value || savingBranches.value) return;
 	savingBranches.value = true;
 	const member = editing.value;
 	const saved = await run(
@@ -190,7 +190,7 @@ function openRemove(member: TeamMember) {
 }
 
 async function confirmRemove() {
-	if (!customer.value || !removing.value) return;
+	if (!customer.value || !removing.value || removingMember.value) return;
 	removingMember.value = true;
 	const member = removing.value;
 	const removed = await run(
@@ -202,14 +202,18 @@ async function confirmRemove() {
 	if (removed) removing.value = null;
 }
 
+const resending = ref<string | null>(null);
+
 async function resend(member: TeamMember) {
-	if (!customer.value) return;
+	if (!customer.value || resending.value) return;
+	resending.value = member.user;
 	const error = { value: null as string | null };
 	const sent = await run(
 		() => resendInvitation(customer.value!.name, member.user),
 		error,
 		"We could not resend the invitation."
 	);
+	resending.value = null;
 	if (!sent && error.value) toast.error(error.value);
 }
 
@@ -317,7 +321,12 @@ function actionsFor(member: TeamMember) {
 					<Button
 						variant="ghost"
 						icon="lucide-ellipsis"
-						:aria-label="`Manage ${member.full_name}`"
+						:loading="resending === member.user"
+						:aria-label="
+							resending === member.user
+								? `Resending the invitation to ${member.full_name}`
+								: `Manage ${member.full_name}`
+						"
 					/>
 				</Dropdown>
 				<span v-else class="size-7 shrink-0" aria-hidden="true" />
@@ -360,16 +369,17 @@ function actionsFor(member: TeamMember) {
 			title="Invite"
 			message="They get an email with a link to set a password, then they can sign in."
 			icon="lucide-user-plus"
-			:actions="[
-				{
-					label: 'Send invitation',
-					variant: 'solid',
-					loading: sendingInvite,
-					disabled: !inviteReady,
-					onClick: sendInvite,
-				},
-			]"
 		>
+			<template #actions>
+				<Button
+					class="w-full"
+					variant="solid"
+					label="Send invitation"
+					:loading="sendingInvite"
+					:disabled="!inviteReady"
+					@click="sendInvite"
+				/>
+			</template>
 			<form class="flex flex-col gap-3" @submit.prevent="sendInvite">
 				<div class="grid gap-3 sm:grid-cols-2">
 					<FormControl
@@ -399,15 +409,16 @@ function actionsFor(member: TeamMember) {
 			:title="`Branches for ${editing?.full_name ?? ''}`"
 			message="They only see orders, deliveries and invoices for these branches."
 			icon="lucide-map-pin"
-			:actions="[
-				{
-					label: 'Save',
-					variant: 'solid',
-					loading: savingBranches,
-					onClick: saveBranches,
-				},
-			]"
 		>
+			<template #actions>
+				<Button
+					class="w-full"
+					variant="solid"
+					label="Save"
+					:loading="savingBranches"
+					@click="saveBranches"
+				/>
+			</template>
 			<div class="flex flex-col gap-3">
 				<BranchPicker
 					v-model="editBranches"
@@ -426,16 +437,17 @@ function actionsFor(member: TeamMember) {
 			}. Orders and requests they made stay.`"
 			icon="lucide-user-minus"
 			theme="red"
-			:actions="[
-				{
-					label: 'Remove access',
-					variant: 'solid',
-					theme: 'red',
-					loading: removingMember,
-					onClick: confirmRemove,
-				},
-			]"
 		>
+			<template #actions>
+				<Button
+					class="w-full"
+					variant="solid"
+					theme="red"
+					label="Remove access"
+					:loading="removingMember"
+					@click="confirmRemove"
+				/>
+			</template>
 			<ErrorMessage v-if="removeError" :message="removeError" />
 		</Dialog>
 	</div>

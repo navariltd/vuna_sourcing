@@ -10,6 +10,8 @@ from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_fie
 	validate_order_fields,
 )
 
+EMAIL_ACCOUNT = "Email Account"
+
 
 class SourcingSettings(Document):
 	# begin: auto-generated types
@@ -40,11 +42,13 @@ class SourcingSettings(Document):
 		create_contact_on_approval: DF.Check
 		create_purchase_orders_on_award: DF.Check
 		default_customer_group: DF.Link | None
+		default_ordering_company: DF.Link | None
 		default_supplier_group: DF.Link | None
 		default_territory: DF.Link | None
 		invitation_validity_days: DF.Int
 		link_portal_user_on_approval: DF.Check
 		max_file_size_mb: DF.Float
+		notification_email_account: DF.Link | None
 		notify_applicant: DF.Check
 		notify_customer_of_credit_decisions: DF.Check
 		notify_reviewers: DF.Check
@@ -67,6 +71,7 @@ class SourcingSettings(Document):
 
 		self.normalise_allowed_file_types()
 		self.validate_brand_logo()
+		self.validate_notification_email_account()
 
 		if not (self.accept_supplier_applications or self.accept_customer_applications):
 			frappe.msgprint(
@@ -75,6 +80,18 @@ class SourcingSettings(Document):
 				),
 				indicator="orange",
 				alert=True,
+			)
+
+	def validate_notification_email_account(self):
+		if not self.notification_email_account:
+			return
+
+		if not frappe.db.get_value(EMAIL_ACCOUNT, self.notification_email_account, "enable_outgoing"):
+			frappe.throw(
+				_("{0} cannot send email. Choose an Email Account with Enable Outgoing on.").format(
+					frappe.bold(self.notification_email_account)
+				),
+				title=_("Not an Outgoing Email Account"),
 			)
 
 	def validate_brand_logo(self):
