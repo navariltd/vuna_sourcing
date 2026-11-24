@@ -19,6 +19,7 @@ from vuna_sourcing.api.transactions.customer import (
 	order_filters,
 )
 from vuna_sourcing.api.transactions.customer_orders import FROM_PORTAL_FIELD
+from vuna_sourcing.api.transactions.rights import READ, can
 from vuna_sourcing.api.transactions.supplier import (
 	PURCHASE_INVOICE,
 	PURCHASE_ORDER,
@@ -214,6 +215,10 @@ def supplier_groups(suppliers: list[str], query: str) -> list[dict]:
 	]
 
 
+def searchable(doctype: str) -> bool:
+	return can(SALES_INVOICE if doctype == CREDIT_REQUEST else doctype, READ)
+
+
 @frappe.whitelist()
 def search_documents(party_type: str, party: str, query: str | None = None) -> ApiResponse[dict]:
 	if party_type not in PARTY_TYPES:
@@ -226,5 +231,8 @@ def search_documents(party_type: str, party: str, query: str | None = None) -> A
 
 	groups = customer_groups(parties, query) if party_type == CUSTOMER else supplier_groups(parties, query)
 	return ApiResponse.success(
-		data={"query": query, "groups": [entry for entry in groups if entry["results"]]}
+		data={
+			"query": query,
+			"groups": [entry for entry in groups if entry["results"] and searchable(entry["doctype"])],
+		}
 	)

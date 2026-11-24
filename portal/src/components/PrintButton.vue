@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { Button, toast } from "frappe-ui";
+import { type PortalDoctype, usePortalStore } from "@/stores/portal";
 
 const props = defineProps<{
-	doctype: string;
+	doctype: PortalDoctype;
 	name: string;
 	label: string;
 }>();
 
+const portal = usePortalStore();
+const allowed = computed(() => portal.can(props.doctype, "print"));
 const printing = ref(false);
 
 function refusalMessage(status: number) {
 	if (status === 403) {
-		return `Printing this ${props.label} is not switched on for your account yet. Ask your contact on our team to enable it.`;
+		return `Printing this ${props.label} is not switched on for your account. Ask your contact on our team to enable it.`;
 	}
 	if (status === 404) {
 		return `We could not find this ${props.label}. It may have been withdrawn.`;
@@ -49,6 +52,7 @@ async function print() {
 
 <template>
 	<Button
+		v-if="allowed"
 		variant="subtle"
 		icon-left="lucide-printer"
 		label="Print"
