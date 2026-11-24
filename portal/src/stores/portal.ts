@@ -70,6 +70,20 @@ export interface PortalBranding {
   is_custom: boolean
 }
 
+export type PortalRight = 'read' | 'create' | 'write' | 'delete' | 'print'
+
+export type PortalDoctype =
+  | 'Quotation'
+  | 'Sales Order'
+  | 'Delivery Note'
+  | 'Sales Invoice'
+  | 'Request for Quotation'
+  | 'Supplier Quotation'
+  | 'Purchase Order'
+  | 'Purchase Invoice'
+
+export type PortalPermissions = Partial<Record<PortalDoctype, Record<PortalRight, boolean>>>
+
 export interface PortalSession {
   user: PortalUser
   parties: Party[]
@@ -80,6 +94,7 @@ export interface PortalSession {
   features: PortalFeatures
   branding: PortalBranding
   help_url: string | null
+  permissions: PortalPermissions
 }
 
 export function partyKey(party: Pick<Party, 'party_type' | 'name'>) {
@@ -202,6 +217,12 @@ export const usePortalStore = defineStore('portal', () => {
 
   const helpUrl = computed<string | null>(() => session.data?.help_url ?? null)
 
+  const permissions = computed<PortalPermissions>(() => session.data?.permissions ?? {})
+
+  function can(doctype: PortalDoctype, right: PortalRight = 'read') {
+    return !!permissions.value[doctype]?.[right]
+  }
+
   const isApplicant = computed(() => !!session.data?.is_applicant)
   const canApply = computed(() => !!session.data?.can_apply)
   const openPartyTypes = computed<PartyType[]>(() => session.data?.open_party_types ?? [])
@@ -281,5 +302,7 @@ export const usePortalStore = defineStore('portal', () => {
     features,
     branding,
     helpUrl,
+    permissions,
+    can,
   }
 })
