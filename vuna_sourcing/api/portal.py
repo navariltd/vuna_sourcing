@@ -80,6 +80,7 @@ def check_party_access(party_type: str, party: str, user: str | None = None):
 
 @frappe.whitelist()
 def get_session() -> dict:
+	from vuna_sourcing.api.transactions.access import portal_rights
 	from vuna_sourcing.api.transactions.branches import branch_restrictions
 	from vuna_sourcing.api.transactions.credit_limits import credit_limits_enabled
 	from vuna_sourcing.api.transactions.credit_requests import credit_requests_enabled
@@ -121,6 +122,7 @@ def get_session() -> dict:
 		},
 		"branding": get_portal_branding(),
 		"help_url": help_desk_url(),
+		"permissions": portal_rights({party["party_type"] for party in parties}, user),
 	}
 
 

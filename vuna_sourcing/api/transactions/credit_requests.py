@@ -10,6 +10,7 @@ from frappe.utils import cint, cstr, flt, strip_html
 from vuna_sourcing.api.response import ApiResponse
 from vuna_sourcing.api.transactions.branches import BRANCH_FIELD, customer_scope_filters, requested_branches
 from vuna_sourcing.api.transactions.common import all_of, empty_page, find_documents, page_of, party_scope
+from vuna_sourcing.api.transactions.rights import READ, require
 from vuna_sourcing.utils import CUSTOMER
 from vuna_sourcing.vuna_sourcing.doctype.credit_note_request.credit_note_request import (
 	DOCTYPE,
@@ -258,6 +259,7 @@ def get_credit_request(name: str, customer: str | None = None) -> ApiResponse[di
 def get_creditable_invoices(customer: str, search: str | None = None) -> ApiResponse[list]:
 	ensure_enabled()
 	customer = requesting_customer(customer)
+	require(SALES_INVOICE, READ)
 
 	invoices = find_documents(
 		SALES_INVOICE,

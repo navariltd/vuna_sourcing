@@ -22,6 +22,7 @@ from vuna_sourcing.api.transactions.branches import (
 	linked_addresses,
 )
 from vuna_sourcing.api.transactions.common import all_of, as_administrator, party_scope
+from vuna_sourcing.api.transactions.rights import CREATE, DELETE, WRITE, can, require
 from vuna_sourcing.utils import CUSTOMER
 from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import (
 	missing_order_fields,
@@ -107,7 +108,9 @@ def order_companies(customer: str) -> list[str]:
 
 
 def can_order(customer: str | None) -> bool:
-	return bool(customer) and orders_enabled() and bool(order_companies(customer))
+	return (
+		bool(customer) and orders_enabled() and can(SALES_ORDER, CREATE) and bool(order_companies(customer))
+	)
 
 
 def order_company(customer: str, company: str | None) -> str:
@@ -659,6 +662,7 @@ def prepared_order(
 ):
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
+	require(SALES_ORDER, WRITE if name else CREATE)
 
 	if name:
 		doc = locked_draft(name, customer)
@@ -750,6 +754,7 @@ def get_order_form(customer: str, name: str | None = None) -> ApiResponse[dict]:
 	customer = ordering_customer(customer)
 	if not orders_enabled():
 		return ApiResponse.error(_("Ordering on the portal is turned off."))
+	require(SALES_ORDER, WRITE if name else CREATE)
 
 	companies = order_companies(customer)
 	if not companies:
@@ -790,6 +795,7 @@ def get_order_categories(
 ) -> ApiResponse[dict]:
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
+	require(SALES_ORDER, CREATE, WRITE)
 	company = order_company(customer, company)
 	start = max(cint(start), 0)
 	limit = min(max(cint(limit), 1), MAX_CATEGORY_PAGE)
@@ -833,6 +839,7 @@ def get_orderable_items(
 ) -> ApiResponse[dict]:
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
+	require(SALES_ORDER, CREATE, WRITE)
 	company = order_company(customer, company)
 	start = max(cint(start), 0)
 	limit = min(max(cint(limit), 1), 50)
@@ -904,6 +911,7 @@ def price_order(
 ) -> ApiResponse[dict]:
 	ensure_orders_enabled()
 	customer = ordering_customer(customer)
+	require(SALES_ORDER, CREATE, WRITE)
 
 	doc = frappe.new_doc(SALES_ORDER)
 	fill_order(
@@ -968,7 +976,9 @@ def zero_totals(doc) -> None:
 @frappe.whitelist(methods=["POST"])
 def clear_order(customer: str, name: str) -> ApiResponse[dict]:
 	ensure_orders_enabled()
-	doc = locked_draft(name, ordering_customer(customer))
+	customer = ordering_customer(customer)
+	require(SALES_ORDER, WRITE)
+	doc = locked_draft(name, customer)
 
 	doc.set("items", [])
 	zero_totals(doc)
@@ -982,14 +992,18 @@ def clear_order(customer: str, name: str) -> ApiResponse[dict]:
 
 @frappe.whitelist(methods=["POST"])
 def delete_order(customer: str, name: str) -> ApiResponse[None]:
-	doc = locked_draft(name, ordering_customer(customer))
+	customer = ordering_customer(customer)
+	require(SALES_ORDER, DELETE)
+	doc = locked_draft(name, customer)
 	frappe.delete_doc(SALES_ORDER, doc.name, ignore_permissions=True)
 	return ApiResponse.success(_("Draft deleted."))
 
 
 @frappe.whitelist(methods=["POST"])
 def withdraw_order(customer: str, name: str) -> ApiResponse[dict]:
-	doc = locked_portal_order(name, ordering_customer(customer))
+	customer = ordering_customer(customer)
+	require(SALES_ORDER, WRITE)
+	doc = locked_portal_order(name, customer)
 
 	if doc.docstatus != 0:
 		frappe.throw(_("This order has been confirmed, so it can no longer be withdrawn."))
@@ -1007,6 +1021,7 @@ def withdraw_order(customer: str, name: str) -> ApiResponse[dict]:
 def attach_po_document() -> ApiResponse[dict]:
 	ensure_orders_enabled()
 	customer = ordering_customer(frappe.form_dict.get("customer"))
+	require(SALES_ORDER, CREATE, WRITE)
 	if frappe.get_cached_value(CUSTOMER, customer, "disabled"):
 		frappe.throw(_("This account is disabled, so it cannot place orders. Please contact us."))
 

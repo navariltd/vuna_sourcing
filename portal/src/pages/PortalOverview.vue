@@ -5,7 +5,7 @@ import { BarChart, DonutChart, NumberCard } from "frappe-ui/charts";
 import PageContainer from "@/components/PageContainer.vue";
 import { money, shortDate } from "@/data/purchase";
 import { rfqRoute } from "@/data/rfq";
-import { usePortalStore } from "@/stores/portal";
+import { type PortalDoctype, usePortalStore } from "@/stores/portal";
 
 const portal = usePortalStore();
 
@@ -69,7 +69,12 @@ interface OverviewCard {
 	title: string;
 	value: number;
 	route: string;
+	doctype: PortalDoctype;
 	format?: (value: number) => string;
+}
+
+function readable<T extends { doctype: PortalDoctype }>(items: T[]): T[] {
+	return items.filter((item) => portal.can(item.doctype));
 }
 
 function cardLabel(card: OverviewCard) {
@@ -80,43 +85,67 @@ const cards = computed<OverviewCard[]>(() => {
 	const d = data.value;
 	if (!d) return [];
 	if (isSupplier.value) {
-		return [
-			{ title: "Open RFQs", value: d.awaiting_quote, route: "RfqList" },
-			{ title: "Open Orders", value: d.open_orders, route: "PurchaseOrderList" },
+		return readable<OverviewCard>([
+			{
+				title: "Open RFQs",
+				value: d.awaiting_quote,
+				route: "RfqList",
+				doctype: "Request for Quotation",
+			},
+			{
+				title: "Open Orders",
+				value: d.open_orders,
+				route: "PurchaseOrderList",
+				doctype: "Purchase Order",
+			},
 			{
 				title: "Outstanding",
-				value: d.balance.outstanding,
+				value: d.balance?.outstanding ?? 0,
 				format: cardAmount,
 				route: "SupplierStatement",
+				doctype: "Purchase Invoice",
 			},
 			{
 				title: "Paid (12 months)",
 				value: d.paid_last_year,
 				format: cardAmount,
 				route: "PurchaseInvoiceList",
+				doctype: "Purchase Invoice",
 			},
-		];
+		]);
 	}
-	const counts = [
-		{ title: "Open Quotations", value: d.quotes_to_review, route: "QuotationList" },
-		{ title: "Open Orders", value: d.open_orders, route: "SalesOrderList" },
+	const counts: OverviewCard[] = [
+		{
+			title: "Open Quotations",
+			value: d.quotes_to_review,
+			route: "QuotationList",
+			doctype: "Quotation",
+		},
+		{
+			title: "Open Orders",
+			value: d.open_orders,
+			route: "SalesOrderList",
+			doctype: "Sales Order",
+		},
 	];
-	if (!d.balance) return counts;
-	return [
+	if (!d.balance) return readable(counts);
+	return readable<OverviewCard>([
 		...counts,
 		{
 			title: "Outstanding",
 			value: d.balance.outstanding,
 			format: cardAmount,
 			route: "CustomerStatement",
+			doctype: "Sales Invoice",
 		},
 		{
 			title: "Overdue",
 			value: d.balance.overdue,
 			format: cardAmount,
 			route: "CustomerStatement",
+			doctype: "Sales Invoice",
 		},
-	];
+	]);
 });
 
 const trend = computed(() => {
@@ -134,10 +163,11 @@ const lists = computed(() => {
 	const d = data.value;
 	if (!d) return [];
 	if (isSupplier.value) {
-		return [
+		return readable([
 			{
 				title: "Open RFQs",
 				all: "RfqList",
+				doctype: "Request for Quotation" as PortalDoctype,
 				rows: d.rfqs_closing.map((row: any) => ({
 					name: row.name,
 					route: rfqRoute(row),
@@ -150,6 +180,7 @@ const lists = computed(() => {
 			{
 				title: "Open Orders",
 				all: "PurchaseOrderList",
+				doctype: "Purchase Order" as PortalDoctype,
 				rows: d.open_order_rows.map((row: any) => ({
 					name: row.name,
 					route: { name: "PurchaseOrderDetail", params: { name: row.name } },
@@ -157,12 +188,13 @@ const lists = computed(() => {
 					trailing: money(row.grand_total, row.currency),
 				})),
 			},
-		];
+		]);
 	}
-	return [
+	return readable([
 		{
 			title: "Open Quotations",
 			all: "QuotationList",
+			doctype: "Quotation" as PortalDoctype,
 			rows: d.quotes.map((row: any) => ({
 				name: row.name,
 				route: { name: "QuotationDetail", params: { name: row.name } },
@@ -173,6 +205,7 @@ const lists = computed(() => {
 		{
 			title: "Pending Deliveries",
 			all: "SalesOrderList",
+			doctype: "Sales Order" as PortalDoctype,
 			rows: d.to_deliver.map((row: any) => ({
 				name: row.name,
 				route: { name: "SalesOrderDetail", params: { name: row.name } },
@@ -180,7 +213,7 @@ const lists = computed(() => {
 				trailing: money(row.grand_total, row.currency),
 			})),
 		},
-	];
+	]);
 });
 
 const details = computed(() => {
@@ -222,7 +255,7 @@ const details = computed(() => {
 				class="grid grid-cols-2 gap-3"
 				:class="cards.length === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-4'"
 			>
-				<template v-if="cards.length">
+				<template v-if="data">
 					<RouterLink
 						v-for="card in cards"
 						:key="card.title"

@@ -16,6 +16,7 @@ from vuna_sourcing.api.transactions.bidding import (
 	is_closed,
 	is_open_bid,
 )
+from vuna_sourcing.api.transactions.rights import READ, require
 from vuna_sourcing.api.transactions.supplier import (
 	NO_QUOTE,
 	RECEIVED,
@@ -149,6 +150,7 @@ def bid_board(request, supplier: str) -> dict:
 @frappe.whitelist()
 def get_open_bids(name: str, supplier: str | None = None) -> ApiResponse[dict]:
 	supplier = invited_supplier(name, supplier)
+	require(RFQ, READ)
 	request = frappe.get_doc(RFQ, name)
 
 	if request.docstatus != 1 or not is_open_bid(request):
@@ -194,6 +196,7 @@ def get_live_bids(supplier: str | None = None) -> ApiResponse[list[dict]]:
 	suppliers = supplier_scope(supplier)
 	if not suppliers:
 		return ApiResponse.success(data=[])
+	require(RFQ, READ)
 
 	invitations = {
 		row.parent: row

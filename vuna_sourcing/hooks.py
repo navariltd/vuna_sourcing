@@ -47,6 +47,7 @@ doctype_js = {
 	"Request for Quotation": "overrides/client/request_for_quotation.js",
 	"Supplier Quotation": "overrides/client/supplier_quotation.js",
 	"Customer": "overrides/client/customer.js",
+	"Item": "overrides/client/item.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -90,6 +91,7 @@ doctype_js = {
 # ------------
 
 after_install = "vuna_sourcing.setup.app_setup.after_install"
+after_migrate = "vuna_sourcing.setup.app_setup.after_migrate"
 
 on_session_creation = "vuna_sourcing.api.permission.clear_portal_default_app"
 
@@ -311,7 +313,7 @@ before_tests = "vuna_sourcing.setup.test_setup.before_tests"
 
 # Request Events
 # ----------------
-# before_request = ["vuna_sourcing.utils.before_request"]
+before_request = ["vuna_sourcing.api.transactions.access.guard_portal_printing"]
 # after_request = ["vuna_sourcing.utils.after_request"]
 
 # Job Events
