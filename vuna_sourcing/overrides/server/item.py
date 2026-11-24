@@ -262,15 +262,15 @@ def price_check(item_code: str, price_list: str | None, customer: str | None) ->
 
 	if usable:
 		price = next((row for row in usable if row.customer), usable[0])
-		return passed(
-			label,
-			_("{0} per {1} on {2}{3}.").format(
-				strong(frappe.format_value(flt(price.price_list_rate), currency=price.currency)),
-				escape_html(price.uom or _("unit")),
-				escape_html(price_list),
-				_(" for {0}").format(escape_html(price.customer)) if price.customer else "",
-			),
-		)
+		amount = strong(frappe.format_value(flt(price.price_list_rate), currency=price.currency))
+		unit = escape_html(price.uom or _("unit"))
+		if price.customer:
+			detail = _("{0} per {1} on {2} for {3}.").format(
+				amount, unit, escape_html(price_list), escape_html(price.customer)
+			)
+		else:
+			detail = _("{0} per {1} on {2}.").format(amount, unit, escape_html(price_list))
+		return passed(label, detail)
 
 	if rows:
 		reasons = "; ".join(sorted({price_problem(row, customer, today) for row in rows}))
@@ -289,16 +289,12 @@ def price_check(item_code: str, price_list: str | None, customer: str | None) ->
 		distinct=True,
 		limit=3,
 	)
-	return failed(
-		label,
-		_("There is no price on {0}, the portal price list.").format(strong(price_list))
-		+ (
-			_(" It is priced on {0}, which the portal does not use.").format(listed(elsewhere))
-			if elsewhere
-			else ""
-		),
-		add_price,
-	)
+	missing = _("There is no price on {0}, the portal price list.").format(strong(price_list))
+	if elsewhere:
+		missing = " ".join(
+			(missing, _("It is priced on {0}, which the portal does not use.").format(listed(elsewhere)))
+		)
+	return failed(label, missing, add_price)
 
 
 def customer_check(customer: str | None, company: str | None) -> dict:
