@@ -40,6 +40,7 @@ from vuna_sourcing.api.transactions.common import (
 	statement_page,
 	status_counts,
 )
+from vuna_sourcing.api.transactions.rights import CREATE, READ, WRITE, can, require
 from vuna_sourcing.utils import SUPPLIER
 from vuna_sourcing.vuna_sourcing.doctype.rfq_bid_log.rfq_bid_log import record_bid
 
@@ -235,6 +236,7 @@ def get_rfqs(
 	suppliers = supplier_scope(supplier)
 	if not suppliers:
 		return empty_page(start, limit)
+	require(RFQ, READ)
 
 	rows = frappe.get_all(
 		RFQ_SUPPLIER,
@@ -319,6 +321,7 @@ def get_rfqs(
 @frappe.whitelist()
 def get_rfq(name: str, supplier: str | None = None) -> dict:
 	supplier = invited_supplier(name, supplier)
+	require(RFQ, READ)
 	doc = frappe.get_doc(RFQ, name)
 
 	if doc.docstatus != 1:
@@ -378,7 +381,8 @@ def get_rfq(name: str, supplier: str | None = None) -> dict:
 		"open_bid": open_bid,
 		"closed": closed,
 		"status": status,
-		"can_quote": status in (INVITED, DRAFT, BIDDING),
+		"can_quote": status in (INVITED, DRAFT, BIDDING)
+		and can(SUPPLIER_QUOTATION, WRITE if quote else CREATE),
 		"terms": safe_html(doc.terms),
 		"items": items,
 		"quote": quote,
@@ -538,6 +542,7 @@ def save_quote(
 	terms: str | None = None,
 ) -> ApiResponse[dict]:
 	supplier = invited_supplier(name, supplier)
+	require(SUPPLIER_QUOTATION, WRITE if find_quote(name, supplier) else CREATE)
 	request = open_request(name)
 	if is_open_bid(request) and is_sent(name, supplier):
 		frappe.throw(_("You have already bid on this request. Place a new bid in the bid room instead."))
@@ -561,6 +566,7 @@ def send_quote(
 	terms: str | None = None,
 ) -> dict:
 	supplier = invited_supplier(name, supplier)
+	require(SUPPLIER_QUOTATION, WRITE if find_quote(name, supplier) else CREATE)
 	request = open_request(name)
 	doc = draft_or_new_quote(request, supplier)
 
@@ -584,6 +590,7 @@ def send_quote(
 @frappe.whitelist(methods=["POST"])
 def decline_quote(name: str, reason: str, supplier: str | None = None) -> dict:
 	supplier = invited_supplier(name, supplier)
+	require(SUPPLIER_QUOTATION, CREATE, WRITE)
 
 	if not (reason or "").strip():
 		frappe.throw(_("Please tell us why you are not quoting."))
@@ -624,6 +631,7 @@ def get_supplier_quotations(
 	suppliers = supplier_scope(supplier)
 	if not suppliers:
 		return empty_page(start, limit)
+	require(SUPPLIER_QUOTATION, READ)
 
 	quotations = supplier_documents(
 		SUPPLIER_QUOTATION,
@@ -670,6 +678,7 @@ def get_supplier_quotations(
 @frappe.whitelist()
 def get_supplier_quotation(name: str, supplier: str | None = None) -> dict:
 	doc = supplier_document(SUPPLIER_QUOTATION, name, supplier)
+	require(SUPPLIER_QUOTATION, READ)
 
 	items = [
 		line_item(item, lead_time_days=item.lead_time_days, rfq=item.request_for_quotation)
@@ -702,6 +711,7 @@ def get_purchase_orders(
 	suppliers = supplier_scope(supplier)
 	if not suppliers:
 		return empty_page(start, limit)
+	require(PURCHASE_ORDER, READ)
 
 	orders = supplier_documents(PURCHASE_ORDER, suppliers, search, ORDER_FIELDS)
 
@@ -728,6 +738,7 @@ def get_purchase_orders(
 @frappe.whitelist()
 def get_purchase_order(name: str, supplier: str | None = None) -> dict:
 	doc = supplier_document(PURCHASE_ORDER, name, supplier)
+	require(PURCHASE_ORDER, READ)
 
 	items = [
 		line_item(
@@ -784,6 +795,7 @@ def get_purchase_invoices(
 	suppliers = supplier_scope(supplier)
 	if not suppliers:
 		return empty_page(start, limit)
+	require(PURCHASE_INVOICE, READ)
 
 	invoices = supplier_documents(
 		PURCHASE_INVOICE, suppliers, search, INVOICE_FIELDS, is_return=cint(debit_notes)
@@ -814,6 +826,7 @@ def get_purchase_invoices(
 @frappe.whitelist()
 def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 	doc = supplier_document(PURCHASE_INVOICE, name, supplier)
+	require(PURCHASE_INVOICE, READ)
 
 	items = [line_item(item, purchase_order=item.purchase_order) for item in doc.items]
 
@@ -844,9 +857,12 @@ def get_purchase_invoice(name: str, supplier: str | None = None) -> dict:
 
 @frappe.whitelist()
 def get_account_statement(supplier: str | None = None, company: str | None = None) -> ApiResponse[dict]:
+	suppliers = supplier_scope(supplier)
+	if suppliers:
+		require(PURCHASE_INVOICE, READ)
 	return ApiResponse.success(
 		data={
-			**statement_page("Payable", SUPPLIER, supplier_scope(supplier), company),
+			**statement_page("Payable", SUPPLIER, suppliers, company),
 			"branch_limited": False,
 		}
 	)
@@ -862,41 +878,61 @@ def get_dashboard(supplier: str | None = None) -> dict:
 		return {}
 
 	submitted = {"supplier": ("in", suppliers), "docstatus": 1}
-	invited = get_rfqs(supplier=supplier, status=f"{INVITED},{DRAFT},{BIDDING}", limit=100)
-	open_orders = frappe.get_all(
-		PURCHASE_ORDER,
-		filters={**submitted, "status": ("in", OPEN_ORDER_STATUSES)},
-		fields=[
-			"name",
-			"transaction_date",
-			"schedule_date",
-			"grand_total",
-			"currency",
-			"status",
-			"per_received",
-		],
-		order_by="transaction_date desc",
+	sees_orders = can(PURCHASE_ORDER, READ)
+	sees_invoices = can(PURCHASE_INVOICE, READ)
+	invited = (
+		get_rfqs(supplier=supplier, status=f"{INVITED},{DRAFT},{BIDDING}", limit=100)
+		if can(RFQ, READ)
+		else empty_page(0, 100)
 	)
-	paid = frappe.get_all(
-		"Payment Entry",
-		filters={
-			"payment_type": "Pay",
-			"party_type": SUPPLIER,
-			"party": ("in", suppliers),
-			"docstatus": 1,
-			"posting_date": (">=", month_starts()[0]),
-		},
-		pluck="base_paid_amount",
+	open_orders = (
+		frappe.get_all(
+			PURCHASE_ORDER,
+			filters={**submitted, "status": ("in", OPEN_ORDER_STATUSES)},
+			fields=[
+				"name",
+				"transaction_date",
+				"schedule_date",
+				"grand_total",
+				"currency",
+				"status",
+				"per_received",
+			],
+			order_by="transaction_date desc",
+		)
+		if sees_orders
+		else []
+	)
+	paid = (
+		frappe.get_all(
+			"Payment Entry",
+			filters={
+				"payment_type": "Pay",
+				"party_type": SUPPLIER,
+				"party": ("in", suppliers),
+				"docstatus": 1,
+				"posting_date": (">=", month_starts()[0]),
+			},
+			pluck="base_paid_amount",
+		)
+		if sees_invoices
+		else []
 	)
 
 	return {
 		"currency": company_currency(),
 		"awaiting_quote": invited["total"],
 		"open_orders": len(open_orders),
-		"balance": balance(outstanding_statement("Payable", SUPPLIER, suppliers)),
+		"balance": balance(outstanding_statement("Payable", SUPPLIER, suppliers)) if sees_invoices else None,
 		"paid_last_year": flt(sum(flt(amount) for amount in paid), 2),
-		"orders_by_month": monthly_totals(PURCHASE_ORDER, submitted, "transaction_date", "base_grand_total"),
-		"invoices_by_status": status_counts(PURCHASE_INVOICE, {**submitted, "is_return": 0}),
+		"orders_by_month": (
+			monthly_totals(PURCHASE_ORDER, submitted, "transaction_date", "base_grand_total")
+			if sees_orders
+			else []
+		),
+		"invoices_by_status": (
+			status_counts(PURCHASE_INVOICE, {**submitted, "is_return": 0}) if sees_invoices else []
+		),
 		"rfqs_closing": sorted(invited["rows"], key=lambda row: str(row["closes_at"] or "9999"))[:5],
 		"open_order_rows": [{**order, "received": flt(order.per_received, 1)} for order in open_orders[:5]],
 	}
