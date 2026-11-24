@@ -27,7 +27,7 @@ import { usePartySwitch } from "@/composables/usePartySwitch";
 import { ACCENTS, LOOKS } from "@/data/accents";
 import type { DocumentLook } from "@/data/accents";
 import { partyKey, usePortalStore } from "@/stores/portal";
-import type { Party } from "@/stores/portal";
+import type { Party, PortalDoctype } from "@/stores/portal";
 import { session } from "@/data/session";
 import PartySwitcher from "@/components/PartySwitcher.vue";
 import BranchFilter from "@/components/BranchFilter.vue";
@@ -142,6 +142,7 @@ interface NavLink {
 	look: DocumentLook;
 	route: string;
 	tab?: string;
+	doctype?: PortalDoctype;
 }
 
 interface NavSection {
@@ -151,46 +152,106 @@ interface NavSection {
 }
 
 const BUYING: NavLink[] = [
-	{ label: "Request for Quotation", look: LOOKS.rfq, route: "RfqList", tab: "RFQs" },
+	{
+		label: "Request for Quotation",
+		look: LOOKS.rfq,
+		route: "RfqList",
+		tab: "RFQs",
+		doctype: "Request for Quotation",
+	},
 	{
 		label: "Supplier Quotation",
 		look: LOOKS.supplierQuotation,
 		route: "SupplierQuotationList",
+		doctype: "Supplier Quotation",
 	},
 	{
 		label: "Purchase Order",
 		look: LOOKS.purchaseOrder,
 		route: "PurchaseOrderList",
 		tab: "Orders",
+		doctype: "Purchase Order",
 	},
-	{ label: "Purchase Invoice", look: LOOKS.purchaseInvoice, route: "PurchaseInvoiceList" },
-	{ label: "Debit Note", look: LOOKS.debitNote, route: "DebitNoteList" },
-	{ label: "Pending Invoices", look: LOOKS.payable, route: "SupplierStatement" },
+	{
+		label: "Purchase Invoice",
+		look: LOOKS.purchaseInvoice,
+		route: "PurchaseInvoiceList",
+		doctype: "Purchase Invoice",
+	},
+	{
+		label: "Debit Note",
+		look: LOOKS.debitNote,
+		route: "DebitNoteList",
+		doctype: "Purchase Invoice",
+	},
+	{
+		label: "Pending Invoices",
+		look: LOOKS.payable,
+		route: "SupplierStatement",
+		doctype: "Purchase Invoice",
+	},
 ];
 
 const SELLING: NavLink[] = [
-	{ label: "Quotation", look: LOOKS.quotation, route: "QuotationList" },
-	{ label: "Sales Order", look: LOOKS.salesOrder, route: "SalesOrderList", tab: "Orders" },
-	{ label: "Delivery Note", look: LOOKS.deliveryNote, route: "DeliveryNoteList" },
+	{ label: "Quotation", look: LOOKS.quotation, route: "QuotationList", doctype: "Quotation" },
+	{
+		label: "Sales Order",
+		look: LOOKS.salesOrder,
+		route: "SalesOrderList",
+		tab: "Orders",
+		doctype: "Sales Order",
+	},
+	{
+		label: "Delivery Note",
+		look: LOOKS.deliveryNote,
+		route: "DeliveryNoteList",
+		doctype: "Delivery Note",
+	},
 	{
 		label: "Sales Invoice",
 		look: LOOKS.salesInvoice,
 		route: "SalesInvoiceList",
 		tab: "Invoices",
+		doctype: "Sales Invoice",
 	},
-	{ label: "Credit Note", look: LOOKS.creditNote, route: "CreditNoteList" },
-	{ label: "Credit Note Request", look: LOOKS.creditRequest, route: "CreditRequestList" },
-	{ label: "Pending Invoices", look: LOOKS.receivable, route: "CustomerStatement" },
+	{
+		label: "Credit Note",
+		look: LOOKS.creditNote,
+		route: "CreditNoteList",
+		doctype: "Sales Invoice",
+	},
+	{
+		label: "Credit Note Request",
+		look: LOOKS.creditRequest,
+		route: "CreditRequestList",
+		doctype: "Sales Invoice",
+	},
+	{
+		label: "Pending Invoices",
+		look: LOOKS.receivable,
+		route: "CustomerStatement",
+		doctype: "Sales Invoice",
+	},
 ];
 
+function readable(link: NavLink) {
+	return !link.doctype || portal.can(link.doctype);
+}
+
+const buyingLinks = computed(() => BUYING.filter(readable));
+
 const sellingLinks = computed(() =>
-	SELLING.filter((link) => link.route !== "CreditRequestList" || portal.features.credit_requests)
+	SELLING.filter(
+		(link) =>
+			readable(link) &&
+			(link.route !== "CreditRequestList" || portal.features.credit_requests)
+	)
 );
 
 const navSections = computed<NavSection[]>(() => {
 	const sections: NavSection[] = [];
 	if (portal.suppliers.length)
-		sections.push({ label: "Buying", links: BUYING, collapsible: true });
+		sections.push({ label: "Buying", links: buyingLinks.value, collapsible: true });
 	if (portal.customers.length)
 		sections.push({ label: "Selling", links: sellingLinks.value, collapsible: true });
 	sections.push({
@@ -207,7 +268,7 @@ const navSections = computed<NavSection[]>(() => {
 });
 
 const tabs = computed(() => {
-	const side = isSupplier.value ? BUYING : isCustomer.value ? sellingLinks.value : [];
+	const side = isSupplier.value ? buyingLinks.value : isCustomer.value ? sellingLinks.value : [];
 	return side.filter((link) => link.tab);
 });
 
@@ -225,12 +286,14 @@ useKeyboardShortcut([
 ]);
 
 const searchPages = computed<SearchPageLink[]>(() => {
-	const side = isSupplier.value ? BUYING : isCustomer.value ? sellingLinks.value : [];
+	const side = isSupplier.value ? buyingLinks.value : isCustomer.value ? sellingLinks.value : [];
 	return [
 		...(portal.hasParties
 			? [{ label: "Overview", route: "PortalOverview", look: LOOKS.application }]
 			: []),
-		...(isCustomer.value && portal.features.customer_orders
+		...(isCustomer.value &&
+		portal.features.customer_orders &&
+		portal.can("Sales Order", "create")
 			? [{ label: "New order", route: "SalesOrderNew", look: LOOKS.salesOrder }]
 			: []),
 		...side.map((link) => ({ label: link.label, route: link.route, look: link.look })),

@@ -46,6 +46,7 @@ from vuna_sourcing.api.transactions.customer_orders import (
 	can_order,
 	po_document_view,
 )
+from vuna_sourcing.api.transactions.rights import READ, WRITE, can, require
 from vuna_sourcing.utils import CUSTOMER
 from vuna_sourcing.vuna_sourcing.doctype.sourcing_order_field.sourcing_order_field import portal_order_fields
 
@@ -198,6 +199,7 @@ def get_quotations(
 	customers = customer_scope(customer)
 	if not customers:
 		return empty_page(start, limit)
+	require(QUOTATION, READ)
 
 	quotations = customer_documents(
 		QUOTATION, customers, search, QUOTATION_FIELDS, branches=requested_branches(customers, branches)
@@ -236,6 +238,7 @@ def addresses_of(doc) -> dict:
 @frappe.whitelist()
 def get_quotation(name: str, customer: str | None = None) -> dict:
 	doc = customer_document(QUOTATION, name, customer)
+	require(QUOTATION, READ)
 
 	return {
 		"name": doc.name,
@@ -265,6 +268,7 @@ def get_sales_orders(
 	customers = customer_scope(customer)
 	if not customers:
 		return empty_page(start, limit)
+	require(SALES_ORDER, READ)
 
 	orders = find_documents(
 		SALES_ORDER,
@@ -327,6 +331,8 @@ def customer_order(name: str, customer: str | None = None):
 @frappe.whitelist()
 def get_sales_order(name: str, customer: str | None = None) -> dict:
 	doc = customer_order(name, customer)
+	require(SALES_ORDER, READ)
+	can_change = can(SALES_ORDER, WRITE)
 
 	items = [
 		line_item(
@@ -344,8 +350,8 @@ def get_sales_order(name: str, customer: str | None = None) -> dict:
 		"customer": doc.customer,
 		"status": order_status(doc),
 		"is_draft": doc.docstatus == 0,
-		"editable": doc.docstatus == 0 and doc.get(PORTAL_STATUS_FIELD) == ORDER_PENDING,
-		"withdrawable": doc.docstatus == 0 and doc.get(PORTAL_STATUS_FIELD) == ORDER_SUBMITTED,
+		"editable": doc.docstatus == 0 and doc.get(PORTAL_STATUS_FIELD) == ORDER_PENDING and can_change,
+		"withdrawable": doc.docstatus == 0 and doc.get(PORTAL_STATUS_FIELD) == ORDER_SUBMITTED and can_change,
 		"po_no": doc.po_no,
 		"po_date": doc.po_date,
 		"transaction_date": doc.transaction_date,
@@ -394,6 +400,7 @@ def get_delivery_notes(
 	customers = customer_scope(customer)
 	if not customers:
 		return empty_page(start, limit)
+	require(DELIVERY_NOTE, READ)
 
 	deliveries = customer_documents(
 		DELIVERY_NOTE,
@@ -429,6 +436,7 @@ def get_delivery_notes(
 @frappe.whitelist()
 def get_delivery_note(name: str, customer: str | None = None) -> dict:
 	doc = customer_document(DELIVERY_NOTE, name, customer)
+	require(DELIVERY_NOTE, READ)
 
 	items = [
 		line_item(item, returned_qty=flt(item.returned_qty), sales_order=item.against_sales_order)
@@ -493,6 +501,7 @@ def get_sales_invoices(
 	customers = customer_scope(customer)
 	if not customers:
 		return empty_page(start, limit)
+	require(SALES_INVOICE, READ)
 
 	invoices = customer_documents(
 		SALES_INVOICE,
@@ -536,6 +545,7 @@ def get_sales_invoices(
 @frappe.whitelist()
 def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 	doc = customer_document(SALES_INVOICE, name, customer)
+	require(SALES_INVOICE, READ)
 
 	items = [
 		line_item(item, sales_order=item.sales_order, delivery_note=item.delivery_note) for item in doc.items
@@ -570,6 +580,8 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 @frappe.whitelist()
 def get_account_statement(customer: str | None = None, company: str | None = None) -> ApiResponse[dict]:
 	customers = customer_scope(customer)
+	if customers:
+		require(SALES_INVOICE, READ)
 	return ApiResponse.success(
 		data={
 			**statement_page("Receivable", CUSTOMER, customers, company, branch_statement_rows(customers)),
@@ -592,20 +604,29 @@ def get_dashboard(customer: str | None = None, branches: list | str | None = Non
 	branches = requested_branches(customers, branches)
 	orders = customer_filters(SALES_ORDER, customers, branches)
 	invoices = all_of(customer_filters(SALES_INVOICE, customers, branches), {"is_return": 0})
-	quotes = frappe.get_all(
-		QUOTATION,
-		filters=all_of(
-			customer_filters(QUOTATION, customers, branches), {"status": ("in", QUOTES_TO_REVIEW)}
-		),
-		or_filters=[["valid_till", ">=", nowdate()], ["valid_till", "is", "not set"]],
-		fields=["name", "transaction_date", "valid_till", "grand_total", "currency"],
-		order_by="valid_till asc",
+	sees_invoices = can(SALES_INVOICE, READ)
+	quotes = (
+		frappe.get_all(
+			QUOTATION,
+			filters=all_of(
+				customer_filters(QUOTATION, customers, branches), {"status": ("in", QUOTES_TO_REVIEW)}
+			),
+			or_filters=[["valid_till", ">=", nowdate()], ["valid_till", "is", "not set"]],
+			fields=["name", "transaction_date", "valid_till", "grand_total", "currency"],
+			order_by="valid_till asc",
+		)
+		if can(QUOTATION, READ)
+		else []
 	)
-	open_orders = frappe.get_all(
-		SALES_ORDER,
-		filters=all_of(orders, {"status": ("in", OPEN_ORDER_STATUSES)}),
-		fields=["name", "status", "delivery_date", "grand_total", "currency", "per_delivered"],
-		order_by="delivery_date asc",
+	open_orders = (
+		frappe.get_all(
+			SALES_ORDER,
+			filters=all_of(orders, {"status": ("in", OPEN_ORDER_STATUSES)}),
+			fields=["name", "status", "delivery_date", "grand_total", "currency", "per_delivered"],
+			order_by="delivery_date asc",
+		)
+		if can(SALES_ORDER, READ)
+		else []
 	)
 
 	return {
@@ -614,13 +635,17 @@ def get_dashboard(customer: str | None = None, branches: list | str | None = Non
 		"open_orders": len(open_orders),
 		"balance": (
 			None
-			if branches
+			if branches or not sees_invoices
 			else balance(
 				outstanding_statement("Receivable", CUSTOMER, customers, branch_statement_rows(customers))
 			)
 		),
-		"invoiced_by_month": monthly_totals(SALES_INVOICE, invoices, "posting_date", "base_grand_total"),
-		"invoices_by_status": status_counts(SALES_INVOICE, invoices),
+		"invoiced_by_month": (
+			monthly_totals(SALES_INVOICE, invoices, "posting_date", "base_grand_total")
+			if sees_invoices
+			else []
+		),
+		"invoices_by_status": status_counts(SALES_INVOICE, invoices) if sees_invoices else [],
 		"quotes": quotes[:5],
 		"to_deliver": [
 			{**order, "delivered": flt(order.per_delivered, 1)}
