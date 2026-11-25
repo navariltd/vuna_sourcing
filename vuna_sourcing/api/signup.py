@@ -73,7 +73,7 @@ def signups_allowed_per_hour() -> int:
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep
-@rate_limit(key="email", limit=signups_allowed_per_hour, seconds=60 * 60)
+@rate_limit(key="email", limit=signups_allowed_per_hour, seconds=60 * 60, ip_based=True)
 def sign_up(first_name: str, last_name: str, email: str) -> ApiResponse[SignupResult]:
 	if not (registration_is_open() or can_invite()):
 		return ApiResponse.error(invitation_only_message())
