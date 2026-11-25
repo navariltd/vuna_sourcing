@@ -3,11 +3,16 @@
 
 import base64
 import random
+from unittest.mock import patch
 
 import frappe
+from frappe import _
 from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing.tests import make_test_user
+from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
+	PartyOnboardingRequest,
+)
 
 IGNORE_TEST_RECORD_DEPENDENCIES = [
 	"Address",
@@ -684,3 +689,65 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 
 		self.assertFalse(frappe.db.exists("Bank Account", {"party_type": "Supplier", "party": supplier}))
 		self.assertFalse(frappe.get_meta(REQUEST).has_field("bank_account_no"))
+
+	def extended_party_values(self, **extra):
+		original = PartyOnboardingRequest.get_party_values
+
+		def get_party_values(request):
+			return {**original(request), **extra}
+
+		return patch.object(PartyOnboardingRequest, "get_party_values", get_party_values)
+
+	def test_customer_party_values_come_from_the_request(self):
+		"""The values used to create a customer are read from the request."""
+		request = self.make_request("Customer")
+
+		values = request.get_party_values()
+
+		self.assertEqual(
+			(
+				values["customer_name"],
+				values["customer_type"],
+				values["customer_group"],
+				values["territory"],
+				values["tax_id"],
+			),
+			(request.party_name, "Company", request.customer_group, request.territory, request.tax_id),
+		)
+		self.assertNotIn("country", values)
+
+	def test_supplier_party_values_fall_back_to_the_billing_address_country(self):
+		"""A supplier with no country of its own takes the country of its billing address."""
+		request = self.make_request("Supplier")
+		request.country = None
+
+		values = request.get_party_values()
+
+		self.assertEqual(values["supplier_name"], request.party_name)
+		self.assertEqual(values["supplier_group"], request.supplier_group)
+		self.assertEqual(values["country"], request.addresses[0].country)
+		self.assertNotIn("territory", values)
+
+	def test_values_added_by_an_extending_app_are_saved_on_the_new_party(self):
+		"""An app extending the request can add a value, and it is on the party when it is inserted."""
+		request = self.submitted_request("Customer")
+
+		with self.extended_party_values(customer_details="Added on approval"):
+			customer = request.approve()
+
+		self.assertEqual(frappe.db.get_value("Customer", customer, "customer_details"), "Added on approval")
+
+	def test_an_extending_app_refusing_the_values_leaves_no_party_behind(self):
+		"""If an extending app refuses approval, no party is created and the request stays in review."""
+		request = self.submitted_request("Customer")
+
+		def refuse(request):
+			frappe.throw(_("Not ready for approval"))
+
+		with patch.object(PartyOnboardingRequest, "get_party_values", refuse):
+			self.assertRaises(frappe.ValidationError, request.approve)
+
+		request.reload()
+		self.assertEqual(request.onboarding_status, "Pending Review")
+		self.assertFalse(request.party)
+		self.assertFalse(frappe.db.exists("Customer", {"customer_name": request.party_name}))
