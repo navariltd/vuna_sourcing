@@ -17,7 +17,7 @@ from vuna_sourcing.api.permission import (
 	portal_home_page,
 )
 from vuna_sourcing.api.response import ApiResponse, ResponseStatus
-from vuna_sourcing.api.signup import get_signup_context, sign_up
+from vuna_sourcing.api.signup import get_signup_context, sign_up, signups_allowed_per_hour
 from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.utils import get_app_branding
 
@@ -368,7 +368,7 @@ class TestSignup(IntegrationTestCase):
 		"""Visitors behind one office or proxy address are not blocked by each other's sign-ups."""
 		self.clear_signup_rate_limits()
 
-		results = [self.sign_up_over_http(self.new_email()) for _ in range(7)]
+		results = [self.sign_up_over_http(self.new_email()) for _ in range(signups_allowed_per_hour() + 2)]
 
 		self.assertTrue(all(result.ok for result in results))
 
@@ -377,7 +377,7 @@ class TestSignup(IntegrationTestCase):
 		self.clear_signup_rate_limits()
 		email = self.new_email()
 
-		for _ in range(5):
+		for _ in range(signups_allowed_per_hour()):
 			self.sign_up_over_http(email)
 
 		with self.assertRaises(frappe.RateLimitExceededError):
