@@ -6,6 +6,7 @@ import random
 from unittest.mock import patch
 
 import frappe
+from frappe import _
 from frappe.tests import IntegrationTestCase
 
 from vuna_sourcing.tests import make_test_user
@@ -741,7 +742,7 @@ class TestPartyOnboardingRequest(IntegrationTestCase):
 		request = self.submitted_request("Customer")
 
 		def refuse(request):
-			frappe.throw("Not ready for approval")
+			frappe.throw(_("Not ready for approval"))
 
 		with patch.object(PartyOnboardingRequest, "get_party_values", refuse):
 			self.assertRaises(frappe.ValidationError, request.approve)
