@@ -4,6 +4,7 @@
 import base64
 import random
 from contextlib import contextmanager
+from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -26,6 +27,9 @@ from vuna_sourcing.api.onboarding import (
 )
 from vuna_sourcing.api.portal import get_linked_parties, get_session
 from vuna_sourcing.tests import make_test_user
+from vuna_sourcing.vuna_sourcing.doctype.party_onboarding_request.party_onboarding_request import (
+	PartyOnboardingRequest,
+)
 
 REQUEST = "Party Onboarding Request"
 
@@ -37,6 +41,7 @@ DOC_CUSTOMER_ONLY = "_Portal Credit Application"
 SUPPLIER_TEMPLATE = "_Portal Company"
 CUSTOMER_TEMPLATE = "_Portal Company Customer"
 TEMPLATE_FOR = {"Supplier": SUPPLIER_TEMPLATE, "Customer": CUSTOMER_TEMPLATE}
+REVIEWED_GROUP = "_Portal Reviewed Customers"
 
 
 def blank_pdf() -> bytes:
@@ -1023,6 +1028,60 @@ class TestPortalApplication(ApplicationFixtures):
 
 		self.assertFalse(saved["addresses"][0]["is_shipping_address"])
 		self.assertIn("A delivery address", progress["missing_details"])
+
+	def reviewed_customer_group(self):
+		if not frappe.db.exists("Customer Group", REVIEWED_GROUP):
+			frappe.get_doc(
+				{
+					"doctype": "Customer Group",
+					"customer_group_name": REVIEWED_GROUP,
+					"parent_customer_group": frappe.db.get_value("Customer Group", {"is_group": 1}),
+					"is_group": 0,
+				}
+			).insert()
+		return REVIEWED_GROUP
+
+	def test_the_applicant_cannot_set_review_only_fields(self):
+		"""Fields the reviewer decides, such as the customer group, are ignored when the applicant sends them."""
+		applicant = self.make_applicant()
+		with self.set_user(applicant):
+			saved = save_application(
+				{**self.base_values("Customer"), "customer_group": self.reviewed_customer_group()}
+			)
+
+		self.assertNotEqual(frappe.db.get_value(REQUEST, saved["name"], "customer_group"), REVIEWED_GROUP)
+
+	def test_a_reviewer_can_complete_a_portal_application_before_approving(self):
+		"""After the applicant submits, the reviewer can fill in review fields and the customer gets them."""
+		applicant = self.make_applicant()
+		submitted = self.complete_and_submit(applicant, "Customer")
+
+		request = frappe.get_doc(REQUEST, submitted["name"])
+		request.customer_group = self.reviewed_customer_group()
+		request.save()
+		customer = request.approve()
+
+		self.assertEqual(frappe.db.get_value("Customer", customer, "customer_group"), REVIEWED_GROUP)
+		frappe.clear_cache(user=applicant)
+		self.assertIn("Customer", frappe.get_roles(applicant))
+
+	def test_a_portal_customer_gets_the_values_an_extending_app_adds(self):
+		"""A value added by an app extending the request reaches the customer created from a portal application."""
+		applicant = self.make_applicant()
+		submitted = self.complete_and_submit(applicant, "Customer")
+		original = PartyOnboardingRequest.get_party_values
+
+		def get_party_values(request):
+			return {**original(request), "customer_details": "Added on approval"}
+
+		with patch.object(PartyOnboardingRequest, "get_party_values", get_party_values):
+			customer = frappe.get_doc(REQUEST, submitted["name"]).approve()
+
+		self.assertEqual(frappe.db.get_value("Customer", customer, "customer_details"), "Added on approval")
+		with self.set_user(applicant):
+			self.assertEqual(
+				[(p["party_type"], p["name"]) for p in get_linked_parties()], [("Customer", customer)]
+			)
 
 
 SCREENED_TEMPLATE = "_Portal Screened Supplier"

@@ -668,9 +668,15 @@ class PartyOnboardingRequest(Document):
 		self.add_comment("Comment", text)
 
 	def create_party(self):
-		spec = self.spec
 		validate_entity_type(self.party_type, self.entity_type, self.meta.get_label("entity_type"))
 
+		party = frappe.new_doc(self.spec.doctype)
+		party.update(self.get_party_values())
+		party.insert(ignore_permissions=True)
+		return party
+
+	def get_party_values(self) -> dict:
+		spec = self.spec
 		values = {
 			spec.name_field: self.party_name,
 			spec.entity_field: self.entity_type,
@@ -686,10 +692,7 @@ class PartyOnboardingRequest(Document):
 		else:
 			values["territory"] = self.territory
 
-		party = frappe.new_doc(spec.doctype)
-		party.update(values)
-		party.insert(ignore_permissions=True)
-		return party
+		return values
 
 	def create_contacts(self, party):
 		spec = self.spec
