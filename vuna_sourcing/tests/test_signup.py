@@ -1,9 +1,13 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+from contextlib import contextmanager
+
 import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.website.utils import get_home_page
+from werkzeug.test import EnvironBuilder
+from werkzeug.wrappers import Request
 
 from vuna_sourcing import APP_NAME
 from vuna_sourcing.api.permission import (
@@ -16,6 +20,9 @@ from vuna_sourcing.api.response import ApiResponse, ResponseStatus
 from vuna_sourcing.api.signup import get_signup_context, sign_up
 from vuna_sourcing.tests import make_test_user
 from vuna_sourcing.utils import get_app_branding
+
+SHARED_IP = "203.0.113.10"
+SIGNUP_RATE_LIMIT_KEYS = "rl:vuna_sourcing.api.signup.sign_up"
 
 
 class TestSignup(IntegrationTestCase):
@@ -334,3 +341,44 @@ class TestSignup(IntegrationTestCase):
 
 		first_name = frappe.db.get_value("User", email, "first_name")
 		self.assertNotIn("<script>", first_name)
+
+	@contextmanager
+	def posted_from(self, ip, email):
+		saved = {name: getattr(frappe.local, name, None) for name in ("request", "form_dict", "request_ip")}
+		frappe.local.request = Request(
+			EnvironBuilder(method="POST", base_url=frappe.utils.get_url()).get_environ()
+		)
+		frappe.local.form_dict = frappe._dict(email=email)
+		frappe.local.request_ip = ip
+		try:
+			yield
+		finally:
+			for name, value in saved.items():
+				setattr(frappe.local, name, value)
+
+	def sign_up_over_http(self, email, ip=SHARED_IP):
+		with self.posted_from(ip, email):
+			return sign_up("Jane", "Doe", email)
+
+	def clear_signup_rate_limits(self):
+		frappe.cache.delete_keys(SIGNUP_RATE_LIMIT_KEYS)
+		self.addCleanup(frappe.cache.delete_keys, SIGNUP_RATE_LIMIT_KEYS)
+
+	def test_people_sharing_an_ip_address_can_each_sign_up(self):
+		"""Visitors behind one office or proxy address are not blocked by each other's sign-ups."""
+		self.clear_signup_rate_limits()
+
+		results = [self.sign_up_over_http(self.new_email()) for _ in range(7)]
+
+		self.assertTrue(all(result.ok for result in results))
+
+	def test_repeated_attempts_for_one_email_are_limited(self):
+		"""Retrying the same email from the same address is cut off after the hourly allowance."""
+		self.clear_signup_rate_limits()
+		email = self.new_email()
+
+		for _ in range(5):
+			self.sign_up_over_http(email)
+
+		with self.assertRaises(frappe.RateLimitExceededError):
+			self.sign_up_over_http(email)
