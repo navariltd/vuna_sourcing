@@ -1,7 +1,10 @@
 # Copyright (c) 2026, Vuna Technologies and contributors
 # For license information, please see license.txt
 
+<<<<<<< HEAD
 import re
+=======
+>>>>>>> 0454a6f (fix ui)
 from collections import Counter
 from collections.abc import Callable
 
