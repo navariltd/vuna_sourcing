@@ -31,10 +31,32 @@ def keep_supplier_rates(doc) -> None:
 	doc.calculate_taxes_and_totals()
 
 
+def validate_desk_creation(doc) -> None:
+	if running := running_open_bid_of(doc):
+		frappe.throw(
+			_(
+				"Bidding on {0} is still open. Suppliers send their bids through the portal, and quotations can be added here once bids close."
+			).format(frappe.bold(running)),
+			title=_("Bidding still open"),
+		)
+
+	if sealed := sealed_request_of(doc):
+		frappe.throw(
+			_(
+				"{0} is a sealed bid. Suppliers send their quotations through the portal, and quotations can be added here once the committee opens them."
+			).format(frappe.bold(sealed)),
+			title=_("Quotations still sealed"),
+		)
+
+
 def validate(doc, method: str | None = None) -> None:
 	keep_supplier_rates(doc)
 
-	if doc.is_new() or doc.flags.placing_bid:
+	if doc.flags.placing_bid:
+		return
+
+	if doc.is_new():
+		validate_desk_creation(doc)
 		return
 
 	if running := running_open_bid_of(doc):

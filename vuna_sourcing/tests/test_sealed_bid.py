@@ -123,6 +123,26 @@ class TestSealedBid(SourcingFixtures, IntegrationTestCase):
 		quote.submit()
 		self.assertEqual(quote.docstatus, 1)
 
+	def test_the_desk_cannot_add_a_quotation_before_bids_close(self):
+		"""A buyer cannot slip a quotation into a sealed bid from the desk while suppliers are still bidding."""
+		supplier, _user = self.make_supplier()
+		rfq = self.make_rfq([supplier])
+
+		with self.assertRaisesRegex(frappe.ValidationError, "sealed bid"):
+			self.desk_quote(rfq, supplier)
+
+	def test_the_desk_cannot_add_a_quotation_before_the_committee_opens(self):
+		"""Once bids close the quotations stay sealed, so the desk still cannot add one until they are opened."""
+		supplier, _user = self.make_supplier()
+		rfq = self.make_rfq([supplier])
+		self.close_bids(rfq)
+
+		with self.assertRaisesRegex(frappe.ValidationError, "sealed bid"):
+			self.desk_quote(rfq, supplier)
+
+		self.open_bids(rfq)
+		self.assertEqual(self.desk_quote(rfq, supplier).supplier, supplier)
+
 	def test_quotations_cannot_be_opened_before_bids_close(self):
 		committee, members = self.committee_of(count=1)
 		rfq = self.make_rfq([self.make_supplier()[0]], committee=committee)

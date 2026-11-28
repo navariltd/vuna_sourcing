@@ -13,6 +13,7 @@ const props = defineProps<{
 	look?: DocumentLook;
 	stickyHeader?: boolean;
 	fluid?: boolean;
+	full?: boolean;
 }>();
 
 const copied = ref(false);
@@ -54,8 +55,12 @@ async function copyValue() {
 
 <template>
 	<div
-		class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-8"
-		:class="fluid ? 'max-w-[1720px]' : wide ? 'max-w-7xl' : 'max-w-4xl'"
+		class="mx-auto w-full px-4 py-6 sm:py-8"
+		:class="
+			full
+				? 'max-w-none sm:px-6 xl:pl-4 xl:pr-5'
+				: [fluid ? 'max-w-[1720px]' : wide ? 'max-w-7xl' : 'max-w-4xl', 'sm:px-6']
+		"
 	>
 		<header
 			v-if="breadcrumbs?.length"

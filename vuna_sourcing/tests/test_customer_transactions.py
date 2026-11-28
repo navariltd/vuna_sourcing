@@ -9,6 +9,7 @@ from frappe.utils import add_days, nowdate
 from frappe.www.printview import validate_print_permission
 
 from vuna_sourcing.api.transactions.customer import (
+	etims_receipt,
 	get_account_statement,
 	get_dashboard,
 	get_delivery_note,
@@ -165,6 +166,40 @@ class TestCustomerTransactions(SourcingFixtures, IntegrationTestCase):
 		self.assertEqual(billed["sales_orders"], [order.name])
 		self.assertEqual(billed["outstanding_amount"], 500)
 		self.assertEqual(billed["payments"], [], "nothing paid yet")
+
+	def test_an_invoice_without_an_etims_receipt_shows_no_qr_code(self):
+		"""An invoice KRA has not signed carries no eTIMS block, so the portal hides the QR card."""
+		customer, user = self.make_customer()
+		invoice = self.invoice(self.make_order(customer))
+
+		with self.set_user(user):
+			billed = get_sales_invoice(invoice.name)
+
+		self.assertIsNone(billed["etims"])
+
+	def test_a_signed_invoice_shares_its_qr_image_and_kra_link(self):
+		"""The QR image and KRA verification link written by the eTIMS app reach the portal as they are."""
+		signed = frappe._dict(
+			etims_qr_image="/files/QR-ACC-SINV-0001.png",
+			etims_qr_code_url="https://etims.example.com/verify?invoice=ACC-SINV-0001",
+		)
+
+		self.assertEqual(
+			etims_receipt(signed),
+			{
+				"qr_image": "/files/QR-ACC-SINV-0001.png",
+				"verification_url": "https://etims.example.com/verify?invoice=ACC-SINV-0001",
+			},
+		)
+
+	def test_an_etims_link_that_is_not_a_web_address_is_dropped(self):
+		"""A value that is not a file or a web address never reaches the portal as a link or an image."""
+		tampered = frappe._dict(
+			etims_qr_image="javascript:alert(1)",
+			etims_qr_code_url="javascript:alert(1)",
+		)
+
+		self.assertIsNone(etims_receipt(tampered))
 
 	def test_a_customer_sees_the_billing_and_shipping_address_on_each_document(self):
 		"""Quotations, orders, deliveries and invoices show where the customer is billed and where goods go."""

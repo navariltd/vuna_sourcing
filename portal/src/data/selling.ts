@@ -246,6 +246,11 @@ export interface SalesInvoiceItem extends LineItem {
   delivery_note: string | null;
 }
 
+export interface EtimsReceipt {
+  qr_image: string | null;
+  verification_url: string | null;
+}
+
 export interface SalesInvoice {
   name: string;
   customer: string;
@@ -276,6 +281,7 @@ export interface SalesInvoice {
   }[];
   credit_notes: ReturnNote[];
   credit_request: InvoiceCreditState;
+  etims: EtimsReceipt | null;
 }
 
 export function createQuotationResource() {

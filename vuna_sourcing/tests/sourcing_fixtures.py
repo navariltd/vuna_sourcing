@@ -2,6 +2,9 @@
 # For license information, please see license.txt
 
 import frappe
+from erpnext.buying.doctype.request_for_quotation.request_for_quotation import (
+	make_supplier_quotation_from_rfq,
+)
 from frappe.utils import add_days, add_to_date, get_datetime, getdate, now_datetime, nowdate
 
 from vuna_sourcing.tests import make_test_user
@@ -138,6 +141,11 @@ class SourcingFixtures:
 
 	def open_bids(self, rfq):
 		rfq.db_set("quotes_opened", 1)
+
+	def desk_quote(self, rfq, supplier):
+		buyer = make_test_user(["Purchase User", "Purchase Manager"], first_name="Buyer").name
+		with self.set_user(buyer):
+			return make_supplier_quotation_from_rfq(rfq.name, for_supplier=supplier).insert()
 
 	def lines(self, detail, rate=100, lead_time_days=3):
 		return [

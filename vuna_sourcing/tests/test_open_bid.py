@@ -84,6 +84,17 @@ class TestOpenBid(SourcingFixtures, IntegrationTestCase):
 			frappe.PermissionError, frappe.delete_doc, "RFQ Bid Log", log, ignore_permissions=True
 		)
 
+	def test_the_desk_cannot_add_a_quotation_while_bidding(self):
+		"""Until bids close, quotations on an open bid only come from suppliers bidding on the portal."""
+		supplier, _user = self.make_supplier()
+		rfq = self.make_open_rfq([supplier])
+
+		with self.assertRaisesRegex(frappe.ValidationError, "still open"):
+			self.desk_quote(rfq, supplier)
+
+		self.close_bids(rfq)
+		self.assertEqual(self.desk_quote(rfq, supplier).supplier, supplier)
+
 	def test_the_desk_cannot_edit_a_quotation_while_bidding(self):
 		supplier, user = self.make_supplier()
 		rfq = self.make_open_rfq([supplier])

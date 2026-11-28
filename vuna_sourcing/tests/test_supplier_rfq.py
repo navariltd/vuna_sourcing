@@ -181,6 +181,23 @@ class TestSupplierRFQ(SourcingFixtures, IntegrationTestCase):
 		rfq.reload()
 		self.assertEqual(rfq.suppliers[0].quote_status, "Received")
 
+	def test_a_request_without_a_bidding_method_can_still_be_quoted(self):
+		"""Bidding method is optional, so a plain request reaches the supplier and takes a quote."""
+		supplier, user = self.make_supplier()
+		rfq = self.make_rfq([supplier], bidding_method="")
+
+		with self.set_user(user):
+			opened = get_rfq(rfq.name)
+			self.assertFalse(opened["bidding_method"])
+			detail = send_quote(
+				rfq.name,
+				items=self.lines(opened),
+				quotation_number="Q-2026-002",
+				valid_till=add_days(nowdate(), 30),
+			)
+
+		self.assertEqual(detail["status"], "Submitted")
+
 	def test_a_supplier_can_decline_with_a_reason(self):
 		supplier, user = self.make_supplier()
 		rfq = self.make_rfq([supplier])

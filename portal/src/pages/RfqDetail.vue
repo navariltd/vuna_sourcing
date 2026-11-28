@@ -576,7 +576,6 @@ function money(value: number) {
 					/>
 					<Button
 						variant="solid"
-						theme="green"
 						:label="rfq.open_bid ? 'Place bid' : 'Send quotation'"
 						:loading="submitting"
 						:disabled="saving || unpriced.length > 0"

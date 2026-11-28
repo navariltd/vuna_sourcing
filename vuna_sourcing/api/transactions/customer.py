@@ -58,6 +58,10 @@ SALES_INVOICE = "Sales Invoice"
 BILLING_ADDRESS_FIELD = "address_display"
 SHIPPING_ADDRESS_FIELD = "shipping_address"
 TRAILING_BREAKS = re.compile(r"(\s*<br\s*/?>\s*)+$", re.IGNORECASE)
+ETIMS_QR_IMAGE_FIELD = "etims_qr_image"
+ETIMS_VERIFICATION_URL_FIELD = "etims_qr_code_url"
+LOCAL_FILE_PREFIXES = ("/files/", "/private/files/")
+WEB_URL_PREFIXES = ("https://", "http://")
 
 QUOTATION_FIELDS = [
 	"name",
@@ -542,6 +546,25 @@ def get_sales_invoices(
 	)
 
 
+def web_url(value: str | None) -> str | None:
+	value = (value or "").strip()
+	return value if value.lower().startswith(WEB_URL_PREFIXES) else None
+
+
+def file_url(value: str | None) -> str | None:
+	value = (value or "").strip()
+	return value if value.startswith(LOCAL_FILE_PREFIXES) else web_url(value)
+
+
+def etims_receipt(doc) -> dict | None:
+	qr_image = file_url(doc.get(ETIMS_QR_IMAGE_FIELD))
+	verification_url = web_url(doc.get(ETIMS_VERIFICATION_URL_FIELD))
+	if not (qr_image or verification_url):
+		return None
+
+	return {"qr_image": qr_image, "verification_url": verification_url}
+
+
 @frappe.whitelist()
 def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 	doc = customer_document(SALES_INVOICE, name, customer)
@@ -574,6 +597,7 @@ def get_sales_invoice(name: str, customer: str | None = None) -> dict:
 		"payments": payments_against(SALES_INVOICE, doc.name),
 		"credit_notes": returns_against(SALES_INVOICE, doc.name),
 		"credit_request": invoice_credit_state(doc),
+		"etims": etims_receipt(doc),
 	}
 
 

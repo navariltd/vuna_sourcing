@@ -38,7 +38,7 @@ const initials = computed(() =>
 		"
 	>
 		<div
-			class="relative aspect-square w-full overflow-hidden border-b border-outline-gray-1 bg-surface-gray-1"
+			class="relative aspect-[4/3] w-full overflow-hidden border-b border-outline-gray-1 bg-surface-gray-1"
 		>
 			<img
 				v-if="item.image"

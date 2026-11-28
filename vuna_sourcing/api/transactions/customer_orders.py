@@ -282,7 +282,7 @@ def delivery_date_of(value: str | None):
 
 
 def customer_addresses(customer: str) -> list[dict]:
-	addresses = linked_addresses([customer], enabled_only=True)
+	addresses = linked_addresses([customer], enabled_only=True, shipping_only=True)
 	allowed = branch_restrictions().get(customer)
 	if allowed is None:
 		return addresses
