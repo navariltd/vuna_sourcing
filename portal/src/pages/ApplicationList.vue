@@ -50,7 +50,7 @@ function formatDate(value: string) {
 				variant="solid"
 				label="New application"
 				icon-left="lucide-plus"
-				:route="{ name: 'ApplicationForm' }"
+				:route="{ name: 'ApplicationForm', query: { new: '1' } }"
 			/>
 		</template>
 
@@ -74,7 +74,7 @@ function formatDate(value: string) {
 				class="mt-4"
 				variant="solid"
 				label="Start an application"
-				:route="{ name: 'ApplicationForm' }"
+				:route="{ name: 'ApplicationForm', query: { new: '1' } }"
 			/>
 		</div>
 

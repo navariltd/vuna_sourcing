@@ -332,7 +332,58 @@ watch([customer, () => props.name], load, { immediate: true });
 					<RichText class="mt-1" :html="invoice.terms" />
 				</div>
 			</div>
-			<DocumentAddresses :addresses="invoice.addresses" />
+			<div class="min-w-0 space-y-6">
+				<section
+					v-if="invoice.etims"
+					class="rounded-6 border p-4"
+					aria-labelledby="etims-heading"
+				>
+					<div class="flex items-center gap-2">
+						<i class="lucide-shield-check size-4 text-ink-gray-6" aria-hidden="true" />
+						<h2
+							id="etims-heading"
+							class="text-xs uppercase tracking-wide text-ink-gray-5"
+						>
+							KRA eTIMS receipt
+						</h2>
+					</div>
+
+					<a
+						v-if="invoice.etims.qr_image"
+						:href="invoice.etims.verification_url || invoice.etims.qr_image"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="mt-3 block rounded-4 border p-2 hover:bg-surface-gray-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline-gray-4"
+					>
+						<img
+							:src="invoice.etims.qr_image"
+							:alt="`KRA eTIMS QR code for invoice ${invoice.name}`"
+							class="mx-auto aspect-square w-full max-w-48 rounded-3"
+							loading="lazy"
+						/>
+					</a>
+
+					<p class="mt-3 text-p-sm text-ink-gray-6">
+						{{
+							invoice.etims.qr_image
+								? "Scan this code with your phone to confirm the invoice is registered with KRA."
+								: "This invoice is registered with KRA. Open the link to check it."
+						}}
+					</p>
+
+					<Button
+						v-if="invoice.etims.verification_url"
+						class="mt-3 w-full"
+						variant="subtle"
+						label="Verify on KRA eTIMS"
+						icon-left="lucide-badge-check"
+						icon-right="lucide-external-link"
+						:href="invoice.etims.verification_url"
+					/>
+				</section>
+
+				<DocumentAddresses :addresses="invoice.addresses" />
+			</div>
 		</div>
 	</PageContainer>
 </template>

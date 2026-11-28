@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { Stepper } from "frappe-ui/experimental";
+import type { StepItem, StepValue } from "frappe-ui/experimental";
 import {
 	Avatar,
 	Badge,
@@ -22,6 +24,7 @@ import DocumentRequirementRow from "@/components/DocumentRequirementRow.vue";
 import DynamicField from "@/components/DynamicField.vue";
 import LinkSelect from "@/components/LinkSelect.vue";
 import PageContainer from "@/components/PageContainer.vue";
+import { useIsMobile } from "@/composables/useViewport";
 import {
 	blankAddress,
 	blankContact,
@@ -29,6 +32,7 @@ import {
 	documentProblems,
 	fetchProgress,
 	localToday,
+	myApplications,
 	normaliseTaxId,
 	onboardingTypes,
 	resubmitApplication,
@@ -110,13 +114,36 @@ const asksQuestions = computed(
 );
 
 const steps = computed(() => [
-	{ key: "type", label: "Applying as" },
-	{ key: "business", label: isIndividual.value ? "About you" : "Business" },
-	{ key: "people", label: "Contacts & addresses" },
-	{ key: "documents", label: "Documents" },
-	...(asksQuestions.value ? [{ key: "questions", label: "Questions" }] : []),
-	{ key: "review", label: "Review" },
+	{ key: "type", label: "Applying as", description: "Supplier or customer" },
+	{
+		key: "business",
+		label: isIndividual.value ? "About you" : "Business",
+		description: isIndividual.value ? "Your name and tax number" : "Name and registration",
+	},
+	{ key: "people", label: "Contacts & addresses", description: "Who we talk to and where" },
+	{ key: "documents", label: "Documents", description: "Certificates and licences" },
+	...(asksQuestions.value
+		? [{ key: "questions", label: "Questions", description: "A few short answers" }]
+		: []),
+	{ key: "review", label: "Review", description: "Check and submit" },
 ]);
+
+const isMobile = useIsMobile();
+
+const stepperSteps = computed<StepItem[]>(() =>
+	steps.value.map((step) => ({
+		value: step.key,
+		label: step.label,
+		description: step.description,
+	}))
+);
+
+function selectStep(value: StepValue) {
+	const index = steps.value.findIndex((step) => step.key === value);
+	if (index < 0 || index === stepIndex.value) return;
+	stepIndex.value = index;
+	window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 const taxFormat = computed<TaxIdFormat | null>(
 	() =>
@@ -137,7 +164,9 @@ const stepIndex = ref(0);
 const currentStep = computed(
 	() => steps.value[Math.min(stepIndex.value, steps.value.length - 1)]!
 );
-const stepPercent = computed(() => Math.round((stepIndex.value / (steps.value.length - 1)) * 100));
+const mobilePercent = computed(() =>
+	Math.round(((stepIndex.value + 1) / steps.value.length) * 100)
+);
 
 const primaryContact = computed(() => contacts.value.find((c) => c.is_primary_contact) ?? null);
 const billingContact = computed(
@@ -252,12 +281,39 @@ function partyTypeFromRoute(): PartyType | null {
 	);
 }
 
+function startsFresh() {
+	return route.query.new === "1";
+}
+
+interface ApplicationRow {
+	name: string;
+	party_type: PartyType | null;
+	party_name: string | null;
+	docstatus: number;
+	onboarding_status: string | null;
+}
+
+const unfinished = computed<ApplicationRow | null>(() => {
+	if (!startsFresh() || application.data?.name) return null;
+	const rows = (myApplications.data ?? []) as ApplicationRow[];
+	return (
+		rows.find(
+			(row) =>
+				row.docstatus === 0 ||
+				(row.docstatus === 1 && row.onboarding_status === "Returned for Correction")
+		) ?? null
+	);
+});
+
 onMounted(async () => {
 	taxIdFormats.fetch();
 	try {
 		await onboardingTypes.fetch();
 		const name = (route.query.name as string) || null;
-		const existing = (await application.fetch({ name })) as Application | null;
+		const existing =
+			startsFresh() && !name
+				? null
+				: ((await application.fetch({ name })) as Application | null);
 
 		if (existing) {
 			hydrate(existing);
@@ -272,6 +328,7 @@ onMounted(async () => {
 			if (existing.is_correction) goToStep("review");
 			await refreshProgress();
 		} else {
+			if (startsFresh()) myApplications.fetch();
 			const only = openPartyTypes.value.length === 1 ? openPartyTypes.value[0]! : null;
 			const wanted = partyTypeFromRoute() ?? only;
 			if (wanted) choosePartyType(wanted);
@@ -477,7 +534,7 @@ const title = computed(() => {
 </script>
 
 <template>
-	<PageContainer :title="title">
+	<PageContainer :title="title" wide>
 		<template #actions>
 			<Badge v-if="saving" theme="gray" variant="subtle" label="Saving…" />
 			<Button
@@ -547,6 +604,32 @@ const title = computed(() => {
 		</div>
 
 		<div
+			v-if="unfinished"
+			class="mb-6 flex flex-col gap-3 rounded-6 border bg-surface-gray-1 p-4 sm:flex-row sm:items-center"
+			role="status"
+		>
+			<i class="lucide-file-clock size-5 shrink-0 text-ink-gray-6" aria-hidden="true" />
+			<p class="min-w-0 flex-1 text-p-sm text-ink-gray-7">
+				<template v-if="unfinished.docstatus === 0">
+					You have an unfinished application{{
+						unfinished.party_name ? ` for ${unfinished.party_name}` : ""
+					}}. Continue it, or fill in this form to start a new one.
+				</template>
+				<template v-else>
+					Our team sent back your application{{
+						unfinished.party_name ? ` for ${unfinished.party_name}` : ""
+					}}
+					for changes. Make those changes there, or fill in this form to start a new one.
+				</template>
+			</p>
+			<Button
+				variant="subtle"
+				:label="unfinished.docstatus === 0 ? 'Continue it' : 'Make the changes'"
+				:route="{ name: 'ApplicationForm', query: { name: unfinished.name } }"
+			/>
+		</div>
+
+		<div
 			v-if="onboardingTypes.loading && !onboardingTypes.data"
 			class="flex justify-center py-16"
 		>
@@ -565,505 +648,532 @@ const title = computed(() => {
 			</p>
 		</div>
 
-		<div v-else class="space-y-6">
-			<div>
-				<div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-					<button
-						v-for="(step, index) in steps"
-						:key="step.key"
-						class="rounded-4 px-2 py-1 text-sm transition"
-						:class="
-							index === stepIndex
-								? 'bg-surface-gray-3 font-medium text-ink-gray-9'
-								: index < stepIndex
-								? 'text-ink-gray-7 hover:bg-surface-gray-2'
-								: 'text-ink-gray-4'
-						"
-						:disabled="index > stepIndex && !isCorrection"
-						@click="stepIndex = index"
-					>
-						{{ index + 1 }}. {{ step.label }}
-					</button>
-				</div>
-				<Progress :value="stepPercent" size="sm" />
+		<div
+			v-else
+			class="md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:items-start md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10"
+		>
+			<div v-if="isMobile" class="mb-6">
+				<p class="mb-2 flex items-baseline justify-between gap-2 text-p-sm">
+					<span class="font-medium text-ink-gray-9">{{ currentStep.label }}</span>
+					<span class="shrink-0 text-ink-gray-5">
+						Step {{ stepIndex + 1 }} of {{ steps.length }}
+					</span>
+				</p>
+				<Progress :value="mobilePercent" size="sm" />
 			</div>
 
-			<section v-if="currentStep.key === 'type'" class="space-y-6">
-				<div class="space-y-3">
-					<p class="text-p-base text-ink-gray-6">
-						<template v-if="isCorrection">
-							You applied as a {{ copy?.noun }}. That cannot change on a correction.
-						</template>
-						<template v-else-if="offeredPartyTypes.length > 1">
-							How would you like to work with us? One account can hold both — apply
-							for the other later if you need to.
-						</template>
-						<template v-else>You are applying as a {{ copy?.noun }}.</template>
-					</p>
+			<aside v-else class="sticky top-6" aria-label="Application steps">
+				<Stepper
+					:steps="stepperSteps"
+					:model-value="currentStep.key"
+					:loading="saving"
+					vertical
+					clickable
+					@update:model-value="selectStep"
+				/>
+			</aside>
 
-					<div class="grid gap-3 sm:grid-cols-2">
-						<button
-							v-for="partyType in offeredPartyTypes"
-							:key="partyType"
-							type="button"
-							class="group rounded-6 border p-5 text-left transition"
-							:class="[
-								form.party_type === partyType
-									? 'border-outline-gray-4 bg-surface-gray-1 ring-1 ring-outline-gray-3'
-									: 'bg-surface-base hover:border-outline-gray-3',
-								isCorrection && form.party_type !== partyType ? 'opacity-50' : '',
-							]"
-							:disabled="isCorrection"
-							:aria-pressed="form.party_type === partyType"
-							@click="choosePartyType(partyType)"
-						>
-							<div class="flex items-center justify-between">
-								<span
-									class="flex size-9 items-center justify-center rounded-full bg-surface-gray-2 group-hover:bg-surface-gray-3"
-								>
-									<i
-										:class="[
-											PARTY_COPY[partyType].icon,
-											'size-4 text-ink-gray-7',
-										]"
-									/>
-								</span>
-								<i
-									v-if="form.party_type === partyType"
-									class="lucide-circle-check-big size-4 text-ink-green-3"
-								/>
-							</div>
-							<p class="mt-3 text-lg font-semibold text-ink-gray-9">
-								{{ PARTY_COPY[partyType].headline }}
-							</p>
-							<p class="text-sm font-medium text-ink-gray-6">
-								Become a {{ PARTY_COPY[partyType].noun }}
-							</p>
-							<p class="mt-2 text-p-sm text-ink-gray-6">
-								{{ PARTY_COPY[partyType].pitch }}
-							</p>
-						</button>
-					</div>
-				</div>
-
-				<div v-if="form.party_type" class="space-y-3">
-					<h3 class="text-base font-semibold text-ink-gray-8">
-						What kind of {{ copy?.noun }} are you?
-					</h3>
-					<p v-if="!typesForParty.length" class="text-p-sm text-ink-gray-5">
-						No {{ copy?.noun }} types are set up yet. Please contact our team.
-					</p>
-					<div class="grid gap-3 sm:grid-cols-2">
-						<button
-							v-for="type in typesForParty"
-							:key="type.name"
-							type="button"
-							class="rounded-6 border p-4 text-left transition hover:border-outline-gray-3"
-							:class="
-								form.onboarding_template === type.name
-									? 'border-outline-gray-4 bg-surface-gray-1 ring-1 ring-outline-gray-3'
-									: 'bg-surface-base'
-							"
-							:disabled="isCorrection"
-							@click="form.onboarding_template = type.name"
-						>
-							<div class="flex items-center justify-between">
-								<span class="text-base font-medium text-ink-gray-8">{{
-									type.name
-								}}</span>
-								<i
-									v-if="form.onboarding_template === type.name"
-									class="lucide-circle-check-big size-4 text-ink-green-3"
-								/>
-							</div>
-							<p v-if="type.description" class="mt-1 text-p-sm text-ink-gray-6">
-								{{ type.description }}
-							</p>
-							<p class="mt-2 text-xs text-ink-gray-5">
-								{{ type.entity_type }} · {{ type.documents.length }} supporting
-								{{ type.documents.length === 1 ? "document" : "documents" }}
-							</p>
-						</button>
-					</div>
-
-					<div
-						v-if="selectedType?.documents.length"
-						class="rounded-6 border bg-surface-gray-1 p-4"
-					>
-						<p class="mb-2 text-sm font-medium text-ink-gray-7">
-							You will need to upload
+			<div class="min-w-0 space-y-6">
+				<section v-if="currentStep.key === 'type'" class="space-y-6">
+					<div class="space-y-3">
+						<p class="text-p-base text-ink-gray-6">
+							<template v-if="isCorrection">
+								You applied as a {{ copy?.noun }}. That cannot change on a
+								correction.
+							</template>
+							<template v-else-if="offeredPartyTypes.length > 1">
+								How would you like to work with us? One account can hold both —
+								apply for the other later if you need to.
+							</template>
+							<template v-else>You are applying as a {{ copy?.noun }}.</template>
 						</p>
-						<ul class="space-y-1">
-							<li
-								v-for="doc in selectedType.documents"
-								:key="doc.document_type"
-								class="flex items-center gap-2 text-p-sm text-ink-gray-7"
+
+						<div class="grid gap-3 sm:grid-cols-2">
+							<button
+								v-for="partyType in offeredPartyTypes"
+								:key="partyType"
+								type="button"
+								class="group rounded-6 border p-5 text-left transition"
+								:class="[
+									form.party_type === partyType
+										? 'border-outline-gray-4 bg-surface-gray-1 ring-1 ring-outline-gray-3'
+										: 'bg-surface-base hover:border-outline-gray-3',
+									isCorrection && form.party_type !== partyType
+										? 'opacity-50'
+										: '',
+								]"
+								:disabled="isCorrection"
+								:aria-pressed="form.party_type === partyType"
+								@click="choosePartyType(partyType)"
 							>
-								<i class="lucide-paperclip size-3.5 text-ink-gray-5" />
-								{{ doc.document_type }}
-								<Badge
-									v-if="doc.is_mandatory"
-									theme="red"
-									variant="subtle"
-									label="Required"
+								<div class="flex items-center justify-between">
+									<span
+										class="flex size-9 items-center justify-center rounded-full bg-surface-gray-2 group-hover:bg-surface-gray-3"
+									>
+										<i
+											:class="[
+												PARTY_COPY[partyType].icon,
+												'size-4 text-ink-gray-7',
+											]"
+										/>
+									</span>
+									<i
+										v-if="form.party_type === partyType"
+										class="lucide-circle-check-big size-4 text-ink-green-3"
+									/>
+								</div>
+								<p class="mt-3 text-lg font-semibold text-ink-gray-9">
+									{{ PARTY_COPY[partyType].headline }}
+								</p>
+								<p class="text-sm font-medium text-ink-gray-6">
+									Become a {{ PARTY_COPY[partyType].noun }}
+								</p>
+								<p class="mt-2 text-p-sm text-ink-gray-6">
+									{{ PARTY_COPY[partyType].pitch }}
+								</p>
+							</button>
+						</div>
+					</div>
+
+					<div v-if="form.party_type" class="space-y-3">
+						<h3 class="text-base font-semibold text-ink-gray-8">
+							What kind of {{ copy?.noun }} are you?
+						</h3>
+						<p v-if="!typesForParty.length" class="text-p-sm text-ink-gray-5">
+							No {{ copy?.noun }} types are set up yet. Please contact our team.
+						</p>
+						<div class="grid gap-3 sm:grid-cols-2">
+							<button
+								v-for="type in typesForParty"
+								:key="type.name"
+								type="button"
+								class="rounded-6 border p-4 text-left transition hover:border-outline-gray-3"
+								:class="
+									form.onboarding_template === type.name
+										? 'border-outline-gray-4 bg-surface-gray-1 ring-1 ring-outline-gray-3'
+										: 'bg-surface-base'
+								"
+								:disabled="isCorrection"
+								@click="form.onboarding_template = type.name"
+							>
+								<div class="flex items-center justify-between">
+									<span class="text-base font-medium text-ink-gray-8">{{
+										type.name
+									}}</span>
+									<i
+										v-if="form.onboarding_template === type.name"
+										class="lucide-circle-check-big size-4 text-ink-green-3"
+									/>
+								</div>
+								<p v-if="type.description" class="mt-1 text-p-sm text-ink-gray-6">
+									{{ type.description }}
+								</p>
+								<p class="mt-2 text-xs text-ink-gray-5">
+									{{ type.entity_type }} · {{ type.documents.length }} supporting
+									{{ type.documents.length === 1 ? "document" : "documents" }}
+								</p>
+							</button>
+						</div>
+
+						<div
+							v-if="selectedType?.documents.length"
+							class="rounded-6 border bg-surface-gray-1 p-4"
+						>
+							<p class="mb-2 text-sm font-medium text-ink-gray-7">
+								You will need to upload
+							</p>
+							<ul class="space-y-1">
+								<li
+									v-for="doc in selectedType.documents"
+									:key="doc.document_type"
+									class="flex items-center gap-2 text-p-sm text-ink-gray-7"
+								>
+									<i class="lucide-paperclip size-3.5 text-ink-gray-5" />
+									{{ doc.document_type }}
+									<Badge
+										v-if="doc.is_mandatory"
+										theme="red"
+										variant="subtle"
+										label="Required"
+									/>
+								</li>
+							</ul>
+						</div>
+					</div>
+				</section>
+
+				<section v-else-if="currentStep.key === 'business'" class="space-y-5">
+					<div class="flex items-center gap-4">
+						<Avatar
+							:image="form.company_logo || undefined"
+							:label="form.party_name || 'You'"
+							size="3xl"
+							:shape="isIndividual ? 'circle' : 'square'"
+						/>
+						<div class="space-y-1">
+							<p class="text-base font-medium text-ink-gray-8">
+								{{ isIndividual ? "Photo" : "Logo" }}
+							</p>
+							<p class="text-p-sm text-ink-gray-5">
+								Optional. Shown on your {{ copy?.noun }} record once you are
+								approved.
+							</p>
+							<div class="flex items-center gap-2 pt-1">
+								<FileUploader
+									v-if="application.data?.name"
+									:upload-endpoint="
+										uploadEndpoint(application.data.name, { purpose: 'logo' })
+									"
+									file-types=".png,.jpg,.jpeg,.webp,.gif"
+									@success="onLogoUploaded"
+									@failure="onUploadFailed"
+								>
+									<template
+										#default="{
+											openFileSelector,
+											uploading,
+											progress: percent,
+										}"
+									>
+										<Button
+											:loading="uploading"
+											:label="
+												uploading
+													? `${percent}%`
+													: form.company_logo
+													? 'Replace'
+													: 'Upload'
+											"
+											icon-left="lucide-image-up"
+											@click="openFileSelector"
+										/>
+									</template>
+								</FileUploader>
+								<Button
+									v-if="form.company_logo"
+									variant="ghost"
+									label="Remove"
+									icon-left="lucide-trash-2"
+									@click="removeLogo"
 								/>
+							</div>
+						</div>
+					</div>
+
+					<div class="grid gap-4 sm:grid-cols-2">
+						<FormControl
+							v-model="form.party_name"
+							:label="isIndividual ? 'Your full name' : 'Registered business name'"
+							required
+						/>
+						<FormControl
+							v-if="!isIndividual"
+							v-model="form.website"
+							label="Website"
+							placeholder="https://"
+						/>
+						<LinkSelect
+							v-model="form.country"
+							doctype="Country"
+							:label="
+								isIndividual ? 'Country of residence' : 'Country of registration'
+							"
+						/>
+						<div>
+							<FormControl
+								v-model="form.tax_id"
+								:label="
+									taxFormat?.label ??
+									(isIndividual
+										? 'Personal tax number'
+										: 'Tax registration number')
+								"
+								:placeholder="taxFormat ? `e.g. ${taxFormat.example}` : undefined"
+								:required="!!selectedType?.require_tax_id"
+								@blur="tidyTaxId"
+							/>
+							<p
+								v-if="taxError && (taxTouched || stepIssues.length)"
+								class="mt-1.5 flex items-start gap-1.5 text-p-xs text-ink-red-4"
+								role="alert"
+							>
+								<i
+									class="lucide-circle-alert mt-0.5 size-3.5 shrink-0"
+									aria-hidden="true"
+								/>
+								{{ taxError }}
+							</p>
+							<p v-else-if="taxFormat" class="mt-1.5 text-p-xs text-ink-gray-5">
+								{{ taxFormat.hint }}
+							</p>
+						</div>
+						<FormControl
+							v-if="!isIndividual || selectedType?.require_registration_number"
+							v-model="form.registration_number"
+							label="Company registration number"
+							:required="!!selectedType?.require_registration_number"
+						/>
+					</div>
+				</section>
+
+				<section v-else-if="currentStep.key === 'people'" class="space-y-8">
+					<div
+						class="flex items-start gap-3 rounded-6 border border-outline-gray-2 bg-surface-gray-1 p-3"
+						role="note"
+					>
+						<i
+							class="lucide-info mt-0.5 size-4 shrink-0 text-ink-gray-6"
+							aria-hidden="true"
+						/>
+						<p class="text-p-sm text-ink-gray-7">
+							We only need the essentials to get you started:
+							<b>one primary contact</b>, <b>one billing contact</b>,
+							<b>one billing address</b
+							><template v-if="copy?.asksForDelivery">
+								and <b>one delivery address</b></template
+							>. Once you are approved you can add more people and addresses any time
+							from <b>Settings → Profile</b>.
+						</p>
+					</div>
+
+					<div v-if="primaryContact" class="space-y-3">
+						<div>
+							<h3 class="text-base font-semibold text-ink-gray-8">
+								Primary contact
+							</h3>
+							<p class="mt-0.5 text-p-sm text-ink-gray-5">
+								{{ copy?.primaryContactHint }}
+							</p>
+						</div>
+						<ContactFields :model-value="primaryContact" full />
+					</div>
+
+					<div class="space-y-3">
+						<div>
+							<h3 class="text-base font-semibold text-ink-gray-8">
+								Billing contact
+							</h3>
+							<p class="mt-0.5 text-p-sm text-ink-gray-5">
+								{{ copy?.billingContactHint }}
+							</p>
+						</div>
+						<label
+							class="flex cursor-pointer items-start gap-3 rounded-6 border border-outline-gray-2 p-3"
+						>
+							<Checkbox v-model="billingIsPrimary" />
+							<span>
+								<span class="block text-base font-medium text-ink-gray-8">
+									Same person as the primary contact
+								</span>
+								<span class="mt-0.5 block text-p-sm text-ink-gray-6">
+									Untick if invoices and statements should go to someone else,
+									such as your accounts team.
+								</span>
+							</span>
+						</label>
+						<ContactFields v-if="billingContact" :model-value="billingContact" />
+					</div>
+
+					<div v-if="billingAddress" class="space-y-3">
+						<div>
+							<h3 class="text-base font-semibold text-ink-gray-8">
+								{{ isIndividual ? "Your billing address" : "Billing address" }}
+							</h3>
+							<p class="mt-0.5 text-p-sm text-ink-gray-5">
+								{{ copy?.billingAddressHint }}
+							</p>
+						</div>
+						<AddressFields :model-value="billingAddress" />
+					</div>
+
+					<div v-if="copy?.asksForDelivery && deliveryAddress" class="space-y-3">
+						<div class="flex flex-wrap items-end justify-between gap-2">
+							<div>
+								<h3 class="text-base font-semibold text-ink-gray-8">
+									Delivery address
+									<span class="text-ink-red-4" aria-hidden="true">*</span>
+								</h3>
+								<p class="mt-0.5 text-p-sm text-ink-gray-5">
+									{{ copy.deliveryAddressHint }}
+								</p>
+							</div>
+							<Button
+								variant="subtle"
+								icon-left="lucide-copy"
+								label="Same as billing address"
+								@click="copyBillingToDelivery"
+							/>
+						</div>
+						<div class="rounded-6 border border-outline-gray-2 p-4">
+							<AddressFields :model-value="deliveryAddress" />
+						</div>
+						<p class="flex items-start gap-1.5 text-p-sm text-ink-gray-6">
+							<i class="lucide-info mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+							Deliver to more than one place? Add your other branches or sites after
+							you are approved, from Settings → Profile.
+						</p>
+					</div>
+				</section>
+
+				<section v-else-if="currentStep.key === 'documents'" class="space-y-3">
+					<div
+						v-if="!application.data?.name"
+						class="rounded-6 border bg-surface-amber-1 p-4"
+					>
+						<p class="text-p-base text-ink-gray-7">
+							Save your details first — uploads attach to your saved application.
+						</p>
+					</div>
+
+					<template v-else>
+						<p v-if="!documents.length" class="text-p-base text-ink-gray-6">
+							{{ form.onboarding_template }} needs no supporting documents.
+						</p>
+						<DocumentRequirementRow
+							v-for="(doc, index) in documents"
+							:key="doc.document_type"
+							:document="doc"
+							:docname="application.data.name"
+							@update="updateDocument(index, $event)"
+						/>
+					</template>
+				</section>
+
+				<section v-else-if="currentStep.key === 'questions'" class="space-y-5">
+					<p class="text-p-base text-ink-gray-6">
+						A few questions from our team. Your answers help us review your
+						application.
+					</p>
+					<p v-if="!screening.length" class="text-p-base text-ink-gray-6">
+						Save your details first to see the questions.
+					</p>
+					<div
+						v-for="row in screening"
+						:key="row.question_id"
+						class="rounded-6 border border-outline-gray-2 p-4"
+					>
+						<DynamicField v-model="row.answer" :field="screeningField(row)" />
+					</div>
+				</section>
+
+				<section v-else class="space-y-4">
+					<div
+						v-if="progress && !progress.can_submit"
+						class="rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
+					>
+						<p class="mb-2 text-base font-medium text-ink-gray-8">Still outstanding</p>
+						<ul class="list-inside list-disc space-y-1 text-p-sm text-ink-gray-7">
+							<li v-for="item in progress.missing_details" :key="item">
+								{{ item }}
+							</li>
+							<li
+								v-for="item in progress.missing_answers ?? []"
+								:key="`answer-${item}`"
+							>
+								Answer: {{ item }}
+							</li>
+							<li v-for="item in progress.missing_documents" :key="item">
+								{{ item }}
 							</li>
 						</ul>
 					</div>
-				</div>
-			</section>
 
-			<section v-else-if="currentStep.key === 'business'" class="space-y-5">
-				<div class="flex items-center gap-4">
-					<Avatar
-						:image="form.company_logo || undefined"
-						:label="form.party_name || 'You'"
-						size="3xl"
-						:shape="isIndividual ? 'circle' : 'square'"
-					/>
-					<div class="space-y-1">
-						<p class="text-base font-medium text-ink-gray-8">
-							{{ isIndividual ? "Photo" : "Logo" }}
-						</p>
-						<p class="text-p-sm text-ink-gray-5">
-							Optional. Shown on your {{ copy?.noun }} record once you are approved.
-						</p>
-						<div class="flex items-center gap-2 pt-1">
-							<FileUploader
-								v-if="application.data?.name"
-								:upload-endpoint="
-									uploadEndpoint(application.data.name, { purpose: 'logo' })
-								"
-								file-types=".png,.jpg,.jpeg,.webp,.gif"
-								@success="onLogoUploaded"
-								@failure="onUploadFailed"
-							>
-								<template
-									#default="{ openFileSelector, uploading, progress: percent }"
-								>
-									<Button
-										:loading="uploading"
-										:label="
-											uploading
-												? `${percent}%`
-												: form.company_logo
-												? 'Replace'
-												: 'Upload'
-										"
-										icon-left="lucide-image-up"
-										@click="openFileSelector"
-									/>
-								</template>
-							</FileUploader>
-							<Button
-								v-if="form.company_logo"
-								variant="ghost"
-								label="Remove"
-								icon-left="lucide-trash-2"
-								@click="removeLogo"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="grid gap-4 sm:grid-cols-2">
-					<FormControl
-						v-model="form.party_name"
-						:label="isIndividual ? 'Your full name' : 'Registered business name'"
-						required
-					/>
-					<FormControl
-						v-if="!isIndividual"
-						v-model="form.website"
-						label="Website"
-						placeholder="https://"
-					/>
-					<LinkSelect
-						v-model="form.country"
-						doctype="Country"
-						:label="isIndividual ? 'Country of residence' : 'Country of registration'"
-					/>
-					<div>
-						<FormControl
-							v-model="form.tax_id"
-							:label="
-								taxFormat?.label ??
-								(isIndividual ? 'Personal tax number' : 'Tax registration number')
-							"
-							:placeholder="taxFormat ? `e.g. ${taxFormat.example}` : undefined"
-							:required="!!selectedType?.require_tax_id"
-							@blur="tidyTaxId"
-						/>
-						<p
-							v-if="taxError && (taxTouched || stepIssues.length)"
-							class="mt-1.5 flex items-start gap-1.5 text-p-xs text-ink-red-4"
-							role="alert"
-						>
-							<i
-								class="lucide-circle-alert mt-0.5 size-3.5 shrink-0"
-								aria-hidden="true"
-							/>
-							{{ taxError }}
-						</p>
-						<p v-else-if="taxFormat" class="mt-1.5 text-p-xs text-ink-gray-5">
-							{{ taxFormat.hint }}
-						</p>
-					</div>
-					<FormControl
-						v-if="!isIndividual || selectedType?.require_registration_number"
-						v-model="form.registration_number"
-						label="Company registration number"
-						:required="!!selectedType?.require_registration_number"
-					/>
-				</div>
-			</section>
-
-			<section v-else-if="currentStep.key === 'people'" class="space-y-8">
-				<div
-					class="flex items-start gap-3 rounded-6 border border-outline-gray-2 bg-surface-gray-1 p-3"
-					role="note"
-				>
-					<i
-						class="lucide-info mt-0.5 size-4 shrink-0 text-ink-gray-6"
-						aria-hidden="true"
-					/>
-					<p class="text-p-sm text-ink-gray-7">
-						We only need the essentials to get you started:
-						<b>one primary contact</b>, <b>one billing contact</b>,
-						<b>one billing address</b
-						><template v-if="copy?.asksForDelivery">
-							and <b>one delivery address</b></template
-						>. Once you are approved you can add more people and addresses any time
-						from <b>Settings → Profile</b>.
-					</p>
-				</div>
-
-				<div v-if="primaryContact" class="space-y-3">
-					<div>
-						<h3 class="text-base font-semibold text-ink-gray-8">Primary contact</h3>
-						<p class="mt-0.5 text-p-sm text-ink-gray-5">
-							{{ copy?.primaryContactHint }}
-						</p>
-					</div>
-					<ContactFields :model-value="primaryContact" full />
-				</div>
-
-				<div class="space-y-3">
-					<div>
-						<h3 class="text-base font-semibold text-ink-gray-8">Billing contact</h3>
-						<p class="mt-0.5 text-p-sm text-ink-gray-5">
-							{{ copy?.billingContactHint }}
-						</p>
-					</div>
-					<label
-						class="flex cursor-pointer items-start gap-3 rounded-6 border border-outline-gray-2 p-3"
+					<div
+						v-else-if="progress"
+						class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
 					>
-						<Checkbox v-model="billingIsPrimary" />
-						<span>
-							<span class="block text-base font-medium text-ink-gray-8">
-								Same person as the primary contact
-							</span>
-							<span class="mt-0.5 block text-p-sm text-ink-gray-6">
-								Untick if invoices and statements should go to someone else, such
-								as your accounts team.
-							</span>
-						</span>
-					</label>
-					<ContactFields v-if="billingContact" :model-value="billingContact" />
-				</div>
-
-				<div v-if="billingAddress" class="space-y-3">
-					<div>
-						<h3 class="text-base font-semibold text-ink-gray-8">
-							{{ isIndividual ? "Your billing address" : "Billing address" }}
-						</h3>
-						<p class="mt-0.5 text-p-sm text-ink-gray-5">
-							{{ copy?.billingAddressHint }}
+						<p class="text-base font-medium text-ink-gray-8">
+							Everything we need is here.
+						</p>
+						<p class="mt-1 text-p-sm text-ink-gray-7">
+							Once submitted your application is locked while our team reviews it.
 						</p>
 					</div>
-					<AddressFields :model-value="billingAddress" />
-				</div>
 
-				<div v-if="copy?.asksForDelivery && deliveryAddress" class="space-y-3">
-					<div class="flex flex-wrap items-end justify-between gap-2">
+					<div class="flex flex-wrap items-center justify-between gap-3">
 						<div>
-							<h3 class="text-base font-semibold text-ink-gray-8">
-								Delivery address
-								<span class="text-ink-red-4" aria-hidden="true">*</span>
-							</h3>
-							<p class="mt-0.5 text-p-sm text-ink-gray-5">
-								{{ copy.deliveryAddressHint }}
+							<h2 class="text-base font-semibold text-ink-gray-9">
+								Check your details
+							</h2>
+							<p class="text-p-sm text-ink-gray-6">
+								This is everything you entered. Tap Edit on any part to change it.
 							</p>
 						</div>
-						<Button
-							variant="subtle"
-							icon-left="lucide-copy"
-							label="Same as billing address"
-							@click="copyBillingToDelivery"
+						<DownloadApplicationButton
+							v-if="application.data?.name"
+							:name="application.data.name"
+							:before-download="() => save({ silent: true })"
 						/>
 					</div>
-					<div class="rounded-6 border border-outline-gray-2 p-4">
-						<AddressFields :model-value="deliveryAddress" />
-					</div>
-					<p class="flex items-start gap-1.5 text-p-sm text-ink-gray-6">
-						<i class="lucide-info mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-						Deliver to more than one place? Add your other branches or sites after you
-						are approved, from Settings → Profile.
-					</p>
-				</div>
-			</section>
 
-			<section v-else-if="currentStep.key === 'documents'" class="space-y-3">
-				<div
-					v-if="!application.data?.name"
-					class="rounded-6 border bg-surface-amber-1 p-4"
-				>
-					<p class="text-p-base text-ink-gray-7">
-						Save your details first — uploads attach to your saved application.
-					</p>
-				</div>
-
-				<template v-else>
-					<p v-if="!documents.length" class="text-p-base text-ink-gray-6">
-						{{ form.onboarding_template }} needs no supporting documents.
-					</p>
-					<DocumentRequirementRow
-						v-for="(doc, index) in documents"
-						:key="doc.document_type"
-						:document="doc"
-						:docname="application.data.name"
-						@update="updateDocument(index, $event)"
+					<ApplicationSummary
+						:application="payload()"
+						:individual="isIndividual"
+						:lock-type="isCorrection"
+						editable
+						@edit="goToStep"
 					/>
-				</template>
-			</section>
 
-			<section v-else-if="currentStep.key === 'questions'" class="space-y-5">
-				<p class="text-p-base text-ink-gray-6">
-					A few questions from our team. Your answers help us review your application.
-				</p>
-				<p v-if="!screening.length" class="text-p-base text-ink-gray-6">
-					Save your details first to see the questions.
-				</p>
-				<div
-					v-for="row in screening"
-					:key="row.question_id"
-					class="rounded-6 border border-outline-gray-2 p-4"
-				>
-					<DynamicField v-model="row.answer" :field="screeningField(row)" />
-				</div>
-			</section>
+					<p v-if="progress" class="text-p-sm text-ink-gray-6">
+						{{ progress.documents_attached }} of
+						{{ progress.documents_required }} required documents attached.
+					</p>
+				</section>
 
-			<section v-else class="space-y-4">
 				<div
-					v-if="progress && !progress.can_submit"
-					class="rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-4"
+					v-if="stepIssues.length && currentStep.key !== 'review'"
+					class="rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-3"
 				>
-					<p class="mb-2 text-base font-medium text-ink-gray-8">Still outstanding</p>
-					<ul class="list-inside list-disc space-y-1 text-p-sm text-ink-gray-7">
-						<li v-for="item in progress.missing_details" :key="item">{{ item }}</li>
-						<li v-for="item in progress.missing_answers ?? []" :key="`answer-${item}`">
-							Answer: {{ item }}
-						</li>
-						<li v-for="item in progress.missing_documents" :key="item">
-							{{ item }}
-						</li>
+					<p class="flex items-center gap-2 text-p-sm font-medium text-ink-gray-8">
+						<i class="lucide-circle-alert size-4 shrink-0 text-ink-amber-7" />
+						{{
+							stepIssues.length === 1
+								? "One more thing before you continue"
+								: `${stepIssues.length} things before you continue`
+						}}
+					</p>
+					<ul class="ml-6 mt-1 list-disc text-p-sm text-ink-gray-7">
+						<li v-for="item in stepIssues" :key="item">{{ item }}</li>
 					</ul>
 				</div>
 
-				<div
-					v-else-if="progress"
-					class="rounded-6 border border-outline-green-2 bg-surface-green-1 p-4"
-				>
-					<p class="text-base font-medium text-ink-gray-8">
-						Everything we need is here.
-					</p>
-					<p class="mt-1 text-p-sm text-ink-gray-7">
-						Once submitted your application is locked while our team reviews it.
-					</p>
-				</div>
+				<div class="flex items-center justify-between border-t pt-4">
+					<Button
+						v-if="stepIndex > 0"
+						variant="ghost"
+						label="Back"
+						icon-left="lucide-arrow-left"
+						@click="back"
+					/>
+					<span v-else />
 
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<div>
-						<h2 class="text-base font-semibold text-ink-gray-9">Check your details</h2>
-						<p class="text-p-sm text-ink-gray-6">
-							This is everything you entered. Tap Edit on any part to change it.
-						</p>
+					<div class="flex items-center gap-2">
+						<Button
+							v-if="isCorrection && currentStep.key !== 'review'"
+							variant="outline"
+							label="Back to review"
+							icon-left="lucide-list-checks"
+							:loading="saving"
+							@click="backToReview"
+						/>
+						<Button
+							v-if="currentStep.key !== 'review'"
+							variant="solid"
+							label="Continue"
+							icon-right="lucide-arrow-right"
+							:loading="saving"
+							:disabled="!canContinue"
+							@click="next"
+						/>
+						<Button
+							v-else
+							variant="solid"
+							:label="isCorrection ? 'Resubmit for review' : 'Submit application'"
+							:loading="submitting"
+							:disabled="!progress?.can_submit"
+							@click="submit"
+						/>
 					</div>
-					<DownloadApplicationButton
-						v-if="application.data?.name"
-						:name="application.data.name"
-						:before-download="() => save({ silent: true })"
-					/>
-				</div>
-
-				<ApplicationSummary
-					:application="payload()"
-					:individual="isIndividual"
-					:lock-type="isCorrection"
-					editable
-					@edit="goToStep"
-				/>
-
-				<p v-if="progress" class="text-p-sm text-ink-gray-6">
-					{{ progress.documents_attached }} of {{ progress.documents_required }} required
-					documents attached.
-				</p>
-			</section>
-
-			<div
-				v-if="stepIssues.length && currentStep.key !== 'review'"
-				class="rounded-6 border border-outline-amber-2 bg-surface-amber-1 p-3"
-			>
-				<p class="flex items-center gap-2 text-p-sm font-medium text-ink-gray-8">
-					<i class="lucide-circle-alert size-4 shrink-0 text-ink-amber-7" />
-					{{
-						stepIssues.length === 1
-							? "One more thing before you continue"
-							: `${stepIssues.length} things before you continue`
-					}}
-				</p>
-				<ul class="ml-6 mt-1 list-disc text-p-sm text-ink-gray-7">
-					<li v-for="item in stepIssues" :key="item">{{ item }}</li>
-				</ul>
-			</div>
-
-			<div class="flex items-center justify-between border-t pt-4">
-				<Button
-					v-if="stepIndex > 0"
-					variant="ghost"
-					label="Back"
-					icon-left="lucide-arrow-left"
-					@click="back"
-				/>
-				<span v-else />
-
-				<div class="flex items-center gap-2">
-					<Button
-						v-if="isCorrection && currentStep.key !== 'review'"
-						variant="outline"
-						label="Back to review"
-						icon-left="lucide-list-checks"
-						:loading="saving"
-						@click="backToReview"
-					/>
-					<Button
-						v-if="currentStep.key !== 'review'"
-						variant="solid"
-						label="Continue"
-						icon-right="lucide-arrow-right"
-						:loading="saving"
-						:disabled="!canContinue"
-						@click="next"
-					/>
-					<Button
-						v-else
-						variant="solid"
-						theme="green"
-						:label="isCorrection ? 'Resubmit for review' : 'Submit application'"
-						:loading="submitting"
-						:disabled="!progress?.can_submit"
-						@click="submit"
-					/>
 				</div>
 			</div>
 		</div>

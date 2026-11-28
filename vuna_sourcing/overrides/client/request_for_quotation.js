@@ -1,4 +1,5 @@
 const SEALED_BID = "Sealed Bid";
+const OPEN_BID = "Open Bid";
 const SEALED_BID_API = "vuna_sourcing.api.transactions.sealed_bid";
 const AWARD_API = "vuna_sourcing.api.transactions.award";
 const AWARD = "Request for Quotation Award";
@@ -15,6 +16,10 @@ frappe.ui.form.on("Request for Quotation", {
 
 		add_award_actions(frm);
 
+		if (bids_still_coming_in(frm.doc)) {
+			frm.remove_custom_button(__("Supplier Quotation"), __("Create"));
+		}
+
 		if (frm.doc.bidding_method !== SEALED_BID) return;
 
 		frappe
@@ -22,6 +27,12 @@ frappe.ui.form.on("Request for Quotation", {
 			.then(({ message }) => show_opening_status(frm, message.data));
 	},
 });
+
+function bids_still_coming_in(doc) {
+	if (doc.bidding_method === SEALED_BID) return !doc.quotes_opened;
+	if (doc.bidding_method !== OPEN_BID || !doc.bid_closing) return false;
+	return frappe.datetime.now_datetime() < doc.bid_closing;
+}
 
 function show_awarded_badge(doctype, fieldname, status_field) {
 	const field = frappe.meta.docfield_map[doctype]?.[fieldname];

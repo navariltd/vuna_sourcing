@@ -148,13 +148,13 @@ class CustomerOrderFixtures(SourcingFixtures):
 			}
 		).insert(ignore_permissions=True)
 
-	def add_address(self, customer, title):
+	def add_address(self, customer, title, address_type="Shipping"):
 		return (
 			frappe.get_doc(
 				{
 					"doctype": "Address",
 					"address_title": title,
-					"address_type": "Shipping",
+					"address_type": address_type,
 					"address_line1": f"{title} Road",
 					"city": "Nairobi",
 					"country": frappe.get_all("Country", limit=1, pluck="name")[0],
@@ -524,6 +524,30 @@ class TestCustomerOrders(CustomerOrderFixtures, IntegrationTestCase):
 
 		draft = self.order(shipping_address=first)
 		self.assertEqual(draft["shipping_address"], first)
+
+	def test_only_delivery_addresses_are_offered_and_accepted(self):
+		"""A billing address is neither listed in the cart nor accepted as where to deliver."""
+		depot = self.add_address(self.customer, "Depot " + frappe.generate_hash(length=4))
+		other_depot = self.add_address(self.customer, "Depot " + frappe.generate_hash(length=4))
+		billing = self.add_address(
+			self.customer, "Head Office " + frappe.generate_hash(length=4), address_type="Billing"
+		)
+
+		with self.set_user(self.user):
+			offered = {row["name"] for row in get_order_form(self.customer).data["addresses"]}
+
+		self.assertEqual(offered, {depot, other_depot})
+		self.assertRaisesRegex(
+			frappe.ValidationError, "deliver this order", self.order, shipping_address=billing
+		)
+
+	def test_a_billing_address_is_not_picked_for_delivery_on_its_own(self):
+		"""With only a billing address on file, the order is left for our team to confirm where to deliver."""
+		self.add_address(
+			self.customer, "Head Office " + frappe.generate_hash(length=4), address_type="Billing"
+		)
+
+		self.assertIsNone(self.order()["shipping_address"])
 
 	def test_a_single_address_is_used_without_asking(self):
 		only = self.add_address(self.customer, "Only Depot " + frappe.generate_hash(length=4))

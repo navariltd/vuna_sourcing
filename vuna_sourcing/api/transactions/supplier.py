@@ -465,6 +465,7 @@ def build_quote(request, supplier: str):
 		doc.append("items", row)
 
 	doc.flags.ignore_permissions = True
+	doc.flags.placing_bid = True
 	return doc
 
 

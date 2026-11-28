@@ -448,7 +448,6 @@ function formatDateTime(value: string | null | undefined) {
 								<span class="inline-flex">
 									<Button
 										variant="solid"
-										theme="green"
 										icon-left="lucide-gavel"
 										label="Place bid"
 										:disabled="!!blocked"
@@ -562,7 +561,6 @@ function formatDateTime(value: string | null | undefined) {
 				{
 					label: 'Place bid',
 					variant: 'solid',
-					theme: 'green',
 					loading: placing,
 					onClick: placeBid,
 				},

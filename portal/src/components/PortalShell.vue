@@ -137,10 +137,13 @@ const canApply = computed(() => portal.canApply && portal.partyTypesToJoin.lengt
 const isSupplier = computed(() => portal.activeParty?.party_type === "Supplier");
 const isCustomer = computed(() => portal.activeParty?.party_type === "Customer");
 
+const NEW_APPLICATION = { new: "1" };
+
 interface NavLink {
 	label: string;
 	look: DocumentLook;
 	route: string;
+	query?: Record<string, string>;
 	tab?: string;
 	doctype?: PortalDoctype;
 }
@@ -259,7 +262,14 @@ const navSections = computed<NavSection[]>(() => {
 		collapsible: false,
 		links: [
 			...(portal.canApply
-				? [{ label: "Onboard", look: LOOKS.onboard, route: "ApplicationForm" }]
+				? [
+						{
+							label: "Onboard",
+							look: LOOKS.onboard,
+							route: "ApplicationForm",
+							query: NEW_APPLICATION,
+						},
+				  ]
 				: []),
 			{ label: "My applications", look: LOOKS.application, route: "ApplicationList" },
 		],
@@ -313,7 +323,7 @@ const moreActive = computed(
 
 function goTo(link: NavLink) {
 	moreSheet.value = false;
-	router.push({ name: link.route });
+	router.push({ name: link.route, query: link.query });
 }
 
 const accountActions = userMenu;
@@ -383,7 +393,7 @@ function runAccountAction(action: () => void) {
 					:key="link.route"
 					:label="link.tab!"
 					:icon="link.look.icon"
-					:route="{ name: link.route }"
+					:route="{ name: link.route, query: link.query }"
 				/>
 				<MobileNavItem
 					v-if="isSupplier || isCustomer"
@@ -402,7 +412,7 @@ function runAccountAction(action: () => void) {
 					v-if="!isSupplier && !isCustomer && canApply"
 					label="Apply"
 					icon="lucide-file-pen-line"
-					:route="{ name: 'ApplicationForm' }"
+					:route="{ name: 'ApplicationForm', query: NEW_APPLICATION }"
 				/>
 				<MobileNavItem label="You" :active="accountSheet" @click="accountSheet = true">
 					<span class="relative inline-flex">
@@ -448,7 +458,7 @@ function runAccountAction(action: () => void) {
 						description="Apply as a supplier or customer"
 						icon="lucide-plus"
 						variant="ghost"
-						:route="{ name: 'ApplicationForm' }"
+						:route="{ name: 'ApplicationForm', query: NEW_APPLICATION }"
 					/>
 					<SidebarRailItem
 						label="Settings"
@@ -518,7 +528,7 @@ function runAccountAction(action: () => void) {
 							v-for="link in section.links"
 							:key="link.route"
 							:label="link.label"
-							:route="{ name: link.route }"
+							:route="{ name: link.route, query: link.query }"
 						>
 							<template #prefix>
 								<i

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, toRef, watch } from "vue";
+import {
+	computed,
+	defineAsyncComponent,
+	onBeforeUnmount,
+	onMounted,
+	ref,
+	toRef,
+	watch,
+} from "vue";
 import type { Ref } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
 import {
@@ -17,7 +25,6 @@ import {
 import PageContainer from "@/components/PageContainer.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import CategoryList from "@/components/CategoryList.vue";
-import OrderCart from "@/components/OrderCart.vue";
 import SideSheet from "@/components/SideSheet.vue";
 import OrderItemCard from "@/components/OrderItemCard.vue";
 import { provideOrderDraft, useOrderDraft } from "@/composables/useOrderDraft";
@@ -31,6 +38,9 @@ import { money } from "@/data/purchase";
 import { isOk } from "@/types/api";
 import { usePortalStore } from "@/stores/portal";
 import { LOOKS } from "@/data/accents";
+
+const loadOrderCart = () => import("@/components/OrderCart.vue");
+const OrderCart = defineAsyncComponent(loadOrderCart);
 
 const props = defineProps<{ name?: string }>();
 
@@ -184,6 +194,10 @@ watch(search, () => {
 });
 
 onBeforeUnmount(() => clearTimeout(searchTimer));
+
+let cartPrefetch: ReturnType<typeof setTimeout> | undefined;
+onMounted(() => (cartPrefetch = setTimeout(loadOrderCart, 1500)));
+onBeforeUnmount(() => clearTimeout(cartPrefetch));
 
 function observeVisibility(target: Ref<HTMLElement | null>, rootMargin: string) {
 	const visible = ref(true);
@@ -367,7 +381,7 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 <template>
 	<PageContainer
 		:look="LOOKS.salesOrder"
-		fluid
+		full
 		:title="title"
 		:breadcrumbs="[
 			{ label: 'Sales Orders', route: { name: 'SalesOrderList' } },
@@ -511,7 +525,7 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 
 			<div
 				v-else
-				class="grid grid-cols-1 gap-6 xl:grid-cols-[230px_minmax(0,1fr)] xl:items-start"
+				class="grid grid-cols-1 gap-6 xl:grid-cols-[216px_minmax(0,1fr)] xl:items-start xl:gap-5"
 			>
 				<aside
 					v-if="isWide"
@@ -902,8 +916,13 @@ const title = computed(() => (orderName.value ? `Draft ${orderName.value}` : "Ne
 
 @media (min-width: 640px) {
 	.item-grid {
-		grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 	}
+}
+
+.item-grid > :deep(article) {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 340px;
 }
 
 .cart-count {
